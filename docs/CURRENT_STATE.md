@@ -41,6 +41,7 @@ Purpose: Capture the honest current Alloy proof boundary so future work starts f
   - synthesized diff summaries
   - manual-override and contested-file cues
   - publication-readiness status
+  - publication preview and approval state
   - review-oriented `jj` stack shaping metadata
 - The board/detail UI now classifies run provenance so it can distinguish:
   - command previews
@@ -65,6 +66,7 @@ Real today:
 - conservative synthesis workspace creation and re-verification
 - `jj` split/rebase/squash helper support for stack shaping
 - persisted publication-readiness metadata for synthesized results
+- persisted publication preview and approval metadata for synthesized results
 - local API and browser UI
 - persisted `judge-rationale.json` artifact per evaluated run
 - a shared dark-mode toggle persisted across Control Panel, Compare Diffs, and Docs
@@ -75,7 +77,7 @@ Still limited:
 - some historical run artifacts under `runs/` were created with older mock/replay helpers and still exist for audit purposes
 - Gemini auth is intentionally treated as manual operator verification in the current build
 - blind judge/composer logic is not implemented yet
-- final remote publication and PR creation are not implemented yet
+- final remote branch/bookmark push and PR creation are not implemented yet
 - no repo-local browser smoke harness exists yet, so browser validation is still mostly manual
 
 ## Demo Proof Boundary
@@ -90,7 +92,7 @@ Current demo proof:
 7. Alloy can expose merge-plan, synthesis diff, and operator guidance surfaces through the web UI.
 8. Alloy persists and renders a separate judge rationale artifact for human review.
 9. Alloy shapes synthesized results into a reviewable `jj` stack when multiple file categories are present.
-10. Alloy computes publication-readiness blockers without pretending PR publication is already implemented.
+10. Alloy computes publication-readiness blockers, publication previews, and explicit human approval state without pretending remote publish/PR automation is already implemented.
 
 That is enough to prove the orchestration, verification, artifact, and conservative merge path. It is not yet enough to claim full live multi-provider synthesis with autonomous composition.
 
@@ -106,7 +108,7 @@ That is enough to prove the orchestration, verification, artifact, and conservat
   - per-file provenance
   - merge-plan review
   - synthesis actions
-  - publication-readiness and stack-shape summaries
+  - publication preview, approval, and stack-shape summaries
 - The app now has an in-app `Docs` page backed by local markdown content.
 - Cards now carry explicit project labels so multiple labs can coexist on the same board.
 - The board can now filter by project and group by project or state.
@@ -133,9 +135,8 @@ That is enough to prove the orchestration, verification, artifact, and conservat
 ## Highest-Value Next Steps
 
 1. Add a real publication flow from the shaped synthesis stack:
-   - publish preview
-   - explicit human approval
-   - branch/bookmark push
+   - preview and approval are implemented
+   - next remaining sub-step is branch/bookmark push
    - later PR creation
    - detailed method plan:
      - [PUBLICATION_FLOW_PLAN.md](/Users/codex/stack-judge/docs/PUBLICATION_FLOW_PLAN.md)
@@ -148,14 +149,15 @@ That is enough to prove the orchestration, verification, artifact, and conservat
 
 For the next build slice, use this order:
 
-1. Publication flow
+1. Finish publication flow with branch/bookmark push from approved synthesis
 2. Blind judge/composer
 3. Local candidate/synthesis testing
 4. Broader eval cards
 5. Repo-local browser smoke harness
 
 Reason:
-- publication flow turns the current synthesis output into an actionable operator decision
+- preview/approval now turn synthesis output into an actionable operator decision
+- branch/bookmark push is the last missing publication sub-step before PR work
 - judge/composer is the next biggest capability gain after that
 - local testing improves trust quickly
 - broader evals improve demo speed and regression coverage

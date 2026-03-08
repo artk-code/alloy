@@ -95,6 +95,7 @@ export async function getTaskDetail(projectRoot, taskId) {
       latest_run_overview: buildLatestRunOverview(parsed.task, latestRun?.summary || null, latestRunAudit),
       comparison_view: buildComparisonView(latestRun?.summary?.evaluation || null, candidates),
       merge_view: buildMergeView(latestRun?.summary || null, candidates, synthesis),
+      publication_view: buildPublicationView(latestRun?.summary || null, synthesis, parsed.task, candidates),
       compare_url: `/compare.html?task=${encodeURIComponent(taskId)}`,
       warnings: parsed.warnings,
       latest_run: latestRun?.summary || null,
@@ -193,8 +194,21 @@ export async function getSynthesisDiff(projectRoot, taskId) {
     contributions: synthesis.contributions || {},
     selected_files: synthesis.selected_files || [],
     stack_shape: synthesis.stack_shape || null,
-    publication_readiness: synthesis.publication_readiness || null
+    publication_readiness: synthesis.publication_readiness || null,
+    publication: buildPublicationView(latestRun.summary || null, synthesis, task, await readCandidateManifests(latestRun.runDir))
   };
+}
+
+export async function getTaskPublication(projectRoot, taskId) {
+  const task = await findTaskById(projectRoot, taskId);
+  const latestRun = task ? await findLatestRun(projectRoot, task.project_id, taskId) : null;
+  if (!latestRun) {
+    return null;
+  }
+
+  const candidates = await readCandidateManifests(latestRun.runDir);
+  const synthesis = await readLatestSynthesisManifest(latestRun.summary);
+  return buildPublicationView(latestRun.summary, synthesis, task, candidates);
 }
 
 async function readSessionRecordsForCandidates(runDir) {
@@ -646,6 +660,7 @@ function buildMergeView(summary, candidates, synthesis) {
       .sort(compareMergeFilesForReview),
     provenance_summary: buildSynthesisProvenanceSummary(synthesis, candidateLabels),
     publication_readiness: synthesis?.publication_readiness || null,
+    publication: buildPublicationView(summary || null, synthesis, null, candidates),
     stack_shape: synthesis?.stack_shape || null,
     synthesis_summary: synthesis
       ? buildSynthesisSummaryCard(synthesis)
@@ -675,6 +690,46 @@ function buildMergeView(summary, candidates, synthesis) {
           workspace_path: synthesis.workspace_path,
           stack_shape: synthesis.stack_shape || null,
           publication_readiness: synthesis.publication_readiness || null
+        }
+      : null
+  };
+}
+
+function buildPublicationView(summary, synthesis, task, candidates = []) {
+  if (!synthesis) {
+    return null;
+  }
+
+  const candidateLabels = new Map((candidates || []).map((candidate) => [
+    candidate.candidate_id,
+    `${candidate.candidate_slot} / ${PROVIDER_LABELS[candidate.provider] || candidate.provider}`
+  ]));
+  const publication = synthesis.publication || null;
+  const readiness = synthesis.publication_readiness || null;
+  const preview = publication?.publish_preview || null;
+
+  return {
+    status: publication?.status || (readiness?.ready ? 'awaiting_approval' : 'blocked'),
+    summary: publication?.summary || readiness?.summary || 'Publication state is not available yet.',
+    blockers: publication?.blockers || readiness?.blockers || [],
+    required_actions: publication?.required_actions || readiness?.required_actions || readiness?.checklist || [],
+    ready: publication?.ready ?? readiness?.ready ?? false,
+    eligible_for_approval: publication?.eligible_for_approval ?? readiness?.eligible_for_approval ?? false,
+    approval_required: publication?.approval_required ?? ((task?.publish_policy || 'manual') !== 'auto_if_high_confidence'),
+    human_approved_at: publication?.human_approved_at || null,
+    human_approved_by: publication?.human_approved_by || null,
+    human_approval_note: publication?.human_approval_note || null,
+    target_remote: publication?.target_remote || 'origin',
+    target_branch_or_bookmark: publication?.target_branch_or_bookmark || preview?.target_branch_or_bookmark || null,
+    pushed_at: publication?.pushed_at || null,
+    push_result: publication?.push_result || null,
+    publish_preview: preview
+      ? {
+          ...preview,
+          selected_candidates: (preview.selected_candidates || []).map((candidate) => ({
+            ...candidate,
+            label: candidate.label || candidateLabels.get(candidate.candidate_id) || candidate.candidate_id
+          }))
         }
       : null
   };

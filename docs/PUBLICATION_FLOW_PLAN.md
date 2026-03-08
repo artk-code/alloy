@@ -25,21 +25,30 @@ Already implemented:
 - synthesized runs include `jj` capture metadata
 - operator UI already separates review from synthesis actions
 
+Current shipped slice:
+
+- publication is no longer read-only
+- explicit approval state is persisted
+- local publish preview is persisted
+- publish target metadata is persisted
+- publication endpoints exist for preview and approval
+
 Current limitation:
 
-- publication is still a read-only status, not an operator workflow
-- there is no explicit approval state
-- there is no publish preview artifact
-- there is no push target metadata
-- there is no backend publication contract beyond coarse readiness text
+- branch/bookmark push is not implemented yet
+- PR automation is not implemented yet
 
 ## Scope For This Step
 
-Build publication in three layers:
+Publication now exists in three layers:
 
 1. publication contract
 2. publication preview
-3. publication approval and push preparation
+3. publication approval
+
+Remaining layer for the next slice:
+
+4. publication push
 
 Defer:
 
@@ -120,11 +129,11 @@ Add publication-prep helpers:
 - `exportPublicationPatchRange({ workspacePath, fromRev, toRev, outputPath })`
   - optional artifact for preview/debug
 
-Later-only helper:
+Next helper to implement:
 
 - `pushBookmark({ workspacePath, bookmark, remote })`
-  - document now
-  - do not wire it into the first publication slice unless the contract is stable
+  - push an approved synthesized stack
+  - persist success/failure data for the UI and artifacts
 
 ### 3. `src/web/data.mjs`
 
@@ -163,12 +172,13 @@ Add explicit publication endpoints:
     - `approved_by`
     - `note`
 
-Defer:
+Next endpoint to implement:
 
 - `POST /api/tasks/:taskId/publication/push`
-- `POST /api/tasks/:taskId/publication/pr`
 
-Those should be follow-up work after preview and approval are stable.
+Still defer:
+
+- `POST /api/tasks/:taskId/publication/pr`
 
 ### 5. `ui/compare.js`
 
@@ -191,12 +201,13 @@ Add actions:
 - `Approve Publication`
   - calls `/publication/approve`
 
-Do not add:
+Next action to add:
 
-- `Push Now`
+- `Push Approved Ref`
+
+Still do not add:
+
 - `Open PR`
-
-until preview and approval are reliable.
 
 ### 6. `ui/app.js`
 
@@ -292,12 +303,18 @@ Add tests for:
 
 This step is complete when:
 
+Already complete:
+
 1. `Compare Diffs` shows a dedicated publication panel.
 2. The operator can trigger a local publication preview.
 3. The operator can record explicit approval.
 4. Alloy persists approval and preview metadata in artifacts.
 5. The operator can tell the exact next publishable ref without reading raw JSON.
-6. No remote push or PR automation is implied before that contract is clear.
+
+Remaining for publication flow:
+
+6. Alloy can push the approved shaped ref and persist the result honestly.
+7. No PR automation is implied before that push contract is clear.
 
 ## Out Of Scope For This Step
 
@@ -309,10 +326,17 @@ This step is complete when:
 
 ## Recommended Implementation Order
 
+Completed:
+
 1. data model and synthesis helpers
-2. publication API endpoints
+2. publication API endpoints for preview and approval
 3. compare-page publication panel
 4. operator summary panel
 5. tests
 
-This keeps the contract stable before adding any remote side effects.
+Next:
+
+6. push helper in `jj`
+7. publication push endpoint
+8. compare-page push action
+9. push-result persistence and tests

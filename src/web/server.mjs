@@ -9,9 +9,9 @@ import { prepareTaskFromFile, prepareTaskFromMarkdown, runTaskFromPrepared } fro
 import { parseTaskBrief } from '../parser.mjs';
 import { buildProviderEnv, doctorProviders, getProviderLoginCommand, getProviderTestCommand } from '../providers.mjs';
 import { SessionManager } from '../session-manager.mjs';
-import { synthesizeRun } from '../synthesis.mjs';
+import { approvePublication, refreshPublicationState, synthesizeRun } from '../synthesis.mjs';
 import { listGuideDocs, readGuideDoc } from './docs-data.mjs';
-import { getCandidateDiff, getCandidateJj, getSynthesisDiff, getTaskDetail, listTaskCards } from './data.mjs';
+import { getCandidateDiff, getCandidateJj, getSynthesisDiff, getTaskDetail, getTaskPublication, listTaskCards } from './data.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -102,6 +102,13 @@ export function createServer() {
             : sendJson(res, 404, { error: 'synthesis_not_found' });
         }
 
+        if (segments[3] === 'publication' && !segments[4]) {
+          const payload = await getTaskPublication(projectRoot, taskId);
+          return payload
+            ? sendJson(res, 200, payload)
+            : sendJson(res, 404, { error: 'publication_not_found' });
+        }
+
         const detail = await getTaskDetail(projectRoot, taskId);
         if (!detail) {
           return sendJson(res, 404, { error: 'task_not_found' });
@@ -129,6 +136,16 @@ export function createServer() {
       if (req.method === 'POST' && url.pathname.startsWith('/api/tasks/') && url.pathname.endsWith('/synthesize')) {
         const taskId = decodeURIComponent(url.pathname.split('/')[3] || '');
         return sendJson(res, 200, await synthesizeTask(taskId, await readJsonBody(req)));
+      }
+
+      if (req.method === 'POST' && url.pathname.startsWith('/api/tasks/') && url.pathname.endsWith('/publication/preview')) {
+        const taskId = decodeURIComponent(url.pathname.split('/')[3] || '');
+        return sendJson(res, 200, await previewPublication(taskId));
+      }
+
+      if (req.method === 'POST' && url.pathname.startsWith('/api/tasks/') && url.pathname.endsWith('/publication/approve')) {
+        const taskId = decodeURIComponent(url.pathname.split('/')[3] || '');
+        return sendJson(res, 200, await approveTaskPublication(taskId, await readJsonBody(req)));
       }
 
       if (req.method === 'POST' && url.pathname === '/api/parse-markdown') {
@@ -276,6 +293,52 @@ async function synthesizeTask(taskId, body) {
   return {
     task_id: taskId,
     synthesis: manifest
+  };
+}
+
+async function previewPublication(taskId) {
+  const detail = await getTaskDetail(projectRoot, taskId);
+  if (!detail || !detail.run_dir) {
+    throw new Error(`No completed run is available for publication preview on task ${taskId}`);
+  }
+
+  const publication = await refreshPublicationState({
+    runDir: detail.run_dir,
+    task: {
+      ...detail.task,
+      run_config: detail.run_config
+    }
+  });
+
+  return {
+    task_id: taskId,
+    publication
+  };
+}
+
+async function approveTaskPublication(taskId, body) {
+  const detail = await getTaskDetail(projectRoot, taskId);
+  if (!detail || !detail.run_dir) {
+    throw new Error(`No completed run is available for publication approval on task ${taskId}`);
+  }
+  if (!detail.synthesis) {
+    throw new Error(`No synthesized result is available for publication approval on task ${taskId}`);
+  }
+
+  const publication = await approvePublication({
+    runDir: detail.run_dir,
+    task: {
+      ...detail.task,
+      run_config: detail.run_config
+    },
+    approvedBy: body?.approved_by || 'human-ui',
+    approvedAt: body?.approved_at || new Date().toISOString(),
+    note: body?.note || null
+  });
+
+  return {
+    task_id: taskId,
+    publication
   };
 }
 

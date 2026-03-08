@@ -28,6 +28,7 @@ Working today:
 - real per-candidate diff viewing in the operator UI from captured `jj` patches
 - explicit per-file merge provenance in the operator UI
 - synthesized diff summaries with contested/manual-override cues and publication-readiness status
+- publication preview and approval state in `Compare Diffs`
 - run provenance labeling in the UI so cards distinguish:
   - command previews
   - live CLI runs
@@ -60,7 +61,7 @@ Working today:
 
 Not implemented yet:
 - blind judge/composer layers
-- `jj` cross-candidate rebase/split/squash shaping for the final stack
+- branch/bookmark push from approved synthesis
 - final PR publishing
 - persisted project-level dashboards and saved board preferences
 

@@ -4,6 +4,7 @@ const state = {
   taskId: new URLSearchParams(window.location.search).get('task') || null,
   focusCandidateId: new URLSearchParams(window.location.search).get('candidate') || null,
   taskDetail: null,
+  publicationView: null,
   candidateDiff: null,
   synthesisDiff: null,
   diffMode: 'candidate',
@@ -44,6 +45,7 @@ async function boot() {
   }
 
   await loadTaskDetail();
+  await loadPublicationView();
   await loadSynthesisDiff();
   await loadActiveDiff();
   renderPage();
@@ -88,6 +90,15 @@ async function loadSynthesisDiff() {
     return;
   }
   state.synthesisDiff = await response.json();
+}
+
+async function loadPublicationView() {
+  const response = await fetch(`/api/tasks/${encodeURIComponent(state.taskId)}/publication`);
+  if (!response.ok) {
+    state.publicationView = null;
+    return;
+  }
+  state.publicationView = await response.json();
 }
 
 async function loadActiveDiff() {
@@ -154,6 +165,7 @@ function renderSummary() {
   const mergePlan = detail.comparison_view?.merge_plan;
   const judgeRationale = detail.comparison_view?.judge_rationale || detail.judge_rationale || null;
   const synthesis = detail.merge_view?.synthesis || null;
+  const publication = state.publicationView || detail.publication_view || detail.merge_view?.publication || null;
   if (mergePlan) {
     appendInfoBlock(summaryRoot, 'Merge Plan', [
       mergePlan.base_candidate_label ? `base ${mergePlan.base_candidate_label}` : null,
@@ -196,13 +208,13 @@ function renderSummary() {
     ].filter(Boolean).join(' • '));
   }
 
-  if (detail.merge_view?.publication_readiness) {
+  if (publication) {
     appendInfoBlock(
       summaryRoot,
-      'Publish Readiness',
+      'Publication',
       [
-        detail.merge_view.publication_readiness.status,
-        detail.merge_view.publication_readiness.summary
+        publication.status,
+        publication.summary
       ].filter(Boolean).join(' • ')
     );
   }
@@ -319,21 +331,8 @@ function renderMerge() {
     );
   }
 
-  if (merge.publication_readiness) {
-    appendInfoBlock(
-      mergeRoot,
-      'Publication Readiness',
-      [
-        merge.publication_readiness.status,
-        merge.publication_readiness.summary
-      ].filter(Boolean).join(' • ')
-    );
-    appendListBlock(
-      mergeRoot,
-      'Readiness Blockers',
-      merge.publication_readiness.blockers || [],
-      'No publication blockers are currently recorded.'
-    );
+  if (state.publicationView || merge.publication || merge.publication_readiness) {
+    renderPublicationPanel(mergeRoot, state.publicationView || merge.publication || null, merge.publication_readiness);
   }
 
   if (merge.stack_shape) {
@@ -756,6 +755,170 @@ async function createSynthesis(payload) {
       tone: 'danger'
     });
   }
+}
+
+async function previewPublication() {
+  try {
+    const response = await fetch(`/api/tasks/${encodeURIComponent(state.taskId)}/publication/preview`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || 'publication_preview_failed');
+    }
+
+    showToast({
+      title: 'Publication preview refreshed',
+      lines: [
+        result.publication.status,
+        result.publication.target_branch_or_bookmark || null
+      ].filter(Boolean)
+    });
+
+    await boot();
+  } catch (error) {
+    showToast({
+      title: 'Publication preview failed',
+      lines: [error.message || String(error)],
+      tone: 'danger'
+    });
+  }
+}
+
+async function approvePublicationAction() {
+  try {
+    const response = await fetch(`/api/tasks/${encodeURIComponent(state.taskId)}/publication/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        approved_by: 'human-ui',
+        note: 'Approved from Compare Diffs.'
+      })
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || 'publication_approval_failed');
+    }
+
+    showToast({
+      title: 'Publication approved',
+      lines: [
+        result.publication.status,
+        result.publication.human_approved_by ? `by ${result.publication.human_approved_by}` : null,
+        result.publication.target_branch_or_bookmark || null
+      ].filter(Boolean)
+    });
+
+    await boot();
+  } catch (error) {
+    showToast({
+      title: 'Publication approval failed',
+      lines: [error.message || String(error)],
+      tone: 'danger'
+    });
+  }
+}
+
+function renderPublicationPanel(root, publication, publicationReadiness) {
+  const publicationBlock = document.createElement('div');
+  publicationBlock.className = 'info-block';
+  const title = document.createElement('h4');
+  title.textContent = 'Publication';
+  publicationBlock.appendChild(title);
+
+  if (!publication && !publicationReadiness) {
+    const paragraph = document.createElement('p');
+    paragraph.textContent = 'No publication state is available yet.';
+    publicationBlock.appendChild(paragraph);
+    root.appendChild(publicationBlock);
+    return;
+  }
+
+  const statusSummary = [
+    publication?.status || publicationReadiness?.status || null,
+    publication?.summary || publicationReadiness?.summary || null
+  ].filter(Boolean).join(' • ');
+  const status = document.createElement('p');
+  status.textContent = statusSummary;
+  publicationBlock.appendChild(status);
+
+  appendListBlock(
+    publicationBlock,
+    'Publication Blockers',
+    publication?.blockers || publicationReadiness?.blockers || [],
+    'No publication blockers are currently recorded.'
+  );
+
+  appendListBlock(
+    publicationBlock,
+    'Required Actions',
+    publication?.required_actions || publicationReadiness?.required_actions || publicationReadiness?.checklist || [],
+    'No additional publication actions are currently recorded.'
+  );
+
+  if (publication) {
+    appendInfoBlock(
+      publicationBlock,
+      'Approval',
+      [
+        publication.human_approved_at ? 'approved' : (publication.approval_required ? 'approval required' : 'approval not required'),
+        publication.human_approved_by ? `by ${publication.human_approved_by}` : null,
+        publication.human_approved_at || null
+      ].filter(Boolean).join(' • ')
+    );
+
+    appendInfoBlock(
+      publicationBlock,
+      'Publish Target',
+      [
+        publication.target_remote || 'origin',
+        publication.target_branch_or_bookmark || 'target pending'
+      ].join(' • ')
+    );
+
+    if (publication.publish_preview) {
+      appendInfoBlock(
+        publicationBlock,
+        'Publish Preview',
+        [
+          publication.publish_preview.diff_summary || null,
+          `${publication.publish_preview.stack_group_count || 0} stack group${publication.publish_preview.stack_group_count === 1 ? '' : 's'}`,
+          `${publication.publish_preview.changed_file_count || 0} files`
+        ].filter(Boolean).join(' • ')
+      );
+      appendListBlock(
+        publicationBlock,
+        'Preview Contributors',
+        (publication.publish_preview.selected_candidates || []).map((candidate) => candidate.label || candidate.candidate_id),
+        'No selected candidates recorded for this preview.'
+      );
+    }
+  }
+
+  const actions = document.createElement('div');
+  actions.className = 'task-chip-row';
+
+  const previewButton = document.createElement('button');
+  previewButton.className = 'ghost-button';
+  previewButton.textContent = 'Preview Publication';
+  previewButton.addEventListener('click', async () => {
+    await previewPublication();
+  });
+  actions.appendChild(previewButton);
+
+  if (publication?.eligible_for_approval && !publication?.human_approved_at) {
+    const approveButton = document.createElement('button');
+    approveButton.textContent = 'Approve Publication';
+    approveButton.addEventListener('click', async () => {
+      await approvePublicationAction();
+    });
+    actions.appendChild(approveButton);
+  }
+
+  publicationBlock.appendChild(actions);
+  root.appendChild(publicationBlock);
 }
 
 function buildManualMergePlan(merge, selections) {

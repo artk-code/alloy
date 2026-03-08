@@ -118,6 +118,7 @@ export async function synthesizeRun({
       rationale: 'Stack shaping runs only when jj capture is available.'
     },
     publication_readiness: null,
+    publication: null,
     artifact_paths: {
       patch_path: path.join(artifactsDir, 'synthesis.patch'),
       diff_summary_path: path.join(artifactsDir, 'diff-summary.txt'),
@@ -164,6 +165,12 @@ export async function synthesizeRun({
     manifest,
     mergePlan: normalizedPlan
   });
+  manifest.publication = await buildPublicationState({
+    manifest,
+    task,
+    summary,
+    jj
+  });
 
   await fs.writeFile(manifest.artifact_paths.manifest_path, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
 
@@ -181,7 +188,8 @@ export async function synthesizeRun({
     verification: manifest.verification,
     jj: manifest.jj,
     stack_shape: manifest.stack_shape,
-    publication_readiness: manifest.publication_readiness
+    publication_readiness: manifest.publication_readiness,
+    publication: manifest.publication
   };
 
   await fs.writeFile(summaryPath, JSON.stringify(summary, null, 2) + '\n', 'utf8');
@@ -196,6 +204,79 @@ export async function readLatestSynthesis(runDir) {
     return null;
   }
   return JSON.parse(await fs.readFile(summary.synthesis.manifest_path, 'utf8'));
+}
+
+export async function refreshPublicationState({ runDir, task }) {
+  const { summary, summaryPath, manifest, manifestPath } = await readSynthesisState(runDir);
+  const jj = new JjAdapter();
+
+  manifest.publication_readiness = buildPublicationReadiness({
+    manifest,
+    mergePlan: manifest.merge_plan || summary?.synthesis?.merge_plan || summary?.evaluation?.merge_plan || null
+  });
+  manifest.publication = await buildPublicationState({
+    manifest,
+    task,
+    summary,
+    jj
+  });
+
+  summary.synthesis = {
+    ...summary.synthesis,
+    publication_readiness: manifest.publication_readiness,
+    publication: manifest.publication
+  };
+
+  await Promise.all([
+    fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8'),
+    fs.writeFile(summaryPath, JSON.stringify(summary, null, 2) + '\n', 'utf8')
+  ]);
+
+  return manifest.publication;
+}
+
+export async function approvePublication({
+  runDir,
+  task,
+  approvedBy = 'human',
+  approvedAt = new Date().toISOString(),
+  note = null
+}) {
+  const { summary, summaryPath, manifest, manifestPath } = await readSynthesisState(runDir);
+  const jj = new JjAdapter();
+  const currentPublication = manifest.publication || summary?.synthesis?.publication || null;
+
+  manifest.publication_readiness = buildPublicationReadiness({
+    manifest,
+    mergePlan: manifest.merge_plan || summary?.synthesis?.merge_plan || summary?.evaluation?.merge_plan || null
+  });
+  manifest.publication = await buildPublicationState({
+    manifest: {
+      ...manifest,
+      publication: {
+        ...currentPublication,
+        human_approved_at: approvedAt,
+        human_approved_by: approvedBy,
+        human_approval_note: note || null
+      }
+    },
+    task,
+    summary,
+    jj
+  });
+
+  summary.synthesis = {
+    ...summary.synthesis,
+    publication_readiness: manifest.publication_readiness,
+    publication: manifest.publication
+  };
+
+  await Promise.all([
+    fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8'),
+    fs.writeFile(summaryPath, JSON.stringify(summary, null, 2) + '\n', 'utf8')
+  ]);
+
+  return manifest.publication;
 }
 
 async function readCandidateManifests(runDir) {
@@ -387,21 +468,184 @@ function buildPublicationReadiness({ manifest, mergePlan }) {
   if (manifest.stack_shape?.status === 'failed') {
     blockers.push('The synthesis stack could not be shaped into reviewable jj commits.');
   }
+  const hiddenManualOverrides = (manifest.selected_files || [])
+    .filter((selection) => selection.manual_override)
+    .filter((selection) => !manifest.contributions?.[selection.path]);
+  if (hiddenManualOverrides.length > 0) {
+    blockers.push(`${hiddenManualOverrides.length} manual override${hiddenManualOverrides.length === 1 ? '' : 's'} lack recorded provenance.`);
+  }
 
   const ready = blockers.length === 0;
   return {
     ready,
     status: ready ? 'review_ready' : 'blocked',
+    eligible_for_approval: ready,
     summary: ready
       ? 'Verification passed, jj diff capture succeeded, and the synthesis stack is reviewable.'
       : 'The synthesized result is not ready for publication yet.',
     blockers,
+    required_actions: [
+      'Review the synthesized diff against base.',
+      'Review per-file provenance and manual overrides.',
+      'Approve publication before any remote push step.',
+      'Confirm jj stack shape is understandable before publishing.'
+    ],
     checklist: [
       'Review the synthesized diff against base.',
       'Review per-file provenance and manual overrides.',
       'Confirm jj stack shape is understandable before publishing.'
     ]
   };
+}
+
+async function buildPublicationState({ manifest, task, summary, jj }) {
+  const readiness = manifest.publication_readiness || buildPublicationReadiness({
+    manifest,
+    mergePlan: manifest.merge_plan || summary?.synthesis?.merge_plan || summary?.evaluation?.merge_plan || null
+  });
+  const previous = manifest.publication || summary?.synthesis?.publication || {};
+  const publishPolicy = task?.publish_policy || 'manual';
+  const approvalRequired = publishPolicy !== 'auto_if_high_confidence';
+  const preview = await buildPublicationPreview({
+    manifest,
+    task,
+    summary,
+    jj,
+    targetRemote: previous.target_remote || 'origin',
+    targetRef: previous.target_branch_or_bookmark || null
+  });
+
+  let status = 'blocked';
+  if (previous.push_result?.status === 'success' && previous.pushed_at) {
+    status = 'pushed';
+  } else if (previous.push_result?.status === 'failed') {
+    status = 'publish_failed';
+  } else if (!readiness.ready) {
+    status = 'blocked';
+  } else if (approvalRequired && !previous.human_approved_at) {
+    status = 'awaiting_approval';
+  } else {
+    status = 'approved';
+  }
+
+  const requiredActions = [...readiness.required_actions];
+  if (approvalRequired && !previous.human_approved_at && readiness.ready) {
+    requiredActions.unshift('Record explicit human approval before any remote push step.');
+  }
+  if (status === 'approved') {
+    requiredActions.unshift('Remote push is not automated yet. Use the publish preview to perform the next manual step.');
+  }
+
+  return {
+    status,
+    summary: summarizePublicationStatus(status),
+    ready: readiness.ready,
+    eligible_for_approval: readiness.eligible_for_approval,
+    approval_required: approvalRequired,
+    blockers: [...readiness.blockers],
+    required_actions: uniqueStrings(requiredActions),
+    human_approved_at: previous.human_approved_at || null,
+    human_approved_by: previous.human_approved_by || null,
+    human_approval_note: previous.human_approval_note || null,
+    target_remote: preview.target_remote,
+    target_branch_or_bookmark: preview.target_branch_or_bookmark,
+    publish_preview: preview,
+    pushed_at: previous.pushed_at || null,
+    push_result: previous.push_result || null
+  };
+}
+
+async function buildPublicationPreview({ manifest, task, summary, jj, targetRemote, targetRef }) {
+  const adapter = jj || new JjAdapter();
+  const targetBranchOrBookmark = targetRef || adapter.suggestPublishRef({
+    taskId: task?.task_id || manifest.task_id,
+    synthesisId: manifest.synthesis_id
+  });
+  const patchStats = manifest.jj?.patch_stats || {
+    file_count: manifest.changed_files?.length || 0,
+    total_changed_lines: 0
+  };
+  let publicationStack = [];
+  if (manifest.jj?.status === 'captured') {
+    publicationStack = await adapter.readStackForPublication({
+      workspacePath: manifest.workspace_path,
+      maxDepth: Math.max((manifest.stack_shape?.groups || []).length, 1) + 2
+    }).catch(() => []);
+  }
+
+  return {
+    synthesis_id: manifest.synthesis_id,
+    strategy: manifest.strategy,
+    status: manifest.status,
+    target_remote: targetRemote || 'origin',
+    target_branch_or_bookmark: targetBranchOrBookmark,
+    workspace_path: manifest.workspace_path,
+    patch_path: manifest.artifact_paths?.patch_path || null,
+    changed_file_count: patchStats.file_count ?? manifest.changed_files?.length ?? 0,
+    changed_line_count: patchStats.total_changed_lines ?? 0,
+    diff_summary: manifest.jj?.diff_summary || summarizePatchStats(patchStats),
+    selected_candidates: (manifest.selected_candidates || []).map((candidateId) => ({
+      candidate_id: candidateId,
+      label: summarizeCandidateLabel(summary, candidateId)
+    })),
+    stack_group_count: (manifest.stack_shape?.groups || []).length,
+    stack_groups: (manifest.stack_shape?.groups || []).map((group) => ({
+      kind: group.kind,
+      label: group.label || group.kind,
+      file_count: group.files?.length || 0,
+      files: group.files || [],
+      jj_change_id: group.revision?.change_id || null,
+      jj_commit_id: group.revision?.commit_id || null
+    })),
+    stack_revisions: publicationStack,
+    jj_change_id: manifest.jj?.candidate_revision?.change_id || manifest.jj?.working_revision?.change_id || null
+  };
+}
+
+async function readSynthesisState(runDir) {
+  const summaryPath = path.join(runDir, 'run-summary.json');
+  const summary = JSON.parse(await fs.readFile(summaryPath, 'utf8'));
+  if (!summary?.synthesis?.manifest_path) {
+    throw new Error(`No synthesis manifest is available for run ${runDir}`);
+  }
+  const manifestPath = summary.synthesis.manifest_path;
+  const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
+  return { summaryPath, summary, manifestPath, manifest };
+}
+
+function summarizePublicationStatus(status) {
+  switch (status) {
+    case 'awaiting_approval':
+      return 'Ready for explicit human approval before any remote publish step.';
+    case 'approved':
+      return 'Publication has been approved. Remote push is still a separate manual step.';
+    case 'pushed':
+      return 'The shaped synthesis stack has already been pushed.';
+    case 'publish_failed':
+      return 'A publish attempt was recorded as failed. Review the stored push result before retrying.';
+    case 'blocked':
+    default:
+      return 'This synthesis is not publishable yet.';
+  }
+}
+
+function summarizePatchStats(patchStats) {
+  if (!patchStats) {
+    return 'No patch summary is available yet.';
+  }
+  return `${patchStats.file_count || 0} files changed, ${patchStats.total_changed_lines || 0} total changed lines`;
+}
+
+function summarizeCandidateLabel(summary, candidateId) {
+  const candidate = (summary?.candidate_results || []).find((result) => result.candidate_id === candidateId);
+  if (!candidate) {
+    return candidateId;
+  }
+  return `${candidate.candidate_slot} / ${candidate.provider}`;
+}
+
+function uniqueStrings(values) {
+  return [...new Set((values || []).filter(Boolean))];
 }
 
 const STACK_GROUP_ORDER = ['test', 'code', 'doc'];

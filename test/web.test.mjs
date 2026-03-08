@@ -65,6 +65,8 @@ test('getTaskDetail returns markdown, parsed task data, and default run config',
   assert.equal(detail.comparison_view.judge_rationale, null);
   assert.ok(Array.isArray(detail.merge_view.files));
   assert.equal(detail.merge_view.judge_rationale, null);
+  assert.ok(Object.hasOwn(detail, 'publication_view'));
+  assert.ok(Object.hasOwn(detail.merge_view, 'publication'));
   if (detail.merge_view.files[0]) {
     assert.equal(typeof detail.merge_view.files[0].contested, 'boolean');
     assert.equal(typeof detail.merge_view.files[0].selection_reasons, 'object');
@@ -94,6 +96,8 @@ test('web UI avoids blocking browser modal APIs for provider and run actions', a
   assert.doesNotMatch(appSource, /window\.confirm\s*\(/);
   assert.doesNotMatch(appSource, /window\.prompt\s*\(/);
   assert.match(appSource, /initThemeToggle/);
+  assert.match(compareSource, /publication\/preview/);
+  assert.match(compareSource, /publication\/approve/);
   assert.match(compareSource, /initThemeToggle/);
   assert.match(docsSource, /initThemeToggle/);
   assert.match(themeSource, /alloy-theme/);

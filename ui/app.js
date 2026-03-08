@@ -884,6 +884,7 @@ function renderComparisonView(comparison) {
     return;
   }
   const mergeView = state.taskDetail?.merge_view || null;
+  const publication = state.taskDetail?.publication_view || mergeView?.publication || null;
 
   appendInfoBlock(
     comparisonView,
@@ -931,15 +932,25 @@ function renderComparisonView(comparison) {
     );
   }
 
-  if (mergeView?.publication_readiness) {
+  if (publication || mergeView?.publication_readiness) {
     appendInfoBlock(
       comparisonView,
-      'Publication Readiness',
+      'Publication',
       [
-        mergeView.publication_readiness.status,
-        mergeView.publication_readiness.summary
+        publication?.status || mergeView?.publication_readiness?.status,
+        publication?.summary || mergeView?.publication_readiness?.summary
       ].filter(Boolean).join(' • ')
     );
+    if (publication?.target_branch_or_bookmark) {
+      appendInfoBlock(
+        comparisonView,
+        'Publish Target',
+        [
+          publication.target_remote || 'origin',
+          publication.target_branch_or_bookmark
+        ].join(' • ')
+      );
+    }
   }
 
   if (comparison.merge_plan) {

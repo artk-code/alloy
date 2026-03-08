@@ -94,7 +94,7 @@ Alloy will then show:
 - merge-plan guidance
 - judge rationale
 - any available synthesis diff
-- publication-readiness blockers
+- publication preview and approval state
 - `jj` stack-shape summaries for synthesized results
 
 ## How To Review And Build A Synthesis
@@ -116,7 +116,9 @@ Inside `Compare Diffs`:
 6. If file-level review is needed, adjust the selected source per file.
 7. Build the synthesis workspace.
 8. Review the synthesized diff and per-file provenance.
-9. Check publication readiness before treating the result as ready for PR publication.
+9. Use `Preview Publication` to refresh the publish target and blocker state.
+10. Use `Approve Publication` once the synthesized result is acceptable.
+11. Treat PR publication as out of scope until the push step is implemented.
 
 Important rule:
 - Alloy is conservative by design
@@ -194,3 +196,4 @@ Common states:
 6. Inspect the merge plan.
 7. Approve winner-only or perform file-level synthesis.
 8. Review the synthesized diff before any publication step.
+9. Preview publication and record approval if the synthesis is ready.

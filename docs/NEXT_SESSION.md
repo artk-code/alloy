@@ -21,6 +21,7 @@ The current pushed repo already includes:
 - synthesis now accepts `merge_plan`
 - synthesis diff API added
 - synthesis publication-readiness metadata added
+- publication preview and approval state added
 - synthesis `jj` stack shaping added
 - dedicated `Compare Diffs` page added
 - dedicated in-app `Docs` page added
@@ -91,8 +92,9 @@ If the next agent wants browser automation, they should add a repo-local Playwri
 
 After manual verification of the current pushed build, the next priorities should be:
 
-1. Add final publication flow from the shaped synthesis stack
-   - stay honest about review vs publish readiness
+1. Finish publication flow from the shaped synthesis stack
+   - preview and approval are already implemented
+   - next sub-step is branch/bookmark push from an approved synthesis
    - keep PR publication behind explicit human approval
 
 2. Add a blind judge/composer layer on top of deterministic evaluation
@@ -115,49 +117,45 @@ After manual verification of the current pushed build, the next priorities shoul
 
 ### Goal
 
-Turn publication readiness into a real operator decision flow without pretending PR publishing is already automatic.
+Finish the remaining publication sub-step after preview and approval: controlled branch/bookmark push from an approved synthesis.
 
 Detailed method plan:
 - [PUBLICATION_FLOW_PLAN.md](/Users/codex/stack-judge/docs/PUBLICATION_FLOW_PLAN.md)
 
 ### Concrete Steps
 
-1. Add a dedicated publication panel to `Compare Diffs`
-- show:
-  - review readiness
-  - publication blockers
-  - explicit human approval requirement
-  - next publishable action
-
-2. Define a publishable synthesis contract
+1. Keep the existing publication contract authoritative
 - final shaped stack present
 - verification passed
 - no unresolved conflicts
 - no hidden manual override without provenance
+- explicit human approval persisted
 
-3. Keep remote publication out of the browser until the contract is clear
-- first land a local `publish preview`
-- then branch/bookmark push
+2. Add a controlled push-preparation action
+- use the approved publication target
+- keep the exact branch/bookmark name visible
+- persist push result and failure details
+
+3. Keep PR automation out of scope until push is stable
+- first complete branch/bookmark push
 - only then PR automation
 
 ### Suggested Data Additions
 
 The next agent should consider extending publication data with:
-- `publish_status`
-- `publish_blockers`
-- `human_approved_at`
-- `publish_preview`
-- `target_remote`
-- `target_branch_or_bookmark`
+- `pushed_at`
+- `push_result`
+- `push_error`
+- `published_ref`
 
 ### Success Criteria For Priority 2
 
 This priority is done when a human can open `Compare Diffs` and answer, without reading raw JSON:
 
-1. Is this synthesis only reviewable, or actually publishable?
-2. What specific blockers still prevent publication?
-3. What human action is required before any remote publish step?
-4. What exact stack/diff will be published when that step is enabled?
+1. Has this synthesis been approved for publication?
+2. What exact branch/bookmark will be pushed?
+3. Did the push succeed or fail?
+4. What exact stack/diff was pushed?
 
 ## What Not To Prioritize Yet
 
@@ -208,15 +206,13 @@ node scripts/check-demo-state.mjs
 
 Use this order unless a blocking regression is found:
 
-1. Publication flow
-   - Alloy already knows how to evaluate, synthesize, and shape a stack.
-   - The next highest-value gap is telling the operator exactly what is publishable and what still blocks publication.
+1. Finish publication flow
+   - Alloy already knows how to evaluate, synthesize, shape a stack, preview publication, and persist approval.
+   - The next highest-value gap is controlled branch/bookmark push from that approved state.
    - Deliverables:
-     - publication panel in `Compare Diffs`
-     - `publish_status`
-     - `publish_blockers`
-     - explicit human approval capture
-     - local publish preview
+     - push action and result persistence
+     - published ref visibility
+     - failure reporting
    - detailed method plan:
      - [PUBLICATION_FLOW_PLAN.md](/Users/codex/stack-judge/docs/PUBLICATION_FLOW_PLAN.md)
 

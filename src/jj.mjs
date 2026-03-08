@@ -137,6 +137,48 @@ export class JjAdapter {
     };
   }
 
+  suggestPublishRef({ taskId, synthesisId }) {
+    const sanitize = (value) => String(value || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+    return `alloy/${sanitize(taskId)}/${sanitize(synthesisId)}`;
+  }
+
+  async readStackForPublication({ workspacePath, maxDepth = 5 }) {
+    const revisions = [];
+
+    for (let depth = 0; depth < maxDepth; depth += 1) {
+      const revset = depth === 0 ? '@' : `@${'-'.repeat(depth)}`;
+      try {
+        const revision = await this.readRevision({ workspacePath, revset });
+        if (!revision?.commit_id) {
+          break;
+        }
+        if (revisions.some((entry) => entry.commit_id === revision.commit_id)) {
+          break;
+        }
+        revisions.push(revision);
+      } catch {
+        break;
+      }
+    }
+
+    return revisions.reverse();
+  }
+
+  async exportPublicationPatchRange({ workspacePath, fromRev, toRev = '@', outputPath }) {
+    const patchText = await this.capture(['diff', '--from', fromRev, '--to', toRev, '--git'], { cwd: workspacePath });
+    await fs.writeFile(outputPath, patchText, 'utf8');
+    return {
+      output_path: outputPath,
+      from_rev: fromRev,
+      to_rev: toRev,
+      patch_stats: analyzeUnifiedDiff(patchText)
+    };
+  }
+
   async readRevision({ workspacePath, revset }) {
     const template = [
       'commit_id',

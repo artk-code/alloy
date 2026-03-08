@@ -19,9 +19,8 @@ Alloy should not merely pick a single winner. It should:
 The current implementation priorities should be:
 
 1. Publication flow from the shaped synthesis stack
-   - publish preview
-   - explicit human approval
-   - branch or bookmark push
+   - publish preview and approval are already implemented
+   - next sub-step is branch or bookmark push
    - later PR creation
    - detailed method plan:
      - [PUBLICATION_FLOW_PLAN.md](/Users/codex/stack-judge/docs/PUBLICATION_FLOW_PLAN.md)
@@ -288,17 +287,16 @@ Code remains on disk and in version control:
 
 ## Near-Term Milestones
 
-### Milestone 1: Publication Preview And Approval
+### Milestone 1: Publication Push From Approved Synthesis
 
 Deliver:
-- publication panel in `Compare Diffs`
-- explicit publication blockers
-- human approval capture
-- local publish preview for the shaped synthesis stack
+- branch/bookmark push from approved synthesis
+- persisted push result metadata
+- visible published ref and failure reporting
 
 Acceptance:
-- operator can tell whether a synthesis is only reviewable or truly publishable
-- operator can see what exact stack/diff would be published next
+- operator can tell what exact ref will be pushed
+- operator can see whether the push succeeded or failed without reading raw JSON
 
 ### Milestone 2: Blind Judge And Composer
 
@@ -346,7 +344,7 @@ Build the synthesis engine conservatively.
 
 Preferred sequence from the current state:
 
-1. publication preview and approval flow
+1. publication push from approved synthesis
 2. blind judge/composer on top of deterministic gates
 3. local testing workflow
 4. broader eval coverage
@@ -375,12 +373,11 @@ That is how Alloy can combine the strongest code contributions in a readable, re
 This is the practical build order from the current shipped state:
 
 1. Publication flow
-   - Highest leverage because Alloy can already produce reviewable syntheses but cannot yet turn them into an explicit publish decision.
+   - Highest leverage because Alloy can already produce reviewable syntheses, publication previews, and approval state but cannot yet push an approved result cleanly.
    - Build:
-     - publish preview
-     - approval gate
-     - blocker model
-     - branch/bookmark target metadata
+     - branch/bookmark push
+     - push result persistence
+     - published ref visibility
    - see:
      - [PUBLICATION_FLOW_PLAN.md](/Users/codex/stack-judge/docs/PUBLICATION_FLOW_PLAN.md)
 

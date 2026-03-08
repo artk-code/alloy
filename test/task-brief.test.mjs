@@ -13,9 +13,9 @@ import { doctorProviders, getProviderLoginCommand } from '../src/providers.mjs';
 import { buildDefaultRunConfig, normalizeRunConfig } from '../src/run-config.mjs';
 import { runPreparedCandidates } from '../src/runner.mjs';
 import { SessionManager } from '../src/session-manager.mjs';
-import { synthesizeRun } from '../src/synthesis.mjs';
+import { approvePublication, refreshPublicationState, synthesizeRun } from '../src/synthesis.mjs';
 import { runAcceptanceChecks } from '../src/verify.mjs';
-import { getSynthesisDiff } from '../src/web/data.mjs';
+import { getSynthesisDiff, getTaskDetail, getTaskPublication } from '../src/web/data.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -325,10 +325,8 @@ test('synthesizeRun creates verified winner-only and file-select workspaces from
     selectedBy: 'test-suite'
   });
 
-  const updatedSummary = JSON.parse(await fs.readFile(path.join(prepared.runDir, 'run-summary.json'), 'utf8'));
   const winnerPatch = await fs.readFile(winnerOnly.artifact_paths.patch_path, 'utf8');
   const fileSelectPatch = await fs.readFile(fileSelect.artifact_paths.patch_path, 'utf8');
-  const synthesisDiff = await getSynthesisDiff(projectRoot, task.task_id);
 
   assert.equal(winnerOnly.status, 'completed');
   assert.equal(winnerOnly.verification.status, 'pass');
@@ -336,6 +334,9 @@ test('synthesizeRun creates verified winner-only and file-select workspaces from
   assert.equal(winnerOnly.selected_files[0].selection_origin, 'winner_only');
   assert.equal(winnerOnly.merge_plan.base_candidate_id, winnerManifest.candidate_id);
   assert.equal(winnerOnly.publication_readiness.ready, true);
+  assert.equal(winnerOnly.publication.status, 'awaiting_approval');
+  assert.equal(winnerOnly.publication.eligible_for_approval, true);
+  assert.match(winnerOnly.publication.target_branch_or_bookmark, /alloy\/task-20260308-tic-tac-toe-perfect-play\//);
   assert.equal(winnerOnly.stack_shape.status, 'not_needed');
   assert.match(winnerPatch, /diff --git a\/src\/strategy\.js b\/src\/strategy\.js/);
 
@@ -345,17 +346,43 @@ test('synthesizeRun creates verified winner-only and file-select workspaces from
   assert.equal(fileSelect.merge_plan.mode, 'file_select');
   assert.equal(fileSelect.selected_files[0].selection_origin, 'merge_plan');
   assert.equal(fileSelect.publication_readiness.status, 'review_ready');
+  assert.equal(fileSelect.publication.status, 'awaiting_approval');
+  assert.equal(fileSelect.publication.publish_preview.stack_group_count, 1);
   assert.match(fileSelectPatch, /diff --git a\/src\/strategy\.js b\/src\/strategy\.js/);
+
+  const preview = await refreshPublicationState({
+    runDir: prepared.runDir,
+    task
+  });
+  const approved = await approvePublication({
+    runDir: prepared.runDir,
+    task,
+    approvedBy: 'test-suite',
+    note: 'Publication approved in integration test.'
+  });
+  const updatedSummary = JSON.parse(await fs.readFile(path.join(prepared.runDir, 'run-summary.json'), 'utf8'));
+  const synthesisDiff = await getSynthesisDiff(projectRoot, task.task_id);
+  const detail = await getTaskDetail(projectRoot, task.task_id);
+  const publicationView = await getTaskPublication(projectRoot, task.task_id);
 
   assert.equal(updatedSummary.synthesis.strategy, 'file_select');
   assert.equal(updatedSummary.synthesis.status, 'completed');
   assert.equal(updatedSummary.synthesis.merge_plan.mode, 'file_select');
   assert.equal(updatedSummary.synthesis.publication_readiness.ready, true);
+  assert.equal(updatedSummary.synthesis.publication.status, 'approved');
   assert.ok(synthesisDiff);
   assert.equal(synthesisDiff.strategy, 'file_select');
   assert.equal(synthesisDiff.publication_readiness.ready, true);
+  assert.equal(synthesisDiff.publication.status, 'approved');
   assert.equal(synthesisDiff.selected_files[0].selection_origin, 'merge_plan');
   assert.match(synthesisDiff.patch, /diff --git a\/src\/strategy\.js b\/src\/strategy\.js/);
+  assert.equal(preview.status, 'awaiting_approval');
+  assert.equal(approved.status, 'approved');
+  assert.equal(approved.human_approved_by, 'test-suite');
+  assert.equal(publicationView.status, 'approved');
+  assert.equal(detail.publication_view.status, 'approved');
+  assert.equal(detail.merge_view.publication.status, 'approved');
+  assert.match(detail.publication_view.target_branch_or_bookmark, /alloy\/task-20260308-tic-tac-toe-perfect-play\//);
 
   await fs.rm(prepared.runDir, { recursive: true, force: true });
 });
