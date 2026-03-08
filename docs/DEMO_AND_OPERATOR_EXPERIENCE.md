@@ -92,6 +92,7 @@ Current proof boundary:
 - the seeded repo is intentionally broken and fails real checks
 - the automated integration path currently replays a stored working fix artifact into a real Alloy candidate workspace
 - Alloy then runs the real verifier and captures the real `jj` diff from that workspace
+- the Control Panel now flags replay-backed or legacy run artifacts explicitly so the board does not imply they came from live provider authoring
 - live provider authoring is still a manual/operator path, not something the automated tests currently certify
 
 ## 5. Human Task Input Model

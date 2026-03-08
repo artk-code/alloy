@@ -17,6 +17,14 @@ export async function listTaskCards(projectRoot) {
   for (const taskFile of taskFiles) {
     const parsed = await parseTaskBriefFile(taskFile);
     const latestRun = await findLatestRun(projectRoot, parsed.task.project_id, parsed.task.task_id);
+    const latestCandidates = latestRun ? await readCandidateManifests(latestRun.runDir) : [];
+    const latestRunAudit = buildRunAudit({
+      task: parsed.task,
+      summary: latestRun?.summary || null,
+      candidates: latestCandidates,
+      runDir: latestRun?.runDir || null,
+      matchedScope: latestRun?.matchedScope || null
+    });
     cards.push({
       project_id: parsed.task.project_id,
       project_label: parsed.task.project_label,
@@ -32,11 +40,17 @@ export async function listTaskCards(projectRoot) {
       judge: parsed.task.judge,
       markdown_path: taskFile,
       demo_priority: parsed.task.demo_priority || 0,
-      state: deriveRunDisplayState(latestRun?.summary || null),
+      state: deriveRunDisplayState(latestRun?.summary || null, latestRunAudit),
       latest_run: latestRun?.summary || null,
       run_dir: latestRun?.runDir || null,
+      run_origin: latestRunAudit.origin,
+      run_origin_label: latestRunAudit.origin_label,
+      run_origin_detail: latestRunAudit.origin_detail,
+      proof_level: latestRunAudit.proof_level,
+      legacy_run: latestRunAudit.legacy_run,
+      replay_backed: latestRunAudit.replay_backed,
       acceptance_summary: summarizeAcceptanceChecks(parsed.task.acceptance_checks),
-      card_summary: buildCardSummary(parsed.task, latestRun?.summary || null),
+      card_summary: buildCardSummary(parsed.task, latestRun?.summary || null, latestRunAudit),
       decision_summary: latestRun?.summary?.evaluation?.decision?.summary || null
     });
   }
@@ -60,6 +74,13 @@ export async function getTaskDetail(projectRoot, taskId) {
     const latestRun = await findLatestRun(projectRoot, parsed.task.project_id, taskId);
     const candidates = latestRun ? await readCandidateManifests(latestRun.runDir) : [];
     const synthesis = latestRun ? await readLatestSynthesisManifest(latestRun.summary) : null;
+    const latestRunAudit = buildRunAudit({
+      task: parsed.task,
+      summary: latestRun?.summary || null,
+      candidates,
+      runDir: latestRun?.runDir || null,
+      matchedScope: latestRun?.matchedScope || null
+    });
     return {
       project_id: parsed.task.project_id,
       project_label: parsed.task.project_label,
@@ -70,11 +91,12 @@ export async function getTaskDetail(projectRoot, taskId) {
       task_brief: buildTaskBrief(parsed.task),
       run_config: latestRun?.summary?.run_config || buildDefaultRunConfig(parsed.task),
       evaluation: latestRun?.summary?.evaluation || null,
-      latest_run_overview: buildLatestRunOverview(parsed.task, latestRun?.summary || null),
+      latest_run_overview: buildLatestRunOverview(parsed.task, latestRun?.summary || null, latestRunAudit),
       comparison_view: buildComparisonView(latestRun?.summary?.evaluation || null, candidates),
       merge_view: buildMergeView(latestRun?.summary || null, candidates, synthesis),
       warnings: parsed.warnings,
       latest_run: latestRun?.summary || null,
+      latest_run_audit: latestRunAudit,
       run_dir: latestRun?.runDir || null,
       candidates,
       sessions: latestRun ? await readSessionRecordsForCandidates(latestRun.runDir) : [],
@@ -196,7 +218,11 @@ async function findLatestRun(projectRoot, projectId, taskId) {
     const summaryPath = path.join(runDir, 'run-summary.json');
     try {
       const summary = JSON.parse(await fs.readFile(summaryPath, 'utf8'));
-      return { runDir, summary };
+      return {
+        runDir,
+        summary,
+        matchedScope: projectMatches.includes(runDir) ? 'project' : 'fallback'
+      };
     } catch {
       continue;
     }
@@ -252,7 +278,7 @@ function mapRunState(status) {
   }
 }
 
-function deriveRunDisplayState(summary) {
+function deriveRunDisplayState(summary, audit = null) {
   if (!summary) {
     return 'Draft';
   }
@@ -289,13 +315,22 @@ function deriveRunDisplayState(summary) {
   }
 
   if (summary.status === 'completed') {
-    return 'Verified Run';
+    if (audit?.origin === 'fixture_replay') {
+      return 'Fixture Replay';
+    }
+    if (audit?.origin === 'legacy_artifact') {
+      return 'Legacy Artifact';
+    }
+    if (audit?.verified_candidates > 0) {
+      return 'Passing Candidates';
+    }
+    return 'Completed';
   }
 
   return mapRunState(summary.status || null);
 }
 
-function buildCardSummary(task, summary) {
+function buildCardSummary(task, summary, audit = null) {
   if (!summary) {
     return 'No run prepared yet. Open the card, confirm provider login, and stage a candidate run.';
   }
@@ -320,6 +355,15 @@ function buildCardSummary(task, summary) {
   }
 
   if (summary.status === 'completed') {
+    if (audit?.origin === 'fixture_replay') {
+      return 'This card is backed by a historical fixture replay run. Verification is real, but it does not prove live provider authoring.';
+    }
+    if (audit?.origin === 'legacy_artifact') {
+      return 'This card is backed by a historical run artifact from an older schema. Inspect manifests and verification before trusting it as current product proof.';
+    }
+    if (audit?.verified_candidates > 0) {
+      return `A completed candidate run verified ${audit.verified_candidates} candidate${audit.verified_candidates === 1 ? '' : 's'}, but no evaluator summary was captured.`;
+    }
     return 'A completed run exists, but no evaluator summary was captured for the current card view.';
   }
 
@@ -362,11 +406,11 @@ function formatSourceLabel(task) {
     : task.source_system;
 }
 
-function buildLatestRunOverview(task, summary) {
-  const statusLabel = deriveRunDisplayState(summary || null);
+function buildLatestRunOverview(task, summary, audit = null) {
+  const statusLabel = deriveRunDisplayState(summary || null, audit);
   const providerPlan = formatProviderLabels(task.providers).join(', ');
   const executionSummary = summary
-    ? summarizeRunExecution(summary)
+    ? summarizeRunExecution(summary, audit)
     : 'No run has been prepared yet for this task.';
   const decisionSummary = summary?.evaluation?.decision?.summary
     || (summary?.status === 'dry-run'
@@ -377,6 +421,12 @@ function buildLatestRunOverview(task, summary) {
     status_label: statusLabel,
     execution_summary: executionSummary,
     decision_summary: decisionSummary,
+    run_origin: audit?.origin || 'none',
+    run_origin_label: audit?.origin_label || 'No run',
+    run_origin_detail: audit?.origin_detail || 'No run evidence is available yet.',
+    proof_level: audit?.proof_level || 'none',
+    legacy_run: audit?.legacy_run || false,
+    replay_backed: audit?.replay_backed || false,
     provider_plan: providerPlan,
     acceptance_summary: summarizeAcceptanceChecks(task.acceptance_checks),
     finalists: summary?.evaluation?.decision?.finalists || [],
@@ -385,7 +435,7 @@ function buildLatestRunOverview(task, summary) {
   };
 }
 
-function summarizeRunExecution(summary) {
+function summarizeRunExecution(summary, audit = null) {
   const results = Array.isArray(summary.candidate_results) ? summary.candidate_results : [];
   if (summary.status === 'prepared') {
     const count = results.length || 0;
@@ -398,6 +448,12 @@ function summarizeRunExecution(summary) {
 
   if (summary.status === 'completed') {
     const verified = results.filter((result) => result.verification?.status === 'pass').length;
+    if (audit?.origin === 'fixture_replay') {
+      return `Completed ${results.length} fixture-backed candidate run${results.length === 1 ? '' : 's'} and verified ${verified}. This is useful plumbing proof, not live provider proof.`;
+    }
+    if (audit?.origin === 'legacy_artifact') {
+      return `Loaded ${results.length} candidate result${results.length === 1 ? '' : 's'} from a historical artifact and verified ${verified}. Treat it as legacy evidence until rerun through the current pipeline.`;
+    }
     return `Completed ${results.length} candidate session${results.length === 1 ? '' : 's'} and verified ${verified}.`;
   }
 
@@ -594,6 +650,121 @@ function buildSelectionReason({ owner, owners, winnerCandidateId, synthesizedCan
   }
 
   return 'manual review required';
+}
+
+function buildRunAudit({ task, summary, candidates, runDir, matchedScope }) {
+  const candidateList = Array.isArray(candidates) ? candidates : [];
+  const summaryResults = Array.isArray(summary?.candidate_results) ? summary.candidate_results : [];
+  const verifiedCandidates = candidateList.length > 0
+    ? candidateList.filter((candidate) => candidate.verification?.status === 'pass').length
+    : summaryResults.filter((candidate) => candidate.verification?.status === 'pass').length;
+  const replayBacked = candidateList.some(isFixtureReplayCandidate);
+  const liveCli = candidateList.some(isLiveCliCandidate);
+  const currentSchema = Boolean(summary?.project_id && summary?.run_config)
+    || candidateList.some((candidate) => candidate.candidate_key || candidate.provider_instance_id || candidate.artifact_paths?.evaluation_path);
+  const legacyRun = Boolean(summary) && (
+    matchedScope === 'fallback'
+    || (!currentSchema && summary.status === 'completed')
+  );
+
+  if (!summary) {
+    return {
+      origin: 'none',
+      origin_label: 'No Run',
+      origin_detail: 'No run artifact is available for this card yet.',
+      proof_level: 'none',
+      verified_candidates: 0,
+      replay_backed: false,
+      legacy_run: false
+    };
+  }
+
+  if (summary.status === 'prepared' || summary.status === 'dry-run') {
+    return {
+      origin: 'preview',
+      origin_label: summary.status === 'prepared' ? 'Prepared Workspace' : 'Command Preview',
+      origin_detail: 'This run only prepared workspaces and command launch data. No provider CLI execution was captured.',
+      proof_level: 'preview',
+      verified_candidates: 0,
+      replay_backed: false,
+      legacy_run: false
+    };
+  }
+
+  if (replayBacked) {
+    return {
+      origin: 'fixture_replay',
+      origin_label: 'Fixture Replay',
+      origin_detail: 'At least one candidate manifest executed a local replay or mock fixture instead of a provider CLI.',
+      proof_level: 'replay',
+      verified_candidates: verifiedCandidates,
+      replay_backed: true,
+      legacy_run: legacyRun
+    };
+  }
+
+  if (liveCli) {
+    return {
+      origin: 'live_cli',
+      origin_label: 'Live CLI Run',
+      origin_detail: 'Candidate manifests show real provider CLI commands and captured session artifacts.',
+      proof_level: 'live',
+      verified_candidates: verifiedCandidates,
+      replay_backed: false,
+      legacy_run
+    };
+  }
+
+  if (legacyRun) {
+    return {
+      origin: 'legacy_artifact',
+      origin_label: 'Legacy Artifact',
+      origin_detail: 'This run artifact predates the current project-scoped schema or evaluator flow.',
+      proof_level: 'legacy',
+      verified_candidates: verifiedCandidates,
+      replay_backed: false,
+      legacy_run: true
+    };
+  }
+
+  return {
+    origin: 'artifact_only',
+    origin_label: 'Artifact Run',
+    origin_detail: 'The run artifact has candidate results, but Alloy could not prove whether they came from live provider execution or a replay helper.',
+    proof_level: 'artifact',
+    verified_candidates: verifiedCandidates,
+    replay_backed: false,
+    legacy_run: false
+  };
+}
+
+function isFixtureReplayCandidate(candidate) {
+  const binary = String(candidate?.command?.binary || '');
+  const docs = String(candidate?.command?.docs || '');
+  const args = Array.isArray(candidate?.command?.args) ? candidate.command.args.map(String) : [];
+  const haystack = [binary, docs, ...args].join(' ');
+  return /mock-provider\.mjs/i.test(haystack)
+    || /replay-file\.mjs/i.test(haystack)
+    || /example\.test\/mock-provider/i.test(haystack)
+    || /fixtures\//i.test(haystack);
+}
+
+function isLiveCliCandidate(candidate) {
+  const provider = String(candidate?.provider || '');
+  const binary = path.basename(String(candidate?.command?.binary || ''));
+  const docs = String(candidate?.command?.docs || '');
+  const sessionRecordPath = String(candidate?.session_record_path || '');
+
+  if (provider === 'codex' && (binary === 'codex' || docs.includes('developers.openai.com/codex/cli'))) {
+    return true;
+  }
+  if (provider === 'claude-code' && (binary === 'claude' || docs.includes('code.claude.com/docs'))) {
+    return true;
+  }
+  if (provider === 'gemini' && (binary === 'gemini' || docs.includes('google-gemini/gemini-cli'))) {
+    return true;
+  }
+  return Boolean(sessionRecordPath && sessionRecordPath.includes(path.join('runtime', 'sessions')));
 }
 
 function splitPatchByFile(patchText, changedFiles) {

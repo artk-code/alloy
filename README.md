@@ -20,6 +20,11 @@ Working today:
 - compare and synthesis guidance panels backed by evaluator and `jj` artifact data
 - real per-candidate diff viewing in the operator UI from captured `jj` patches
 - explicit per-file merge provenance in the operator UI
+- run provenance labeling in the UI so cards distinguish:
+  - command previews
+  - live CLI runs
+  - fixture replays
+  - legacy artifacts
 - operator-controlled `run_config` with:
   - provider enable/disable
   - agent counts per provider
@@ -39,6 +44,7 @@ Working today:
 - provider auth probes where the CLI exposes a reliable status command
 - manual `Test Auth` launch flow for providers that still need operator confirmation
 - honest board/detail outcome states instead of generic completion labels
+- honest board/detail provenance labels instead of implying that every passing artifact came from a live provider run
 
 Not implemented yet:
 - blind judge/composer layers
@@ -118,6 +124,10 @@ Current automated proof level:
 - the integration test replays a stored perfect-play fix artifact into a real candidate workspace
 - Alloy then runs the real acceptance checks, captures the real `jj` diff, and scores the result deterministically
 - automated tests do not yet prove live Codex, Gemini, or Claude Code authoring end to end
+
+Important UI honesty note:
+- older run artifacts can still exist under `runs/`
+- Alloy now flags replay-backed or legacy artifacts explicitly in the board/detail views instead of presenting them as live provider proof
 
 ## Current Scaffold Outputs
 

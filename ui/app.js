@@ -397,7 +397,10 @@ function renderTaskCard(task) {
   node.querySelector('.task-project').textContent = task.project_label || task.project_id || 'Project';
   node.querySelector('.task-summary').textContent = task.card_summary || task.objective;
   node.querySelector('.task-eval').textContent = summarizeTaskDecision(task);
-  node.querySelector('.task-checks').textContent = task.acceptance_summary || 'No checks';
+  node.querySelector('.task-checks').textContent = [
+    task.acceptance_summary || 'No checks',
+    task.run_origin_label ? `origin ${task.run_origin_label}` : null
+  ].filter(Boolean).join(' • ');
   node.querySelector('.task-providers').textContent = `Candidates: ${(task.provider_labels || task.providers || []).join(', ')}`;
   node.querySelector('.open-card').addEventListener('click', () => selectTask(task.task_id));
   return node;
@@ -731,6 +734,15 @@ function renderEvaluationCall(overview, evaluation) {
     evaluationCall,
     'Execution Status',
     overview?.execution_summary || 'No run execution summary is available.'
+  );
+  appendInfoBlock(
+    evaluationCall,
+    'Run Provenance',
+    [
+      overview?.run_origin_label || 'No run',
+      overview?.run_origin_detail || null,
+      overview?.proof_level ? `proof ${overview.proof_level}` : null
+    ].filter(Boolean).join(' • ')
   );
   appendInfoBlock(
     evaluationCall,
@@ -1231,6 +1243,15 @@ function mergeSessions(...sessionLists) {
 }
 
 function summarizeTaskDecision(task) {
+  if (task.run_origin === 'fixture_replay') {
+    return 'Fixture replay only';
+  }
+  if (task.run_origin === 'legacy_artifact') {
+    return 'Legacy artifact';
+  }
+  if (task.run_origin === 'preview') {
+    return 'Command preview only';
+  }
   if (task.latest_run?.synthesis?.status === 'completed') {
     return `Synthesized ${task.latest_run.synthesis.strategy}`;
   }

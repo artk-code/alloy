@@ -27,6 +27,18 @@ test('listTaskCards prioritizes the tic-tac-toe demo card for the first board vi
   assert.equal(typeof cards[0].card_summary, 'string');
 });
 
+test('listTaskCards marks replay-backed historical runs honestly', async () => {
+  const cards = await listTaskCards(projectRoot);
+  const cacheCard = cards.find((card) => card.task_id === 'task_20260308_cache_invalidation');
+
+  assert.ok(cacheCard);
+  assert.equal(cacheCard.run_origin, 'fixture_replay');
+  assert.equal(cacheCard.run_origin_label, 'Fixture Replay');
+  assert.equal(cacheCard.replay_backed, true);
+  assert.match(cacheCard.card_summary, /fixture replay/i);
+  assert.notEqual(cacheCard.state, 'Verified Run');
+});
+
 test('getTaskDetail returns markdown, parsed task data, and default run config', async () => {
   const detail = await getTaskDetail(projectRoot, 'task_20260308_tic_tac_toe_perfect_play');
 
@@ -44,6 +56,8 @@ test('getTaskDetail returns markdown, parsed task data, and default run config',
   assert.match(detail.latest_run_overview.execution_summary, /candidate/i);
   assert.equal(detail.latest_run_overview.merge_mode, detail.run_config.merge_mode);
   assert.notEqual(detail.latest_run_overview.status_label, 'PR Ready');
+  assert.equal(detail.latest_run_overview.run_origin, 'preview');
+  assert.match(detail.latest_run_overview.run_origin_label, /Prepared Workspace|Command Preview/);
   assert.equal(detail.comparison_view.decision.mode, 'pending');
   assert.ok(Array.isArray(detail.comparison_view.rows));
   assert.ok(Array.isArray(detail.merge_view.files));

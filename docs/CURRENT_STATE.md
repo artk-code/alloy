@@ -29,6 +29,11 @@ Purpose: Capture the honest current Alloy proof boundary so future work starts f
 - Alloy can create a fresh synthesis workspace from:
   - the winning candidate
   - human-selected files from candidate diffs
+- The board/detail UI now classifies run provenance so it can distinguish:
+  - command previews
+  - live CLI runs
+  - fixture replay artifacts
+  - legacy historical artifacts
 - Root automated tests pass.
 
 ## What Is Real Versus Simulated
@@ -48,6 +53,7 @@ Real today:
 Still limited:
 - automated tests do not certify live Codex, Gemini, or Claude Code authoring end to end
 - the automated integration path currently replays a stored working tic-tac-toe fix artifact into a real candidate workspace
+- some historical run artifacts under `runs/` were created with older mock/replay helpers and still exist for audit purposes
 - Gemini auth is intentionally treated as manual operator verification in the current build
 - blind judge/composer logic is not implemented yet
 - final `jj` stack shaping and PR publication are not implemented yet
@@ -76,10 +82,13 @@ That is enough to prove the orchestration, verification, artifact, and conservat
 - The UI uses a light corporate palette at the moment because that is the current operator preference.
 - Gemini always shows manual auth verification rather than a false precision status.
 - Heavy operator sections are collapsible.
-- Card and detail states are now outcome-based:
+- Card and detail states are now outcome-based and provenance-aware:
   - `Draft`
   - `Prepared`
   - `Previewed`
+  - `Fixture Replay`
+  - `Legacy Artifact`
+  - `Passing Candidates`
   - `Winner Ready`
   - `Needs Merge`
   - `Synthesized`
