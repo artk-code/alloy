@@ -8,6 +8,12 @@ Related design docs:
 - `docs/DEMO_AND_OPERATOR_EXPERIENCE.md` for the first demo task, task input contract, operator steering model, GUI surfaces, and monitoring requirements
 - `docs/TASK_BRIEF_SCHEMA_AND_PARSER.md` for the Markdown task format, normalized JSON contract, parser behavior, and validation rules
 - `docs/GUI_WIREFRAMES.md` for the first operator-facing GUI wireframes and screen-level requirements
+- `docs/SYMPHONY_MANAGER_INTEGRATION.md` for the first-demo requirement that tasks/cards live in a Symphony-style manager while Alloy supplies judging and synthesis
+- `docs/ADAPTERS_AND_RUNNER.md` for the current CLI adapter defaults, event model, workspace seeding behavior, and next runner steps
+- `docs/AUTH_AND_LOGIN.md` for CLI-first provider authentication handling and the GUI login-repair flow
+- `docs/TWO_WEEK_BUILD_ORDER.md` for the concrete 10-working-day demo build sequence
+- `docs/MILESTONE_CHECKLIST.md` for execution checklists across the first Alloy milestones
+- `docs/SYMPHONY_FORK_VS_BUILD_FRESH.md` for the decision split between reusing Symphony and building Alloy-native systems
 
 ## 1. Summary
 
@@ -62,6 +68,8 @@ Rationale:
 
 - Use multiple official coding CLIs through subscription-authenticated accounts.
 - Demonstrate the system with all three major-lab CLI agents: `codex`, `gemini`, and `claude-code`.
+- Use a Symphony-style task manager as the primary demo shell so humans interact with cards/tasks rather than raw runner commands.
+- Surface provider install/login state clearly and let humans repair missing or expired CLI sessions from the product flow.
 - Orchestrate isolated candidate implementations for one task.
 - Evaluate candidates objectively with tests and structured review.
 - Merge the best aspects of multiple candidates when beneficial.
@@ -941,6 +949,16 @@ Symphony is useful as inspiration and possibly as a partial base for:
 - workspace isolation
 - GitHub integration
 - process supervision
+- task board and card-based operator experience
+
+### 17.1 Demo Requirement
+
+For the first public demo, Symphony should not remain a backstory only. The demo should expose tasks as cards inside a Symphony-style manager surface and let users launch Alloy runs, inspect candidate progress, review synthesis plans, and publish PRs from that task context.
+
+Practical implication:
+- the first demo UX should feel like \"task cards in a manager\" with Alloy status layered onto each card
+- Alloy should provide the adjudication and synthesis engine behind that surface
+- future implementation can either fork Symphony's manager UI directly or recreate the same board/detail interaction pattern while preserving license hygiene
 
 Required conceptual changes:
 - move from one task -> one agent result
@@ -1003,9 +1021,11 @@ Deliverables:
 - one workspace per run
 - deterministic verification
 - final diff export
+- initial Symphony-style card shell or stub board view in demo UX plan
 
 Success criteria:
 - can run one agent against one task and capture artifacts reproducibly
+- can represent that task as a card with launchable run state in the planned demo shell
 
 ## Milestone 2: Multi-Candidate Race Mode
 
@@ -1126,6 +1146,7 @@ To reduce ambiguity, future implementers should start with these decisions unles
 - Use official CLIs only: `codex`, `claude-code`, `gemini`.
 - Treat direct provider API adapters as a future optional capability, not MVP scope.
 - Use `jj` CLI, not an embedded `jj` library.
+- Make the first human-facing demo start from a Symphony-style task board and card detail view.
 - Use one judge provider consistently at first for stable baselines.
 - Start with race mode and winner-takes-all.
 - Add file-level synthesis only after winner selection is stable.

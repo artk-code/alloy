@@ -25,8 +25,18 @@ The first demo should prove five things at once:
 3. Alloy can collect, verify, and score each candidate.
 4. Alloy can synthesize a final result using `jj` when candidates have complementary strengths.
 5. A human can monitor the process and understand the final decision.
+6. The experience starts from a Symphony-style task manager with cards, not a hidden runner-only interface.
 
 The demo should not try to prove every future capability. It should prove the core loop end to end.
+
+## 2.1 Demo Shell Requirement
+
+The first demo should use a Symphony-style manager surface as the primary entry point.
+
+That means:
+- the task should exist as a card
+- the card detail should expose the Alloy run controls
+- candidate progress, judge results, synthesis plans, and PR readiness should be visible from the task context
 
 ## 3. Recommendation For Demo Scope
 
@@ -119,6 +129,8 @@ Humans should author tasks in Markdown, but Alloy should store a parsed structur
 Recommended model:
 - human-facing authoring format: Markdown with YAML frontmatter
 - canonical runtime format: JSON task object derived from that Markdown
+
+In the first demo, that Markdown task brief should be attached to or authored within a Symphony-style card detail view.
 
 This gives humans readability and gives the system reliable machine structure.
 
@@ -293,6 +305,7 @@ Before run:
 - select providers
 - choose mode
 - choose judge
+- inspect provider install/login state
 - set max runtime
 - define acceptance commands
 - define constraints and notes
@@ -314,12 +327,27 @@ The GUI should not be a generic chat window. It should be a run control and obse
 
 Recommended primary screens:
 
-1. Task Composer
-2. Live Run Dashboard
-3. Candidate Compare View
-4. Synthesis Plan View
-5. Final PR Review View
-6. Metrics / ROI View
+1. Symphony Manager Board
+2. Task Composer / Card Detail
+3. Live Run Dashboard
+4. Candidate Compare View
+5. Synthesis Plan View
+6. Final PR Review View
+7. Metrics / ROI View
+
+## 13.1 Symphony Manager Board
+
+Purpose:
+- show tasks as cards
+- make Alloy feel like a usable workflow tool rather than a hidden orchestration job
+
+Each card should show:
+- task title
+- repo
+- active providers
+- current run state
+- judge/synthesis badge when available
+- PR status when available
 
 ## 14. Task Composer Screen
 
@@ -330,6 +358,7 @@ Must show:
 - repo selector
 - base ref
 - provider selection checkboxes
+- provider readiness and login state
 - mode selector
 - judge selector
 - markdown task editor
@@ -479,6 +508,7 @@ Recommended notifications:
 - synthesis plan ready for review
 - final PR ready for approval
 - provider login expired
+- provider login state unknown before launch
 
 For MVP, in-app notifications are sufficient. Slack or email can come later.
 
@@ -497,6 +527,8 @@ Optional later:
 ## 23. Demo Success Criteria
 
 The first demo is successful if a human can watch Alloy:
+- open a Symphony-style task board
+- click into a task card
 - ingest a Markdown task brief
 - launch `codex`, `gemini`, and `claude-code`
 - show separate candidate workspaces and progress

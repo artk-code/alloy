@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import path from 'node:path';
 
 const LIST_SECTIONS = new Set([
   'requirements',
@@ -12,10 +13,17 @@ const MODES = new Set(['fast', 'race', 'relay', 'committee']);
 const RISK_LEVELS = new Set(['low', 'medium', 'high']);
 const REVIEW_POLICIES = new Set(['minimal', 'standard', 'strict']);
 const PROVIDERS = new Set(['codex', 'gemini', 'claude-code']);
+const SOURCE_SYSTEMS = new Set(['manual', 'symphony']);
 
 export async function parseTaskBriefFile(filePath) {
   const markdown = await fs.readFile(filePath, 'utf8');
-  return parseTaskBrief(markdown, filePath);
+  const parsed = parseTaskBrief(markdown, filePath);
+
+  if (parsed.task.repo_path) {
+    parsed.task.repo_path = path.resolve(path.dirname(filePath), parsed.task.repo_path);
+  }
+
+  return parsed;
 }
 
 export function parseTaskBrief(markdown, sourcePath = '<memory>') {
@@ -162,7 +170,11 @@ function normalizeTaskBrief(frontmatter, sections) {
 
   return {
     task_id: frontmatter.task_id,
+    source_system: frontmatter.source_system || 'manual',
+    source_task_id: frontmatter.source_task_id || '',
+    source_url: frontmatter.source_url || '',
     repo: frontmatter.repo,
+    repo_path: frontmatter.repo_path || '',
     base_ref: frontmatter.base_ref,
     mode: frontmatter.mode,
     providers: ensureArray(frontmatter.providers),
@@ -246,6 +258,10 @@ function validateTaskBrief(task) {
 
   if (!REVIEW_POLICIES.has(task.human_review_policy)) {
     errors.push(error('invalid_enum', 'human_review_policy', `Unsupported human review policy '${task.human_review_policy}'.`));
+  }
+
+  if (!SOURCE_SYSTEMS.has(task.source_system)) {
+    errors.push(error('invalid_enum', 'source_system', `Unsupported source system '${task.source_system}'.`));
   }
 
   if (!Number.isInteger(task.max_runtime_minutes) || task.max_runtime_minutes <= 0) {

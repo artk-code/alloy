@@ -14,14 +14,80 @@ Purpose: Define the first wireframe-level GUI for Alloy, focused on task composi
 
 ## 2. Primary Screens
 
-1. Task Composer
-2. Live Run Dashboard
-3. Candidate Compare View
-4. Synthesis Plan View
-5. Final PR Review View
-6. Metrics View
+1. Symphony Manager Board
+2. Task Composer / Card Detail
+3. Live Run Dashboard
+4. Candidate Compare View
+5. Synthesis Plan View
+6. Final PR Review View
+7. Metrics View
 
-## 3. Task Composer
+## 3. Symphony Manager Board
+
+Purpose:
+- make task cards the main entry point for the demo
+- show which tasks are ready, running, blocked, or PR-ready
+
+Wireframe:
+
+```text
++--------------------------------------------------------------------------------+
+| Alloy | Symphony Manager Board                              [New Task] [Filter] |
++--------------------------------------------------------------------------------+
+| Columns: Draft | Ready | Running | Awaiting Approval | PR Ready | Published    |
++--------------------------------------------------------------------------------+
+| [Card] Fix stale project detail cache invalidation                               |
+| Repo: demo/cache-service                                                        |
+| Providers: Codex, Gemini, Claude Code                                           |
+| State: Running                                                                   |
+| Judge: pending                                                                   |
+| PR: not ready                                                                    |
+| [Open Card]                                                                      |
++--------------------------------------------------------------------------------+
+| [Card] Tighten retry test coverage                                               |
+| Repo: demo/cache-service                                                        |
+| Providers: Codex, Claude Code                                                   |
+| State: PR Ready                                                                  |
+| Judge: high confidence                                                           |
+| PR: #12                                                                          |
+| [Open Card]                                                                      |
++--------------------------------------------------------------------------------+
+```
+
+Required behaviors:
+- card states map cleanly to Alloy run states
+- cards expose enough status to scan the board without opening each run
+- opening a card should land in the task detail/composer view
+
+## 3.1 Provider Auth Panel
+
+Purpose:
+- make non-API provider login readiness visible before runs start
+- let humans repair login state without leaving the product context
+
+Wireframe:
+
+```text
++--------------------------------------------------------------------------------+
+| Provider Readiness                                                             |
++--------------------------------------------------------------------------------+
+| Codex        Installed: yes   Auth: unknown   Version: 0.x   [Open Login]     |
+| Claude Code  Installed: yes   Auth: valid     Version: 1.x   [Recheck]        |
+| Gemini CLI   Installed: yes   Auth: invalid   Version: 0.x   [Open Login]     |
++--------------------------------------------------------------------------------+
+| Notes                                                                          |
+| - Unknown means Alloy cannot confidently verify the current session yet.       |
+| - Login opens the provider's interactive CLI in a PTY-backed session.         |
++--------------------------------------------------------------------------------+
+```
+
+Required behaviors:
+- show `valid`, `invalid`, `unknown`, or `not_installed`
+- show provider-specific login help text near the action button
+- block run launch when required providers are missing or clearly invalid
+- allow a human to re-check provider state after completing login
+
+## 4. Task Composer / Card Detail
 
 Purpose:
 - create or edit a task brief
@@ -63,7 +129,7 @@ Required behaviors:
 - parsed preview shows exactly what will reach the conductor
 - launch button disabled on hard validation errors
 
-## 4. Live Run Dashboard
+## 5. Live Run Dashboard
 
 Purpose:
 - let humans monitor the run in progress
@@ -107,7 +173,7 @@ Required behaviors:
 - allow drill-down into per-candidate transcripts and verification output
 - show when the system is waiting on human approval
 
-## 5. Candidate Compare View
+## 6. Candidate Compare View
 
 Purpose:
 - make the judge outcome legible
@@ -146,7 +212,7 @@ Rule:
 - show anonymized labels in judge-oriented compare panels
 - humans can still open provider-specific operational details outside the blind review panel
 
-## 6. Synthesis Plan View
+## 7. Synthesis Plan View
 
 Purpose:
 - explain exactly what Alloy plans to merge
@@ -178,7 +244,7 @@ Wireframe:
 +--------------------------------------------------------------------------------+
 ```
 
-## 7. Final PR Review View
+## 8. Final PR Review View
 
 Purpose:
 - let humans inspect the final result before publication
@@ -210,7 +276,7 @@ Wireframe:
 +--------------------------------------------------------------------------------+
 ```
 
-## 8. Metrics View
+## 9. Metrics View
 
 Purpose:
 - show provider ROI and route-learning signals
@@ -223,32 +289,34 @@ Must show:
 - average human cleanup time
 - task-class breakdown
 
-## 9. Event And Decision Visibility
+## 10. Event And Decision Visibility
 
 The GUI must expose:
 - raw events for operator debugging
 - structured summaries for human comprehension
 - explicit decision records for routing, judging, synthesis, and publication
 
-## 10. Approval Rules
+## 11. Approval Rules
 
 Recommended default rules for MVP:
 - low-risk demo repo: human approval required only before PR publication
 - medium/high-risk repo: approval required before synthesis and publication
 - any low-confidence judge outcome: approval required before synthesis
 
-## 11. MVP Build Order
+## 12. MVP Build Order
 
-1. Task Composer
-2. Live Run Dashboard
-3. Candidate Compare View
-4. Synthesis Plan View
-5. Final PR Review View
-6. Metrics View
+1. Symphony Manager Board
+2. Task Composer / Card Detail
+3. Live Run Dashboard
+4. Candidate Compare View
+5. Synthesis Plan View
+6. Final PR Review View
+7. Metrics View
 
-## 12. Definition Of Done
+## 13. Definition Of Done
 
 The GUI is ready for the first demo when:
+- a human can open a task card from the board
 - a human can submit a Markdown task
 - a human can watch all three candidates progress
 - a human can see the judge decision and synthesis plan

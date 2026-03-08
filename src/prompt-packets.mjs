@@ -15,6 +15,8 @@ export function buildPromptPackets(task) {
       verification_commands: task.acceptance_checks,
       repo_context: [
         `Repository: ${task.repo}`,
+        `Task source: ${task.source_system}`,
+        ...(task.source_task_id ? [`Source task ID: ${task.source_task_id}`] : []),
         ...task.allowed_paths.map((path) => `Preferred path scope: ${path}`)
       ],
       optional_guidance: task.optional_guidance,

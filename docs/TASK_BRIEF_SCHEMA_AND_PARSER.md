@@ -32,7 +32,11 @@ Shape:
 ```md
 ---
 task_id: task_20260308_001
+source_system: symphony
+source_task_id: card_cache_001
+source_url: https://example.local/tasks/card_cache_001
 repo: demo/cache-service
+repo_path: ../../samples/repos/cache-service
 base_ref: main
 mode: race
 providers:
@@ -77,6 +81,7 @@ Project detail reads are cached. After an update mutation, reads may continue re
 
 Required:
 - `task_id`: stable task identifier
+- `source_system`: `manual` or `symphony`
 - `repo`: target repository slug or path alias
 - `base_ref`: target branch/ref/commit-ish
 - `mode`: `fast`, `race`, `relay`, or `committee`
@@ -87,7 +92,10 @@ Required:
 - `human_review_policy`: `minimal`, `standard`, `strict`
 
 Optional:
+- `source_task_id`: external card/task identifier
+- `source_url`: external card/task URL
 - `title`: override for the visible task title
+- `repo_path`: local filesystem path used to seed candidate workspaces for CLI execution
 - `allowed_paths`: ordered list of path prefixes
 - `blocked_paths`: ordered list of path prefixes
 - `tags`: ordered list of task tags
@@ -118,7 +126,11 @@ Alloy normalizes every task brief to this object shape:
 ```json
 {
   "task_id": "task_20260308_001",
+  "source_system": "symphony",
+  "source_task_id": "card_cache_001",
+  "source_url": "https://example.local/tasks/card_cache_001",
   "repo": "demo/cache-service",
+  "repo_path": "/abs/path/to/demo/cache-service",
   "base_ref": "main",
   "mode": "race",
   "providers": ["codex", "gemini", "claude-code"],
@@ -179,6 +191,7 @@ Hard validation failures:
 - missing task title and missing `# Task` heading
 - empty providers list
 - unsupported mode
+- unsupported source system
 - unsupported risk level
 - unsupported human review policy
 - `max_runtime_minutes` not a positive integer
@@ -231,6 +244,10 @@ Example:
 ## 10. Normalization Rules
 
 Defaults:
+- `source_system`: `manual`
+- `source_task_id`: `\"\"`
+- `source_url`: `\"\"`
+- `repo_path`: `\"\"`
 - `allowed_paths`: `[]`
 - `blocked_paths`: `[]`
 - `tags`: `[]`

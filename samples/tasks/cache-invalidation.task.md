@@ -1,5 +1,7 @@
 ---
 task_id: task_20260308_cache_invalidation
+source_system: symphony
+source_task_id: demo_card_cache_invalidation
 repo: demo/cache-service
 base_ref: main
 mode: race

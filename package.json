@@ -4,8 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "task:build": "node src/cli.mjs",
-    "task:sample": "node src/cli.mjs samples/tasks/cache-invalidation.task.md",
+    "doctor": "node src/cli.mjs doctor",
+    "login:codex": "node src/cli.mjs login codex",
+    "login:claude": "node src/cli.mjs login claude-code",
+    "login:gemini": "node src/cli.mjs login gemini",
+    "task:prepare": "node src/cli.mjs prepare samples/tasks/cache-invalidation.task.md",
+    "task:run:dry": "node src/cli.mjs run samples/tasks/cache-invalidation.task.md --dry-run",
+    "task:sample": "node src/cli.mjs prepare samples/tasks/cache-invalidation.task.md",
     "test": "node --test"
   },
   "engines": {
