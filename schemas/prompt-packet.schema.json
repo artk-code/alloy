@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alloy.dev/schemas/prompt-packet.schema.json",
+  "title": "Alloy Prompt Packet",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "task_id",
+    "candidate_slot",
+    "provider",
+    "base_ref",
+    "mode",
+    "objective",
+    "hard_requirements",
+    "constraints",
+    "verification_commands",
+    "working_rules"
+  ],
+  "properties": {
+    "task_id": {"type": "string"},
+    "candidate_slot": {"type": "string"},
+    "provider": {"type": "string"},
+    "base_ref": {"type": "string"},
+    "mode": {"type": "string"},
+    "objective": {"type": "string"},
+    "hard_requirements": {"type": "array", "items": {"type": "string"}},
+    "constraints": {"type": "array", "items": {"type": "string"}},
+    "verification_commands": {"type": "array", "items": {"type": "string"}},
+    "repo_context": {"type": "array", "items": {"type": "string"}},
+    "optional_guidance": {"type": "array", "items": {"type": "string"}},
+    "human_notes": {"type": "array", "items": {"type": "string"}},
+    "allowed_paths": {"type": "array", "items": {"type": "string"}},
+    "blocked_paths": {"type": "array", "items": {"type": "string"}},
+    "working_rules": {"type": "array", "items": {"type": "string"}}
+  }
+}

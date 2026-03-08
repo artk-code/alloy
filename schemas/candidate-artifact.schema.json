@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alloy.dev/schemas/candidate-artifact.schema.json",
+  "title": "Alloy Candidate Artifact Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "task_id",
+    "candidate_id",
+    "candidate_slot",
+    "provider",
+    "status",
+    "workspace_path",
+    "prompt_packet_path",
+    "artifact_paths"
+  ],
+  "properties": {
+    "task_id": {"type": "string"},
+    "candidate_id": {"type": "string"},
+    "candidate_slot": {"type": "string"},
+    "provider": {"type": "string"},
+    "status": {"type": "string", "enum": ["planned", "running", "completed", "failed"]},
+    "workspace_path": {"type": "string"},
+    "prompt_packet_path": {"type": "string"},
+    "base_ref": {"type": "string"},
+    "started_at": {"type": ["string", "null"]},
+    "completed_at": {"type": ["string", "null"]},
+    "changed_files": {"type": "array", "items": {"type": "string"}},
+    "summary": {"type": ["string", "null"]},
+    "artifact_paths": {
+      "type": "object",
+      "required": ["stdout_path", "stderr_path", "patch_path", "summary_path"],
+      "properties": {
+        "stdout_path": {"type": "string"},
+        "stderr_path": {"type": "string"},
+        "patch_path": {"type": "string"},
+        "summary_path": {"type": "string"}
+      }
+    }
+  }
+}
