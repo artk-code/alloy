@@ -42,8 +42,16 @@ The current implementation priorities should be:
    - detailed method plan:
      - [PUBLICATION_FLOW_PLAN.md](/Users/codex/stack-judge/docs/PUBLICATION_FLOW_PLAN.md)
 
-6. SQLite metadata layer later
+6. Compare-surface refinement later
+   - improve side-by-side candidate vs synthesis review ergonomics
+   - add a clearer `jj` stack timeline/history surface for humans
+
+7. SQLite metadata layer later
    - useful once project count and run history outgrow raw artifact scanning
+
+8. Trace grading and `jj` operation-history mining later
+   - add trace-oriented review once blind-review consumption is stable
+   - mine conflicts and `jj` operations only after the core merge loop is mature
 
 Focus now:
 - judge/composer
@@ -53,6 +61,7 @@ Focus now:
 
 Do not focus first on:
 - operation mining
+- trace grading
 - broad analytics
 - additional orchestration layers
 
@@ -347,7 +356,17 @@ Deliver:
 Acceptance:
 - operator can publish a reviewed synthesis into one PR without bypassing the pushed-ref gate
 
-### Milestone 6: SQLite Metadata Layer
+### Milestone 6: Compare Surface Refinement
+
+Deliver:
+- stronger side-by-side candidate vs synthesis review
+- clearer per-file provenance review cues
+- `jj` stack timeline/history surface in `Compare Diffs`
+
+Acceptance:
+- humans can inspect both file-level provenance and final stack history without reading raw JSON
+
+### Milestone 7: SQLite Metadata Layer
 
 Deliver:
 - SQLite metadata store for projects, tasks, runs, candidates, and syntheses
@@ -356,6 +375,15 @@ Deliver:
 Acceptance:
 - board queries and session history no longer depend on directory scanning alone
 - `jj` remains the source of truth for code provenance
+
+### Milestone 8: Trace Grading And `jj` Operation Mining
+
+Deliver:
+- trace-aware review artifacts layered on top of existing evaluation
+- later-stage mining of `jj` operation history and conflict patterns
+
+Acceptance:
+- Alloy can learn from review traces and VCS operations without those systems becoming dependencies for the core merge loop
 
 ## Implementation Guidance For Future Agents
 
@@ -368,8 +396,10 @@ Preferred sequence from the current state:
 3. structured Task Composer expansion
 4. broader eval coverage
 5. PR creation from the pushed synthesis ref
-6. SQLite control-plane metadata
-7. symbol-level synthesis for selected languages
+6. compare-surface refinement
+7. SQLite control-plane metadata
+8. trace grading and `jj` operation-history mining
+9. symbol-level synthesis for selected languages
 
 Do not jump directly to:
 - free-form hunk splicing
@@ -410,5 +440,11 @@ This is the practical build order from the current shipped state:
 5. PR creation from the pushed synthesis ref
    - Build this only on top of the explicit push state and human approval flow.
 
-6. SQLite later
+6. Compare-surface refinement
+   - Improve the side-by-side review ergonomics and show the final `jj` stack as history, not only files.
+
+7. SQLite later
    - Add only when run history and multi-project querying outgrow raw artifact scanning.
+
+8. Trace grading and `jj` operation mining later
+   - Add once blind review and local testing are solid enough to produce useful learning signals.

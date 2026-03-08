@@ -124,8 +124,15 @@ After manual verification of the current pushed build, the next priorities shoul
    - keep it behind explicit human approval
    - do not let PR creation bypass the pushed-ref state
 
-6. Add a proper browser smoke harness only if it is made repo-local and reproducible
+6. Refine the compare surface after the core workflow gaps are closed
+   - better side-by-side candidate vs synthesis ergonomics
+   - explicit `jj` stack timeline/history view for humans
+
+7. Add a proper browser smoke harness only if it is made repo-local and reproducible
    - do not rely on vague global Playwright assumptions
+
+8. Add trace grading and `jj` operation-history mining only after the merge loop is stable
+   - useful later, not a current bottleneck
 
 ## Publication Flow Status
 
@@ -232,6 +239,12 @@ Use this order unless a blocking regression is found:
    - Remote push is now the gating publication step.
    - Add PR creation only on top of a successful pushed-ref state.
 
-6. Repo-local browser smoke harness
+6. Compare-surface refinement
+   - Improve side-by-side review and add a clearer `jj` history/timeline view for the final stack.
+
+7. Repo-local browser smoke harness
    - Useful, but only after the core publish/judge/test loop is stronger.
    - Make it reproducible from this repo rather than dependent on machine-specific tooling.
+
+8. Trace grading and `jj` operation-history mining
+   - Useful learning signals later, but explicitly not a current bottleneck.
