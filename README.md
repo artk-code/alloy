@@ -14,7 +14,9 @@ Working today:
 - primary demo card: tic-tac-toe perfect-play repair
 - additional runnable security demo card: SQL injection remediation + writeup
 - board project filter and grouping controls
+- board pagination and cards-per-page controls
 - collapsible operator sections for dense task detail views
+- tabbed operator detail panels so compare/diff/merge/debug views do not all render at once
 - Markdown task brief parsing into canonical task JSON
 - human-readable parsed task and evaluator summaries in the operator UI
 - compare and synthesis guidance panels backed by evaluator and `jj` artifact data

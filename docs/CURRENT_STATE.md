@@ -8,6 +8,7 @@ Purpose: Capture the honest current Alloy proof boundary so future work starts f
 - Alloy Control Panel serves a real local web UI for:
   - project-labeled task cards
   - board project filtering and grouping
+  - board pagination
   - provider readiness
   - per-provider run configuration
   - session monitor
@@ -16,6 +17,7 @@ Purpose: Capture the honest current Alloy proof boundary so future work starts f
   - per-candidate diff viewer
   - merge builder for winner-only and manual file selection
   - per-file provenance in the merge builder
+  - tabbed operator detail sections to reduce clutter
 - The default demo task is the tic-tac-toe perfect-play repair card at `samples/tasks/tic-tac-toe-perfect-play.task.md`.
 - There is also a runnable security-lab card at `samples/tasks/security-sql-injection.task.md`.
 - The seeded tic-tac-toe demo repo is intentionally broken and fails real acceptance checks before any fix.
@@ -81,7 +83,7 @@ That is enough to prove the orchestration, verification, artifact, and conservat
 - Narrow screens collapse to a single-column flow.
 - The UI uses a light corporate palette at the moment because that is the current operator preference.
 - Gemini always shows manual auth verification rather than a false precision status.
-- Heavy operator sections are collapsible.
+- Heavy operator sections are collapsible and the operator view is tabbed so only one dense pane is visible at a time.
 - Card and detail states are now outcome-based and provenance-aware:
   - `Draft`
   - `Prepared`
