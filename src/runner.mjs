@@ -28,6 +28,7 @@ export async function runPreparedCandidates({
   await appendJsonl(runEventsPath, {
     ts: new Date().toISOString(),
     kind: 'run.started',
+    project_id: task.project_id,
     task_id: task.task_id,
     providers: packets.map((packet) => packet.providerInstanceId),
     dry_run: dryRun
@@ -90,7 +91,8 @@ export async function runPreparedCandidates({
     }));
     await appendJsonl(runEventsPath, {
       ts: new Date().toISOString(),
-      kind: 'evaluation.completed',
+    kind: 'evaluation.completed',
+      project_id: task.project_id,
       task_id: task.task_id,
       decision: evaluation.decision
     });
@@ -109,6 +111,7 @@ export async function runPreparedCandidates({
       await appendJsonl(runEventsPath, {
         ts: new Date().toISOString(),
         kind: 'synthesis.completed',
+        project_id: task.project_id,
         task_id: task.task_id,
         strategy: 'winner_only',
         synthesis_id: synthesis.synthesis_id,
@@ -122,6 +125,7 @@ export async function runPreparedCandidates({
       await appendJsonl(runEventsPath, {
         ts: new Date().toISOString(),
         kind: 'synthesis.failed',
+        project_id: task.project_id,
         task_id: task.task_id,
         strategy: 'winner_only',
         error: synthesis.error
@@ -130,6 +134,8 @@ export async function runPreparedCandidates({
   }
 
   const summary = {
+    project_id: task.project_id,
+    project_label: task.project_label,
     task_id: task.task_id,
     source_system: task.source_system,
     source_task_id: task.source_task_id || null,
@@ -161,6 +167,7 @@ export async function runPreparedCandidates({
   await appendJsonl(runEventsPath, {
     ts: new Date().toISOString(),
     kind: 'run.completed',
+    project_id: task.project_id,
     task_id: task.task_id,
     status: finalStatus,
     source_system: task.source_system,
@@ -220,6 +227,7 @@ async function runOneCandidate({ runDir, runEventsPath, task, packet, manifestEn
       profileId: packet.profileId,
       transport: packet.transport,
       runDir,
+      projectId: task.project_id,
       taskId: task.task_id,
       candidateId: manifest.candidate_id,
       command,
@@ -323,6 +331,7 @@ function buildEvent(kind, packet, extra = {}) {
   return {
     ts: new Date().toISOString(),
     kind,
+    project_id: packet.packet.project_id,
     provider: packet.provider,
     candidate_slot: packet.candidateSlot,
     task_id: packet.packet.task_id,

@@ -16,6 +16,7 @@ export class SessionManager {
     profileId = 'default',
     transport = 'pipe',
     runDir = null,
+    projectId = null,
     taskId = null,
     candidateId = null,
     command = null,
@@ -34,6 +35,7 @@ export class SessionManager {
       profile_id: profileId,
       transport,
       run_dir: runDir,
+      project_id: projectId,
       task_id: taskId,
       candidate_id: candidateId,
       cwd,
@@ -66,6 +68,7 @@ export class SessionManager {
     profileId = 'default',
     transport = 'pipe',
     runDir = null,
+    projectId = null,
     taskId = null,
     candidateId = null,
     command,
@@ -83,6 +86,7 @@ export class SessionManager {
       profileId,
       transport,
       runDir,
+      projectId,
       taskId,
       candidateId,
       command,
@@ -163,6 +167,7 @@ export class SessionManager {
     profileId = 'default',
     transport = 'pty',
     taskId = null,
+    projectId = null,
     metadata = {}
   }) {
     const record = await this.createSessionRecord({
@@ -170,6 +175,7 @@ export class SessionManager {
       provider,
       profileId,
       transport,
+      projectId,
       taskId,
       metadata
     });
@@ -182,7 +188,7 @@ export class SessionManager {
     return record;
   }
 
-  async listSessions({ taskId = null, provider = null, status = null, limit = 50 } = {}) {
+  async listSessions({ projectId = null, taskId = null, provider = null, status = null, limit = 50 } = {}) {
     const entries = await fs.readdir(this.stateDir, { withFileTypes: true }).catch(() => []);
     const sessions = [];
 
@@ -200,6 +206,7 @@ export class SessionManager {
     }
 
     return sessions
+      .filter((record) => !projectId || record.project_id === projectId)
       .filter((record) => !taskId || record.task_id === taskId)
       .filter((record) => !provider || record.provider === provider)
       .filter((record) => !status || record.status === status)

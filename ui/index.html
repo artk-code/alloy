@@ -98,35 +98,35 @@
             </div>
 
             <div class="preview-column">
-              <div class="subpanel">
-                <h3>Parsed Brief</h3>
+              <details class="subpanel collapsible" open>
+                <summary><h3>Parsed Brief</h3></summary>
                 <div id="task-brief" class="info-stack"></div>
-              </div>
+              </details>
 
-              <div class="subpanel">
-                <h3>Evaluation Call</h3>
+              <details class="subpanel collapsible" open>
+                <summary><h3>Evaluation Call</h3></summary>
                 <div id="evaluation-call" class="info-stack"></div>
-              </div>
+              </details>
 
-              <div class="subpanel">
-                <h3>Compare + Synthesize</h3>
+              <details class="subpanel collapsible" open>
+                <summary><h3>Compare + Synthesize</h3></summary>
                 <div id="comparison-view" class="info-stack"></div>
-              </div>
+              </details>
 
-              <div class="subpanel">
-                <h3>Diff Viewer</h3>
+              <details class="subpanel collapsible" open>
+                <summary><h3>Diff Viewer</h3></summary>
                 <div id="diff-view" class="info-stack"></div>
-              </div>
+              </details>
 
-              <div class="subpanel">
-                <h3>Merge Builder</h3>
+              <details class="subpanel collapsible" open>
+                <summary><h3>Merge Builder</h3></summary>
                 <div id="merge-view" class="info-stack"></div>
-              </div>
+              </details>
 
-              <div class="subpanel">
-                <h3>Candidate Cards</h3>
+              <details class="subpanel collapsible" open>
+                <summary><h3>Candidate Cards</h3></summary>
                 <div id="candidate-cards" class="stack"></div>
-              </div>
+              </details>
 
               <details class="subpanel debug-panel">
                 <summary>Operator Debug JSON</summary>
@@ -157,6 +157,7 @@
         <p class="task-meta"></p>
         <p class="task-summary"></p>
         <div class="task-chip-row">
+          <span class="chip task-project"></span>
           <span class="chip task-eval"></span>
           <span class="chip task-checks"></span>
         </div>

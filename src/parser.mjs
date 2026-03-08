@@ -170,6 +170,8 @@ function normalizeTaskBrief(frontmatter, sections) {
 
   return {
     task_id: frontmatter.task_id,
+    project_id: frontmatter.project_id || 'default-project',
+    project_label: frontmatter.project_label || frontmatter.project_id || 'Default Project',
     source_system: frontmatter.source_system || 'manual',
     source_task_id: frontmatter.source_task_id || '',
     source_url: frontmatter.source_url || '',
@@ -243,6 +245,14 @@ function validateTaskBrief(task) {
     if (!task[field]) {
       errors.push(error('missing_required_field', field, `Field '${field}' is required.`));
     }
+  }
+
+  if (!task.project_id) {
+    errors.push(error('missing_required_field', 'project_id', "Field 'project_id' is required."));
+  }
+
+  if (!task.project_label) {
+    errors.push(error('missing_required_field', 'project_label', "Field 'project_label' is required."));
   }
 
   if (!Array.isArray(task.providers) || task.providers.length === 0) {

@@ -6,6 +6,8 @@
   "additionalProperties": false,
   "required": [
     "task_id",
+    "project_id",
+    "project_label",
     "source_system",
     "repo",
     "base_ref",
@@ -22,6 +24,8 @@
   ],
   "properties": {
     "task_id": {"type": "string", "minLength": 1},
+    "project_id": {"type": "string", "minLength": 1},
+    "project_label": {"type": "string", "minLength": 1},
     "source_system": {"type": "string", "enum": ["manual", "symphony"]},
     "source_task_id": {"type": "string"},
     "source_url": {"type": "string"},

@@ -409,6 +409,38 @@ pre {
   font-weight: 600;
 }
 
+.collapsible summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.collapsible summary::-webkit-details-marker {
+  display: none;
+}
+
+.collapsible summary h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.collapsible summary h3::before {
+  content: '+';
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  color: var(--accent-muted);
+}
+
+.collapsible[open] summary h3::before {
+  content: '−';
+}
+
+.collapsible > :not(summary) {
+  margin-top: 0.75rem;
+}
+
 .debug-panel[open] summary {
   margin-bottom: 0.75rem;
 }

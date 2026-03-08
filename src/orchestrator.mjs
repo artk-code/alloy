@@ -72,6 +72,8 @@ function prepareParsedTask({ projectRoot, parsed, runConfig }) {
 
 function buildPreparedOutput({ task, packets, prepared, warnings, runConfig }) {
   return {
+    project_id: task.project_id,
+    project_label: task.project_label,
     task_id: task.task_id,
     source_system: task.source_system,
     source_task_id: task.source_task_id || null,

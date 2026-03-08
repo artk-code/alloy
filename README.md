@@ -10,8 +10,9 @@ Current architecture note:
 ## Current POC Status
 
 Working today:
-- Alloy Control Panel web shell for task cards, provider readiness, run config, and candidate visibility
+- Alloy Control Panel web shell for project-labeled task cards, provider readiness, run config, and candidate visibility
 - primary demo card: tic-tac-toe perfect-play repair
+- additional runnable security demo card: SQL injection remediation + writeup
 - Markdown task brief parsing into canonical task JSON
 - human-readable parsed task and evaluator summaries in the operator UI
 - compare and synthesis guidance panels backed by evaluator and `jj` artifact data
@@ -57,6 +58,7 @@ Core planning docs:
 - `IMPLEMENTATION_PLAN.md`
 - `docs/CURRENT_STATE.md`
 - `docs/DEMO_AND_OPERATOR_EXPERIENCE.md`
+- `docs/EVAL_PROJECT_CATALOG.md`
 - `docs/RUNTIME_AND_AUTH_ARCHITECTURE.md`
 - `docs/JJ_AND_EVALUATION.md`
 - `docs/TWO_WEEK_BUILD_ORDER.md`
@@ -115,6 +117,7 @@ Current automated proof level:
 ## Current Scaffold Outputs
 
 For a given task brief, the scaffold generates:
+- `project_id` / `project_label` metadata throughout the run record
 - `task/task.json`
 - `task/source.task.md`
 - `prompt-packets/*.json`

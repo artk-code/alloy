@@ -32,6 +32,8 @@ Shape:
 ```md
 ---
 task_id: task_20260308_001
+project_id: bugfix-lab
+project_label: Bugfix Lab
 source_system: symphony
 source_task_id: card_cache_001
 source_url: https://example.local/tasks/card_cache_001
@@ -81,6 +83,8 @@ Project detail reads are cached. After an update mutation, reads may continue re
 
 Required:
 - `task_id`: stable task identifier
+- `project_id`: stable project identifier used for board grouping and run organization
+- `project_label`: human-readable project label shown in the control panel
 - `source_system`: `manual` or `symphony`
 - `repo`: target repository slug or path alias
 - `base_ref`: target branch/ref/commit-ish
@@ -126,6 +130,8 @@ Alloy normalizes every task brief to this object shape:
 ```json
 {
   "task_id": "task_20260308_001",
+  "project_id": "bugfix-lab",
+  "project_label": "Bugfix Lab",
   "source_system": "symphony",
   "source_task_id": "card_cache_001",
   "source_url": "https://example.local/tasks/card_cache_001",

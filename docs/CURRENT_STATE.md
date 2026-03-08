@@ -6,7 +6,7 @@ Purpose: Capture the honest current Alloy proof boundary so future work starts f
 ## What Works Now
 
 - Alloy Control Panel serves a real local web UI for:
-  - task cards
+  - project-labeled task cards
   - provider readiness
   - per-provider run configuration
   - session monitor
@@ -15,6 +15,7 @@ Purpose: Capture the honest current Alloy proof boundary so future work starts f
   - per-candidate diff viewer
   - merge builder for winner-only and manual file selection
 - The default demo task is the tic-tac-toe perfect-play repair card at `samples/tasks/tic-tac-toe-perfect-play.task.md`.
+- There is also a runnable security-lab card at `samples/tasks/security-sql-injection.task.md`.
 - The seeded tic-tac-toe demo repo is intentionally broken and fails real acceptance checks before any fix.
 - Candidate runs use real workspaces, persistent session records, and real verifier commands.
 - Each prepared candidate workspace is bootstrapped as a `jj` repo and produces a real captured patch.
@@ -31,6 +32,7 @@ Purpose: Capture the honest current Alloy proof boundary so future work starts f
 ## What Is Real Versus Simulated
 
 Real today:
+- project metadata on tasks, runs, sessions, and prompt packets
 - workspace mutation
 - session records and event logs
 - provider readiness probing where the CLI exposes a safe status command
@@ -66,6 +68,7 @@ That is enough to prove the orchestration, verification, artifact, and conservat
   - providers and runtime on the left
   - board and operator view stacked in the center
   - routing and run controls on the right
+- Cards now carry explicit project labels so multiple labs can coexist on the same board.
 - Narrow screens collapse to a single-column flow.
 - The UI uses a light corporate palette at the moment because that is the current operator preference.
 - Gemini always shows manual auth verification rather than a false precision status.
@@ -99,4 +102,12 @@ Demo repo baseline:
 cd samples/repos/tic-tac-toe
 npm test
 node scripts/eval-perfect-play.mjs
+```
+
+Security repo baseline:
+
+```bash
+cd samples/repos/security-sqli
+npm test
+node scripts/eval-security-fix.mjs
 ```

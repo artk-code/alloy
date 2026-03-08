@@ -16,8 +16,10 @@ export async function listTaskCards(projectRoot) {
 
   for (const taskFile of taskFiles) {
     const parsed = await parseTaskBriefFile(taskFile);
-    const latestRun = await findLatestRun(projectRoot, parsed.task.task_id);
+    const latestRun = await findLatestRun(projectRoot, parsed.task.project_id, parsed.task.task_id);
     cards.push({
+      project_id: parsed.task.project_id,
+      project_label: parsed.task.project_label,
       task_id: parsed.task.task_id,
       source_system: parsed.task.source_system,
       source_label: formatSourceLabel(parsed.task),
@@ -55,10 +57,12 @@ export async function getTaskDetail(projectRoot, taskId) {
       continue;
     }
 
-    const latestRun = await findLatestRun(projectRoot, taskId);
+    const latestRun = await findLatestRun(projectRoot, parsed.task.project_id, taskId);
     const candidates = latestRun ? await readCandidateManifests(latestRun.runDir) : [];
     const synthesis = latestRun ? await readLatestSynthesisManifest(latestRun.summary) : null;
     return {
+      project_id: parsed.task.project_id,
+      project_label: parsed.task.project_label,
       task_id: parsed.task.task_id,
       markdown_path: taskFile,
       markdown: parsed.markdown,
@@ -82,7 +86,8 @@ export async function getTaskDetail(projectRoot, taskId) {
 }
 
 export async function getCandidateDiff(projectRoot, taskId, candidateId) {
-  const latestRun = await findLatestRun(projectRoot, taskId);
+  const task = await findTaskById(projectRoot, taskId);
+  const latestRun = task ? await findLatestRun(projectRoot, task.project_id, taskId) : null;
   if (!latestRun) {
     return null;
   }
@@ -114,7 +119,8 @@ export async function getCandidateDiff(projectRoot, taskId, candidateId) {
 }
 
 export async function getCandidateJj(projectRoot, taskId, candidateId) {
-  const latestRun = await findLatestRun(projectRoot, taskId);
+  const task = await findTaskById(projectRoot, taskId);
+  const latestRun = task ? await findLatestRun(projectRoot, task.project_id, taskId) : null;
   if (!latestRun) {
     return null;
   }
@@ -156,14 +162,35 @@ async function findTaskFiles(tasksDir) {
     .map((entry) => path.join(tasksDir, entry.name));
 }
 
-async function findLatestRun(projectRoot, taskId) {
+async function findTaskById(projectRoot, taskId) {
+  const taskFiles = await findTaskFiles(path.join(projectRoot, 'samples', 'tasks'));
+  for (const taskFile of taskFiles) {
+    const parsed = await parseTaskBriefFile(taskFile);
+    if (parsed.task.task_id === taskId) {
+      return parsed.task;
+    }
+  }
+  return null;
+}
+
+async function findLatestRun(projectRoot, projectId, taskId) {
   const runsDir = path.join(projectRoot, 'runs');
-  const entries = await fs.readdir(runsDir, { withFileTypes: true }).catch(() => []);
-  const matches = entries
+  const projectRunsDir = projectId ? path.join(runsDir, projectId) : runsDir;
+  const projectEntries = await fs.readdir(projectRunsDir, { withFileTypes: true }).catch(() => []);
+  const projectMatches = projectEntries
+    .filter((entry) => entry.isDirectory() && entry.name.startsWith(taskId))
+    .map((entry) => path.join(projectRunsDir, entry.name))
+    .sort()
+    .reverse();
+
+  const fallbackEntries = await fs.readdir(runsDir, { withFileTypes: true }).catch(() => []);
+  const fallbackMatches = fallbackEntries
     .filter((entry) => entry.isDirectory() && entry.name.startsWith(taskId))
     .map((entry) => path.join(runsDir, entry.name))
     .sort()
     .reverse();
+
+  const matches = [...projectMatches, ...fallbackMatches];
 
   for (const runDir of matches) {
     const summaryPath = path.join(runDir, 'run-summary.json');
@@ -252,6 +279,7 @@ function buildCardSummary(task, summary) {
 
 function buildTaskBrief(task) {
   return {
+    project_label: task.project_label,
     source_label: formatSourceLabel(task),
     repo_label: `${task.repo} on ${task.base_ref}`,
     objective: task.context || task.title,

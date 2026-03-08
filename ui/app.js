@@ -269,6 +269,7 @@ function renderBoard() {
 
     node.querySelector('h3').textContent = task.title;
     node.querySelector('.task-meta').textContent = `${task.repo} • judge ${humanizeProvider(task.judge)}`;
+    node.querySelector('.task-project').textContent = task.project_label || task.project_id || 'Project';
     node.querySelector('.task-summary').textContent = task.card_summary || task.objective;
     node.querySelector('.task-eval').textContent = summarizeTaskDecision(task);
     node.querySelector('.task-checks').textContent = task.acceptance_summary || 'No checks';
@@ -554,6 +555,7 @@ function renderTaskBrief(task) {
   taskBrief.innerHTML = '';
   const validation = state.previewValidation || { ok: true, warnings: [], errors: [] };
 
+  appendInfoBlock(taskBrief, 'Project', task.project_label ? `${task.project_label} (${task.project_id})` : (task.project_id || 'No project metadata.'));
   appendInfoBlock(taskBrief, 'Objective', task.context || task.title || 'No task title available.');
   appendListBlock(taskBrief, 'Requirements', task.requirements || [], 'No explicit requirements.');
   appendListBlock(taskBrief, 'Constraints', task.constraints || [], 'No explicit constraints.');

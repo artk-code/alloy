@@ -14,8 +14,10 @@ const projectRoot = path.resolve(__dirname, '..');
 test('listTaskCards prioritizes the tic-tac-toe demo card for the first board view', async () => {
   const cards = await listTaskCards(projectRoot);
 
-  assert.ok(cards.length >= 2);
+  assert.ok(cards.length >= 3);
   assert.equal(cards[0].task_id, 'task_20260308_tic_tac_toe_perfect_play');
+  assert.equal(cards[0].project_id, 'game-lab');
+  assert.equal(cards[0].project_label, 'Game Lab');
   assert.equal(cards[0].source_system, 'symphony');
   assert.equal(cards[0].source_label, 'Imported card demo_card_tic_tac_toe_perfect_play');
   assert.equal(cards[0].source_task_id, 'demo_card_tic_tac_toe_perfect_play');
@@ -28,6 +30,8 @@ test('getTaskDetail returns markdown, parsed task data, and default run config',
   const detail = await getTaskDetail(projectRoot, 'task_20260308_tic_tac_toe_perfect_play');
 
   assert.ok(detail);
+  assert.equal(detail.project_id, 'game-lab');
+  assert.equal(detail.project_label, 'Game Lab');
   assert.match(detail.markdown, /# Task/);
   assert.equal(detail.task.repo, 'demo/tic-tac-toe');
   assert.equal(detail.run_config.providers.length, 3);

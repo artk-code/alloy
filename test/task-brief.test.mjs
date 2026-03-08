@@ -21,6 +21,8 @@ const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..');
 const ticTacToeTaskPath = path.join(projectRoot, 'samples/tasks/tic-tac-toe-perfect-play.task.md');
 const ticTacToeRepoPath = path.join(projectRoot, 'samples/repos/tic-tac-toe');
+const securityTaskPath = path.join(projectRoot, 'samples/tasks/security-sql-injection.task.md');
+const securityRepoPath = path.join(projectRoot, 'samples/repos/security-sqli');
 const replayFileScript = path.join(projectRoot, 'fixtures/replay-file.mjs');
 const ticTacToePerfectStrategyPath = path.join(projectRoot, 'fixtures/tic-tac-toe/strategy.perfect.js');
 
@@ -29,6 +31,8 @@ test('parseTaskBriefFile normalizes the primary tic-tac-toe demo task', async ()
 
   assert.equal(parsed.ok, true);
   assert.equal(parsed.task.task_id, 'task_20260308_tic_tac_toe_perfect_play');
+  assert.equal(parsed.task.project_id, 'game-lab');
+  assert.equal(parsed.task.project_label, 'Game Lab');
   assert.equal(parsed.task.source_system, 'symphony');
   assert.equal(parsed.task.source_task_id, 'demo_card_tic_tac_toe_perfect_play');
   assert.equal(parsed.task.demo_priority, 100);
@@ -65,7 +69,9 @@ test('buildPromptPackets expands run config into deterministic candidate slots',
     packets.map((packet) => [packet.providerInstanceId, packet.candidateSlot]),
     [['codex-1', 'A'], ['codex-2', 'B'], ['claude-code-1', 'C']]
   );
+  assert.equal(packets[0].packet.project_id, 'game-lab');
   assert.match(packets[0].markdown, /Provider Instance: codex-1/);
+  assert.match(packets[0].markdown, /Project: Game Lab \(game-lab\)/);
   assert.match(packets[1].markdown, /Agent Index: 2/);
 });
 
@@ -354,6 +360,38 @@ test('runAcceptanceChecks executes the real perfect-play evaluator and fails bef
   assert.match(stderr, /Perfect-play eval failed on/);
   assert.match(stderr, /Expected one of/);
   assert.equal(stdout.trim(), '');
+
+  await fs.rm(workspaceRoot, { recursive: true, force: true });
+});
+
+test('parseTaskBriefFile normalizes the security lab task and project metadata', async () => {
+  const parsed = await parseTaskBriefFile(securityTaskPath);
+
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.task.task_id, 'task_20260308_security_sql_injection');
+  assert.equal(parsed.task.project_id, 'security-lab');
+  assert.equal(parsed.task.project_label, 'Security Lab');
+  assert.deepEqual(parsed.task.acceptance_checks, ['npm test', 'node scripts/eval-security-fix.mjs']);
+});
+
+test('runAcceptanceChecks exposes the broken SQL injection demo baseline', async () => {
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), 'alloy-security-demo-'));
+  const workspacePath = path.join(workspaceRoot, 'workspace');
+  await fs.mkdir(workspacePath, { recursive: true });
+  await fs.cp(securityRepoPath, workspacePath, { recursive: true });
+
+  const verification = await runAcceptanceChecks({
+    workspacePath,
+    commands: ['npm test', 'node scripts/eval-security-fix.mjs'],
+    outputDir: workspacePath
+  });
+
+  const stdout = await fs.readFile(verification.checks[0].stdout_path, 'utf8');
+  const stderr = await fs.readFile(verification.checks[0].stderr_path, 'utf8');
+
+  assert.equal(verification.status, 'fail');
+  assert.equal(verification.checks[0].status, 'fail');
+  assert.match(stdout + stderr, /SQL injection|placeholder params|raw interpolation/i);
 
   await fs.rm(workspaceRoot, { recursive: true, force: true });
 });

@@ -10,6 +10,8 @@ export function buildPromptPackets(task, { runConfig = null } = {}) {
     const candidateSlot = SLOT_LETTERS[index] || `S${index + 1}`;
     const packet = {
       task_id: task.task_id,
+      project_id: task.project_id,
+      project_label: task.project_label,
       candidate_slot: candidateSlot,
       provider: candidate.provider,
       provider_instance_id: candidate.provider_instance_id,
@@ -23,6 +25,7 @@ export function buildPromptPackets(task, { runConfig = null } = {}) {
       constraints: task.constraints,
       verification_commands: task.acceptance_checks,
       repo_context: [
+        `Project: ${task.project_label} (${task.project_id})`,
         `Repository: ${task.repo}`,
         `Task source: ${task.source_system}`,
         ...(task.source_task_id ? [`Source task ID: ${task.source_task_id}`] : []),
@@ -59,6 +62,7 @@ function renderPromptPacketMarkdown(packet) {
     '# Alloy Candidate Task Packet',
     '',
     `Task ID: ${packet.task_id}`,
+    `Project: ${packet.project_label} (${packet.project_id})`,
     `Candidate Slot: ${packet.candidate_slot}`,
     `Provider: ${packet.provider}`,
     `Provider Instance: ${packet.provider_instance_id}`,

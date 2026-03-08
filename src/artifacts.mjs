@@ -5,7 +5,7 @@ import { JjAdapter } from './jj.mjs';
 
 export async function materializeRunArtifacts({ projectRoot, parsed, packets, runConfig = null }) {
   const jj = new JjAdapter();
-  const runDir = await prepareRunDirectory(projectRoot, parsed.task.task_id);
+  const runDir = await prepareRunDirectory(projectRoot, parsed.task.project_id, parsed.task.task_id);
   const taskDir = path.join(runDir, 'task');
   const packetDir = path.join(runDir, 'prompt-packets');
   const candidateRoot = path.join(runDir, 'candidates');
@@ -21,6 +21,8 @@ export async function materializeRunArtifacts({ projectRoot, parsed, packets, ru
   await fs.writeFile(
     path.join(runDir, 'run-summary.json'),
     JSON.stringify({
+      project_id: parsed.task.project_id,
+      project_label: parsed.task.project_label,
       task_id: parsed.task.task_id,
       repo: parsed.task.repo,
       repo_path: parsed.task.repo_path || null,
@@ -72,6 +74,8 @@ export async function materializeRunArtifacts({ projectRoot, parsed, packets, ru
     }));
     const manifest = {
       task_id: parsed.task.task_id,
+      project_id: parsed.task.project_id,
+      project_label: parsed.task.project_label,
       candidate_id: candidateId,
       candidate_key: entry.candidateKey,
       candidate_slot: entry.candidateSlot,
@@ -127,11 +131,13 @@ export async function materializeRunArtifacts({ projectRoot, parsed, packets, ru
   return { runDir, manifests };
 }
 
-async function prepareRunDirectory(projectRoot, taskId) {
+async function prepareRunDirectory(projectRoot, projectId, taskId) {
   const runsRoot = path.join(projectRoot, 'runs');
   await fs.mkdir(runsRoot, { recursive: true });
+  const projectRunsRoot = path.join(runsRoot, projectId);
+  await fs.mkdir(projectRunsRoot, { recursive: true });
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const runDir = path.join(runsRoot, `${taskId}_${timestamp}`);
+  const runDir = path.join(projectRunsRoot, `${taskId}_${timestamp}`);
   await fs.mkdir(runDir, { recursive: true });
   return runDir;
 }
