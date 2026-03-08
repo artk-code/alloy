@@ -24,7 +24,7 @@ test('paginateItems normalizes invalid page sizes and page numbers', () => {
 });
 
 test('detail section helpers only allow known sections', () => {
-  assert.equal(normalizeDetailSection('merge'), 'merge');
+  assert.equal(normalizeDetailSection('compare'), 'compare');
   assert.equal(normalizeDetailSection('not-real'), DETAIL_SECTIONS[0].id);
   assert.equal(clampPage(-10, 4), 1);
   assert.equal(clampPage(10, 4), 4);

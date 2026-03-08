@@ -12,7 +12,8 @@
     "ranking",
     "pairwise_preferences",
     "contribution_map",
-    "decision"
+    "decision",
+    "merge_plan"
   ],
   "properties": {
     "task_id": { "type": "string" },
@@ -62,6 +63,9 @@
           "items": { "type": "string" }
         }
       }
+    },
+    "merge_plan": {
+      "$ref": "https://alloy.dev/schemas/merge-plan.schema.json"
     }
   }
 }

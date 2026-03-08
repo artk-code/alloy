@@ -42,7 +42,7 @@ Wireframe:
 | State: Running                                                                   |
 | Judge: pending                                                                   |
 | PR: not ready                                                                    |
-| [Open Card]                                                                      |
+| [Click card to focus task]                                                       |
 +--------------------------------------------------------------------------------+
 | [Card] Tighten retry test coverage                                               |
 | Repo: demo/cache-service                                                        |
@@ -50,14 +50,14 @@ Wireframe:
 | State: Winner Ready                                                              |
 | Judge: high confidence                                                           |
 | PR: #12                                                                          |
-| [Open Card]                                                                      |
+| [Click card to focus task]                                                       |
 +--------------------------------------------------------------------------------+
 ```
 
 Required behaviors:
 - card states map cleanly to Alloy run states
 - cards expose enough status to scan the board without opening each run
-- opening a card should land in the task detail/composer view
+- selecting a card should focus the task detail/composer view and sync the URL
 
 ## 3.1 Provider Auth Panel
 

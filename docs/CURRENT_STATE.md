@@ -13,10 +13,12 @@ Purpose: Capture the honest current Alloy proof boundary so future work starts f
   - per-provider run configuration
   - session monitor
   - parsed task brief view
+  - native markdown task rendering inside the operator view
   - evaluation summary and candidate cards
-  - per-candidate diff viewer
-  - merge builder for winner-only and manual file selection
-  - per-file provenance in the merge builder
+  - dedicated `Compare Diffs` page for candidate and synthesis review
+  - merge-plan and synthesis guidance in the operator view
+  - per-file provenance in the merge workflow
+  - dedicated in-app docs page for operator workflow guidance
   - tabbed operator detail sections to reduce clutter
 - The default demo task is the tic-tac-toe perfect-play repair card at `samples/tasks/tic-tac-toe-perfect-play.task.md`.
 - There is also a runnable security-lab card at `samples/tasks/security-sql-injection.task.md`.
@@ -28,7 +30,9 @@ Purpose: Capture the honest current Alloy proof boundary so future work starts f
   - ranking
   - pairwise comparisons
   - winner vs synthesize recommendation
+  - first-class `merge_plan` output
 - Alloy can create a fresh synthesis workspace from:
+  - the evaluator-produced merge plan
   - the winning candidate
   - human-selected files from candidate diffs
 - The board/detail UI now classifies run provenance so it can distinguish:
@@ -47,8 +51,10 @@ Real today:
 - provider readiness probing where the CLI exposes a safe status command
 - `jj` workspace bootstrap and patch capture
 - `jj` diff/file APIs for the UI
+- synthesis diff API for the UI
 - verifier command execution
 - deterministic scoring
+- deterministic merge-plan generation
 - conservative synthesis workspace creation and re-verification
 - local API and browser UI
 
@@ -59,6 +65,9 @@ Still limited:
 - Gemini auth is intentionally treated as manual operator verification in the current build
 - blind judge/composer logic is not implemented yet
 - final `jj` stack shaping and PR publication are not implemented yet
+- a full scripted browser smoke test was not completed in this session because:
+  - no repo-local Playwright package/CLI was available
+  - Safari WebDriver session creation was blocked by disabled remote automation
 
 ## Demo Proof Boundary
 
@@ -69,21 +78,32 @@ Current demo proof:
 4. Alloy runs the real acceptance commands.
 5. Alloy captures the resulting `jj` patch and scores the candidate.
 6. Alloy can materialize a new synthesis workspace from those captured candidate diffs and rerun the real verifier.
+7. Alloy can expose merge-plan, synthesis diff, and operator guidance surfaces through the web UI.
 
 That is enough to prove the orchestration, verification, artifact, and conservative merge path. It is not yet enough to claim full live multi-provider synthesis with autonomous composition.
 
 ## UI State
 
-- The desktop layout is a three-column workspace:
+- The desktop layout is a two-tier workspace:
   - providers and runtime on the left
-  - board and operator view stacked in the center
-  - routing and run controls on the right
+  - task board and operator view side by side on the top row
+  - routing and run controls underneath the board/operator span
+- The heavy diff workflow now has its own `Compare Diffs` page with:
+  - candidate diff inspection
+  - synthesis diff inspection
+  - per-file provenance
+  - merge-plan review
+  - synthesis actions
+- The app now has an in-app `Docs` page backed by local markdown content.
 - Cards now carry explicit project labels so multiple labs can coexist on the same board.
 - The board can now filter by project and group by project or state.
+- Task cards are directly selectable and sync the focused task into the URL and Operator View.
 - Narrow screens collapse to a single-column flow.
 - The UI uses a light corporate palette at the moment because that is the current operator preference.
 - Gemini always shows manual auth verification rather than a false precision status.
 - Heavy operator sections are collapsible and the operator view is tabbed so only one dense pane is visible at a time.
+- Control Panel, Compare Diffs, and Docs now share top-level navigation.
+- Control Panel task editing now supports source and rendered-markdown modes.
 - Card and detail states are now outcome-based and provenance-aware:
   - `Draft`
   - `Prepared`
@@ -99,16 +119,18 @@ That is enough to prove the orchestration, verification, artifact, and conservat
 
 ## Highest-Value Next Steps
 
-1. Add richer compare controls on top of the new diff viewer:
-   - patch stats
-   - synthesis result diff inspection
+1. Manually verify the current local Compare Diffs and Docs routes, then check in the merge-plan/docs slice.
 2. Add a blind judge/composer layer on top of deterministic evaluation.
-3. Add `jj` stack shaping for the synthesized result:
+3. Improve synthesis review clarity:
+   - candidate vs synthesis review cues
+   - clearer unresolved-conflict presentation
+   - clearer per-file provenance summaries
+4. Add `jj` stack shaping for the synthesized result:
    - split
    - squash
    - rebase
-4. Add final publication flow from the synthesized stack.
-5. Add persisted project-level dashboards and saved board preferences.
+5. Add final publication flow from the synthesized stack.
+6. Add persisted project-level dashboards and saved board preferences only after the merge/publish loop is more complete.
 
 ## Validation Commands
 

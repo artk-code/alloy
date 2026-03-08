@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alloy.dev/schemas/merge-plan.schema.json",
+  "title": "Alloy Merge Plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "base_candidate_id",
+    "mode",
+    "confidence",
+    "rationale",
+    "verification_expectation",
+    "file_decisions",
+    "unresolved_conflicts"
+  ],
+  "properties": {
+    "base_candidate_id": { "type": ["string", "null"] },
+    "mode": {
+      "type": "string",
+      "enum": ["winner_only", "file_select", "manual_review", "no_winner"]
+    },
+    "confidence": {
+      "type": "string",
+      "enum": ["high", "medium", "low"]
+    },
+    "rationale": { "type": "string" },
+    "verification_expectation": { "type": "string" },
+    "file_decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "chosen_candidate_id",
+          "contender_candidate_ids",
+          "decision_reason",
+          "risk_level",
+          "confidence"
+        ],
+        "properties": {
+          "path": { "type": "string" },
+          "chosen_candidate_id": { "type": "string" },
+          "contender_candidate_ids": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "decision_reason": { "type": "string" },
+          "risk_level": {
+            "type": "string",
+            "enum": ["low", "medium", "high"]
+          },
+          "confidence": {
+            "type": "string",
+            "enum": ["high", "medium", "low"]
+          }
+        }
+      }
+    },
+    "unresolved_conflicts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "contender_candidate_ids", "reason"],
+        "properties": {
+          "path": { "type": "string" },
+          "contender_candidate_ids": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "recommended_candidate_id": { "type": ["string", "null"] },
+          "reason": { "type": "string" }
+        }
+      }
+    }
+  }
+}

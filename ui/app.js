@@ -1,4 +1,7 @@
+import { renderMarkdownInto } from './markdown-viewer.mjs';
 import { DETAIL_SECTIONS, normalizeDetailSection, paginateItems } from './view-state.mjs';
+
+const searchParams = new URLSearchParams(window.location.search);
 
 const state = {
   tasks: [],
@@ -14,10 +17,7 @@ const state = {
   boardPage: 1,
   boardPageSize: 6,
   detailSection: 'overview',
-  diffCandidateId: null,
-  diffFilePath: null,
-  diffPayload: null,
-  mergeSelections: {},
+  editorMode: 'source',
   runPollTimer: null,
   runInFlight: false
 };
@@ -37,15 +37,20 @@ const taskMarkdown = document.querySelector('#task-markdown');
 const taskBrief = document.querySelector('#task-brief');
 const evaluationCall = document.querySelector('#evaluation-call');
 const comparisonView = document.querySelector('#comparison-view');
-const diffView = document.querySelector('#diff-view');
-const mergeView = document.querySelector('#merge-view');
 const taskJson = document.querySelector('#task-json');
 const runSummary = document.querySelector('#run-summary');
 const candidateCards = document.querySelector('#candidate-cards');
 const toastStack = document.querySelector('#toast-stack');
+const heroOpenCompareButton = document.querySelector('#hero-open-compare');
+const heroOpenDocsLink = document.querySelector('#hero-open-docs');
+const detailOpenCompareButton = document.querySelector('#detail-open-compare');
+const taskMarkdownEditTab = document.querySelector('#task-markdown-edit-tab');
+const taskMarkdownPreviewTab = document.querySelector('#task-markdown-preview-tab');
+const taskMarkdownPreview = document.querySelector('#task-markdown-preview');
 const prepareButton = document.querySelector('#prepare-task');
 const runButton = document.querySelector('#run-task');
 const runLiveButton = document.querySelector('#run-task-live');
+const openCompareButton = document.querySelector('#open-compare-page');
 const openLatestRunButton = document.querySelector('#open-latest-run');
 
 const providerTemplate = document.querySelector('#provider-template');
@@ -58,9 +63,32 @@ document.querySelector('#refresh-providers').addEventListener('click', async () 
   await loadProviders();
   renderRunConfig();
 });
+heroOpenCompareButton.addEventListener('click', () => {
+  if (state.selectedTaskId) {
+    window.location.href = buildCompareUrl(state.selectedTaskId);
+  }
+});
+detailOpenCompareButton.addEventListener('click', () => {
+  if (state.selectedTaskId) {
+    window.location.href = buildCompareUrl(state.selectedTaskId);
+  }
+});
+taskMarkdownEditTab.addEventListener('click', () => {
+  state.editorMode = 'source';
+  renderEditorMode();
+});
+taskMarkdownPreviewTab.addEventListener('click', () => {
+  state.editorMode = 'preview';
+  renderEditorMode();
+});
 prepareButton.addEventListener('click', () => runSelectedTask('prepare', { dryRun: true }));
 runButton.addEventListener('click', () => runSelectedTask('run', { dryRun: true }));
 runLiveButton.addEventListener('click', () => runSelectedTask('run', { dryRun: false }));
+openCompareButton.addEventListener('click', () => {
+  if (state.selectedTaskId) {
+    window.location.href = buildCompareUrl(state.selectedTaskId);
+  }
+});
 openLatestRunButton.addEventListener('click', () => {
   if (state.taskDetail?.run_dir) {
     navigator.clipboard?.writeText(state.taskDetail.run_dir);
@@ -73,6 +101,7 @@ openLatestRunButton.addEventListener('click', () => {
 
 taskMarkdown.addEventListener('input', () => {
   const markdown = taskMarkdown.value;
+  renderMarkdownPreview();
   if (!markdown) {
     return;
   }
@@ -82,8 +111,12 @@ taskMarkdown.addEventListener('input', () => {
 
 async function boot() {
   await Promise.all([loadTasks(), loadProviders()]);
-  if (state.tasks[0]) {
-    await selectTask(state.tasks[0].task_id);
+  const requestedTaskId = searchParams.get('task');
+  const initialTask = requestedTaskId
+    ? state.tasks.find((task) => task.task_id === requestedTaskId)
+    : state.tasks[0];
+  if (initialTask) {
+    await selectTask(initialTask.task_id);
   }
 }
 
@@ -122,6 +155,7 @@ async function loadLiveSessions(taskId = state.selectedTaskId) {
 
 async function selectTask(taskId) {
   state.selectedTaskId = taskId;
+  syncTaskUrl(taskId);
   const response = await fetch(`/api/tasks/${encodeURIComponent(taskId)}`);
   state.taskDetail = await response.json();
   state.runConfig = ensureRunConfigDefaults(deepClone(state.taskDetail.run_config || { providers: [] }));
@@ -132,13 +166,9 @@ async function selectTask(taskId) {
     warnings: state.taskDetail.warnings || []
   };
   state.liveSessions = state.taskDetail.current_sessions || [];
-  state.mergeSelections = buildInitialMergeSelections(state.taskDetail.merge_view, state.mergeSelections);
-  state.diffCandidateId = pickDefaultDiffCandidateId(state.taskDetail, state.diffCandidateId);
   state.detailSection = normalizeDetailSection(state.detailSection);
-  state.diffPayload = null;
-  state.diffFilePath = null;
   taskMarkdown.value = state.taskDetail.markdown;
-  await loadSelectedCandidateDiff();
+  renderMarkdownPreview();
   renderDetail();
   renderRunConfig();
   renderSessions();
@@ -154,62 +184,6 @@ async function parseMarkdownPreview(markdown) {
   state.parsedPreview = payload.source_task || null;
   state.previewValidation = payload.validation || null;
   renderDetail();
-}
-
-async function loadSelectedCandidateDiff() {
-  if (!state.selectedTaskId || !state.diffCandidateId) {
-    state.diffPayload = null;
-    state.diffFilePath = null;
-    return;
-  }
-
-  const response = await fetch(
-    `/api/tasks/${encodeURIComponent(state.selectedTaskId)}/candidates/${encodeURIComponent(state.diffCandidateId)}/diff`
-  );
-  if (!response.ok) {
-    state.diffPayload = null;
-    state.diffFilePath = null;
-    return;
-  }
-
-  state.diffPayload = await response.json();
-  state.diffFilePath = state.diffPayload.files?.[0]?.path || null;
-}
-
-async function createSynthesis(payload) {
-  if (!state.selectedTaskId) {
-    return;
-  }
-
-  try {
-    const response = await fetch(`/api/tasks/${encodeURIComponent(state.selectedTaskId)}/synthesize`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...payload,
-        selected_by: 'human-ui'
-      })
-    });
-    const result = await response.json();
-    if (!response.ok) {
-      throw new Error(result.error || 'synthesis_failed');
-    }
-    showToast({
-      title: 'Synthesis created',
-      lines: [
-        `${result.synthesis.strategy} • ${result.synthesis.status}`,
-        result.synthesis.workspace_path,
-        result.synthesis.verification?.status ? `verification ${result.synthesis.verification.status}` : null
-      ].filter(Boolean)
-    });
-    await Promise.all([loadTasks(), loadProviders(), selectTask(state.selectedTaskId)]);
-  } catch (error) {
-    showToast({
-      title: 'Synthesis failed',
-      lines: [error.message || String(error)],
-      tone: 'danger'
-    });
-  }
 }
 
 async function runSelectedTask(action, { dryRun }) {
@@ -446,7 +420,12 @@ function groupTasks(tasks) {
 
 function renderTaskCard(task) {
   const node = taskTemplate.content.firstElementChild.cloneNode(true);
+  const isSelected = task.task_id === state.selectedTaskId;
   node.querySelector('.task-source').textContent = task.source_label || displaySourceSystem(task.source_system);
+  node.dataset.taskId = task.task_id;
+  node.setAttribute('aria-label', `Focus task ${task.title}`);
+  node.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+  node.classList.toggle('is-selected', isSelected);
 
   const stateEl = node.querySelector('.task-state');
   stateEl.textContent = formatStatusBadge(task.state);
@@ -462,7 +441,13 @@ function renderTaskCard(task) {
     task.run_origin_label ? `origin ${task.run_origin_label}` : null
   ].filter(Boolean).join(' • ');
   node.querySelector('.task-providers').textContent = `Candidates: ${(task.provider_labels || task.providers || []).join(', ')}`;
-  node.querySelector('.open-card').addEventListener('click', () => selectTask(task.task_id));
+  node.addEventListener('click', () => selectTask(task.task_id));
+  node.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      selectTask(task.task_id);
+    }
+  });
   return node;
 }
 
@@ -678,9 +663,8 @@ function renderDetail() {
   renderTaskBrief(task);
   renderEvaluationCall(state.taskDetail.latest_run_overview, state.taskDetail.evaluation);
   renderComparisonView(state.taskDetail.comparison_view);
-  renderDiffView();
-  renderMergeView();
   applyDetailSectionVisibility();
+  renderEditorMode();
 
   taskJson.textContent = JSON.stringify({
     task,
@@ -688,7 +672,7 @@ function renderDetail() {
     run_config: state.runConfig || state.taskDetail.run_config,
     sessions: state.liveSessions,
     merge_view: state.taskDetail.merge_view,
-    diff_candidate_id: state.diffCandidateId
+    compare_url: state.taskDetail.compare_url
   }, null, 2);
   runSummary.textContent = JSON.stringify(state.taskDetail.latest_run || { message: 'No run yet.' }, null, 2);
 
@@ -728,16 +712,18 @@ function renderDetail() {
 
     const inspectButton = document.createElement('button');
     inspectButton.className = 'ghost-button';
-    inspectButton.textContent = 'View Diff';
+    inspectButton.textContent = 'Open Compare';
     inspectButton.addEventListener('click', async () => {
-      state.diffCandidateId = candidate.candidate_id;
-      await loadSelectedCandidateDiff();
-      renderDetail();
+      window.location.href = buildCompareUrl(state.selectedTaskId, candidate.candidate_id);
     });
     node.appendChild(inspectButton);
     candidateCards.appendChild(node);
   }
 
+  openCompareButton.disabled = !state.selectedTaskId;
+  heroOpenCompareButton.disabled = !state.selectedTaskId;
+  detailOpenCompareButton.disabled = !state.selectedTaskId;
+  heroOpenDocsLink.href = buildDocsUrl(state.selectedTaskId);
   openLatestRunButton.disabled = !state.taskDetail.run_dir;
 }
 
@@ -766,18 +752,12 @@ function applyDetailSectionVisibility() {
 }
 
 function buildDetailSectionLabels() {
-  const mergeFileCount = state.taskDetail?.merge_view?.files?.length || 0;
   const compareCount = state.taskDetail?.comparison_view?.rows?.length || 0;
   const candidateCount = state.taskDetail?.candidates?.length || 0;
-  const diffCount = state.diffPayload?.files?.length
-    || state.taskDetail?.comparison_view?.rows?.find((row) => row.candidate_id === state.diffCandidateId)?.changed_file_count
-    || 0;
 
   return new Map([
     ['overview', 'Overview'],
     ['compare', compareCount > 0 ? `Compare (${compareCount})` : 'Compare'],
-    ['diff', diffCount > 0 ? `Diff (${diffCount})` : 'Diff'],
-    ['merge', mergeFileCount > 0 ? `Merge (${mergeFileCount})` : 'Merge'],
     ['candidates', candidateCount > 0 ? `Candidates (${candidateCount})` : 'Candidates'],
     ['debug', 'Debug']
   ]);
@@ -886,10 +866,46 @@ function renderComparisonView(comparison) {
     comparison.decision?.synthesis_summary || 'Synthesis guidance is not available yet.'
   );
 
+  if (comparison.merge_plan) {
+    appendInfoBlock(
+      comparisonView,
+      'Merge Plan',
+      [
+        comparison.merge_plan.base_candidate_label ? `base ${comparison.merge_plan.base_candidate_label}` : null,
+        comparison.merge_plan.mode,
+        `confidence ${comparison.merge_plan.confidence}`,
+        comparison.merge_plan.unresolved_conflicts?.length
+          ? `${comparison.merge_plan.unresolved_conflicts.length} contested file${comparison.merge_plan.unresolved_conflicts.length === 1 ? '' : 's'}`
+          : 'no unresolved conflicts'
+      ].filter(Boolean).join(' • ')
+    );
+    appendInfoBlock(
+      comparisonView,
+      'Plan Rationale',
+      comparison.merge_plan.rationale
+    );
+  }
+
   const contributionEntries = Object.entries(comparison.contribution_map || {})
     .filter(([, label]) => label)
     .map(([key, label]) => `${humanizeContributionKey(key)}: ${label}`);
   appendListBlock(comparisonView, 'Contribution Map', contributionEntries, 'No contribution map yet.');
+
+  const compareButtonBlock = document.createElement('div');
+  compareButtonBlock.className = 'info-block';
+  const compareButtonTitle = document.createElement('h4');
+  compareButtonTitle.textContent = 'Dedicated Compare Workspace';
+  const compareButtonBody = document.createElement('p');
+  compareButtonBody.textContent = 'Open the full compare page for candidate patches, synthesized diffs, per-file provenance, and finalization controls.';
+  const compareButton = document.createElement('button');
+  compareButton.className = 'ghost-button';
+  compareButton.textContent = 'Open Compare Workspace';
+  compareButton.textContent = 'Open Compare Diffs';
+  compareButton.addEventListener('click', () => {
+    window.location.href = buildCompareUrl(state.selectedTaskId);
+  });
+  compareButtonBlock.append(compareButtonTitle, compareButtonBody, compareButton);
+  comparisonView.appendChild(compareButtonBlock);
 
   if ((comparison.rows || []).length === 0) {
     appendInfoBlock(comparisonView, 'Candidates', 'No candidate artifacts are available yet.');
@@ -934,11 +950,9 @@ function renderComparisonView(comparison) {
     actions.className = 'task-chip-row';
     const diffButton = document.createElement('button');
     diffButton.className = 'ghost-button';
-    diffButton.textContent = 'View Diff';
+    diffButton.textContent = 'Open Compare';
     diffButton.addEventListener('click', async () => {
-      state.diffCandidateId = row.candidate_id;
-      await loadSelectedCandidateDiff();
-      renderDetail();
+      window.location.href = buildCompareUrl(state.selectedTaskId, row.candidate_id);
     });
     actions.appendChild(diffButton);
 
@@ -946,233 +960,6 @@ function renderComparisonView(comparison) {
     list.appendChild(article);
   }
   comparisonView.appendChild(list);
-}
-
-function renderDiffView() {
-  diffView.innerHTML = '';
-  const rows = state.taskDetail?.comparison_view?.rows || [];
-
-  if (rows.length === 0) {
-    appendInfoBlock(diffView, 'Diff State', 'No candidate patch is available yet.');
-    return;
-  }
-
-  const controls = document.createElement('div');
-  controls.className = 'info-block';
-  const title = document.createElement('h4');
-  title.textContent = 'Candidate Patch';
-  const selector = document.createElement('select');
-  for (const row of rows) {
-    const option = document.createElement('option');
-    option.value = row.candidate_id;
-    option.textContent = `${row.label} • ${row.changed_file_count} files`;
-    selector.appendChild(option);
-  }
-  selector.value = state.diffCandidateId || rows[0].candidate_id;
-  selector.addEventListener('change', async () => {
-    state.diffCandidateId = selector.value;
-    await loadSelectedCandidateDiff();
-    renderDetail();
-  });
-  controls.append(title, selector);
-  diffView.appendChild(controls);
-
-  if (!state.diffPayload) {
-    appendInfoBlock(diffView, 'Patch', 'Select a candidate to load its captured `jj` diff.');
-    return;
-  }
-
-  appendInfoBlock(
-    diffView,
-    'Patch Summary',
-    [
-      state.diffPayload.diff_summary || 'No diff summary captured.',
-      state.diffPayload.jj?.candidate_revision?.change_id ? `jj ${shortId(state.diffPayload.jj.candidate_revision.change_id)}` : null
-    ].filter(Boolean).join(' • ')
-  );
-
-  const fileBlock = document.createElement('div');
-  fileBlock.className = 'info-block';
-  const fileTitle = document.createElement('h4');
-  fileTitle.textContent = 'Files';
-  fileBlock.appendChild(fileTitle);
-  const fileButtons = document.createElement('div');
-  fileButtons.className = 'task-chip-row';
-  for (const file of state.diffPayload.files || []) {
-    const button = document.createElement('button');
-    button.className = state.diffFilePath === file.path ? '' : 'ghost-button';
-    button.textContent = file.path;
-    button.addEventListener('click', () => {
-      state.diffFilePath = file.path;
-      renderDiffView();
-    });
-    fileButtons.appendChild(button);
-  }
-  fileBlock.appendChild(fileButtons);
-  diffView.appendChild(fileBlock);
-
-  const selectedFile = (state.diffPayload.files || []).find((file) => file.path === state.diffFilePath)
-    || state.diffPayload.files?.[0]
-    || null;
-
-  const patchBlock = document.createElement('div');
-  patchBlock.className = 'info-block';
-  const patchTitle = document.createElement('h4');
-  patchTitle.textContent = selectedFile ? `Patch • ${selectedFile.path}` : 'Patch';
-  const patchPre = document.createElement('pre');
-  patchPre.textContent = selectedFile?.patch || state.diffPayload.patch || 'No patch text captured.';
-  patchBlock.append(patchTitle, patchPre);
-  diffView.appendChild(patchBlock);
-}
-
-function renderMergeView() {
-  mergeView.innerHTML = '';
-  const merge = state.taskDetail?.merge_view;
-
-  if (!merge) {
-    appendInfoBlock(mergeView, 'Merge State', 'No merge view is available yet.');
-    return;
-  }
-
-  appendInfoBlock(
-    mergeView,
-    'Merge Policy',
-    `Current mode: ${state.runConfig?.merge_mode || merge.merge_mode}. Auto finalization only applies to a clear deterministic winner. Hybrid/manual keep the human at the merge boundary.`
-  );
-
-  if (merge.synthesis) {
-    appendInfoBlock(
-      mergeView,
-      'Latest Synthesis',
-      [
-        `${merge.synthesis.strategy} • ${merge.synthesis.status}`,
-        merge.synthesis.jj_change_id ? `jj ${shortId(merge.synthesis.jj_change_id)}` : null,
-        merge.synthesis.verification?.status ? `verification ${merge.synthesis.verification.status}` : null
-      ].filter(Boolean).join(' • ')
-    );
-  }
-
-  if (merge.winner_candidate_id) {
-    const winnerButtonBlock = document.createElement('div');
-    winnerButtonBlock.className = 'info-block';
-    const title = document.createElement('h4');
-    title.textContent = 'Winner Finalization';
-    const button = document.createElement('button');
-    button.textContent = 'Finalize Winner';
-    button.addEventListener('click', async () => {
-      await createSynthesis({
-        strategy: 'winner_only',
-        winner_candidate_id: merge.winner_candidate_id
-      });
-    });
-    winnerButtonBlock.append(title, button);
-    mergeView.appendChild(winnerButtonBlock);
-  }
-
-  if (!merge.files?.length) {
-    appendInfoBlock(mergeView, 'Manual File Merge', 'No changed files are available for manual synthesis.');
-    return;
-  }
-
-  const block = document.createElement('div');
-  block.className = 'info-block';
-  const title = document.createElement('h4');
-  title.textContent = 'Manual File Merge';
-  block.appendChild(title);
-
-  const helper = document.createElement('p');
-  helper.textContent = 'Pick which candidate should contribute each changed file, then build a synthesis workspace and rerun verification.';
-  block.appendChild(helper);
-
-  for (const file of merge.files) {
-    const row = document.createElement('article');
-    row.className = 'provenance-row';
-
-    const rowHeader = document.createElement('div');
-    rowHeader.className = 'candidate-header';
-    const rowTitle = document.createElement('strong');
-    rowTitle.textContent = file.path;
-    const rowBadge = document.createElement('span');
-    rowBadge.className = `candidate-status ${file.contested ? 'state-warn' : 'state-idle'}`;
-    rowBadge.textContent = file.contested ? '? contested' : '• single source';
-    rowHeader.append(rowTitle, rowBadge);
-    row.appendChild(rowHeader);
-
-    const selectedCandidateId = state.mergeSelections[file.path] || '';
-    const selectedOwner = file.owners.find((owner) => owner.candidate_id === selectedCandidateId) || null;
-
-    const selectLabel = document.createElement('label');
-    selectLabel.className = 'field-label';
-    selectLabel.textContent = 'Selected source';
-    const select = document.createElement('select');
-    const emptyOption = document.createElement('option');
-    emptyOption.value = '';
-    emptyOption.textContent = 'skip';
-    select.appendChild(emptyOption);
-    for (const owner of file.owners) {
-      const option = document.createElement('option');
-      option.value = owner.candidate_id;
-      option.textContent = owner.label;
-      select.appendChild(option);
-    }
-    select.value = selectedCandidateId;
-    select.addEventListener('change', () => {
-      state.mergeSelections[file.path] = select.value || null;
-      renderMergeView();
-    });
-    selectLabel.appendChild(select);
-    row.appendChild(selectLabel);
-
-    const selectedSummary = document.createElement('p');
-    selectedSummary.className = 'comparison-summary';
-    if (selectedOwner) {
-      selectedSummary.textContent = [
-        `Current source ${selectedOwner.label}`,
-        selectedOwner.verification_status ? `verification ${selectedOwner.verification_status}` : null,
-        selectedOwner.jj_change_id ? `jj ${shortId(selectedOwner.jj_change_id)}` : null,
-        file.selection_reasons?.[selectedOwner.candidate_id] || null
-      ].filter(Boolean).join(' • ');
-    } else {
-      selectedSummary.textContent = 'No source selected for this file yet. Leave it skipped or pick a candidate before building the synthesis workspace.';
-    }
-    row.appendChild(selectedSummary);
-
-    const ownerList = document.createElement('div');
-    ownerList.className = 'provenance-list';
-    for (const owner of file.owners) {
-      const ownerRow = document.createElement('div');
-      ownerRow.className = 'provenance-owner';
-      const ownerLabel = document.createElement('strong');
-      ownerLabel.textContent = owner.label;
-      const ownerMeta = document.createElement('p');
-      ownerMeta.textContent = [
-        owner.provider_label,
-        owner.score != null ? `${owner.score}/100` : 'score pending',
-        owner.verification_status ? `verification ${owner.verification_status}` : null,
-        owner.jj_change_id ? `jj ${shortId(owner.jj_change_id)}` : null,
-        file.selection_reasons?.[owner.candidate_id] || null,
-        file.synthesized_candidate_id === owner.candidate_id ? 'selected in latest synthesis' : null
-      ].filter(Boolean).join(' • ');
-      ownerRow.append(ownerLabel, ownerMeta);
-      ownerList.appendChild(ownerRow);
-    }
-    row.appendChild(ownerList);
-
-    block.appendChild(row);
-  }
-
-  const buildButton = document.createElement('button');
-  buildButton.textContent = 'Build File Merge';
-  buildButton.addEventListener('click', async () => {
-    await createSynthesis({
-      strategy: 'file_select',
-      file_selections: Object.fromEntries(
-        Object.entries(state.mergeSelections || {}).filter(([, value]) => value)
-      )
-    });
-  });
-  block.appendChild(buildButton);
-  mergeView.appendChild(block);
 }
 
 function renderSessions() {
@@ -1242,6 +1029,52 @@ function appendListBlock(root, heading, items, emptyText) {
   }
 
   root.appendChild(block);
+}
+
+function buildCompareUrl(taskId, candidateId = null) {
+  const params = new URLSearchParams({ task: taskId });
+  if (candidateId) {
+    params.set('candidate', candidateId);
+  }
+  return `/compare.html?${params.toString()}`;
+}
+
+function buildDocsUrl(taskId = null) {
+  const params = new URLSearchParams({ doc: 'operator-guide' });
+  if (taskId) {
+    params.set('task', taskId);
+  }
+  return `/docs.html?${params.toString()}`;
+}
+
+function syncTaskUrl(taskId) {
+  const next = new URL(window.location.href);
+  next.searchParams.set('task', taskId);
+  window.history.replaceState({}, '', next);
+}
+
+function renderMarkdownPreview() {
+  renderMarkdownInto(taskMarkdownPreview, stripFrontmatter(taskMarkdown.value || ''));
+}
+
+function renderEditorMode() {
+  const previewMode = state.editorMode === 'preview';
+  taskMarkdown.hidden = previewMode;
+  taskMarkdownPreview.hidden = !previewMode;
+  taskMarkdownEditTab.className = previewMode ? 'detail-tab ghost-button' : 'detail-tab is-active';
+  taskMarkdownPreviewTab.className = previewMode ? 'detail-tab is-active' : 'detail-tab ghost-button';
+}
+
+function stripFrontmatter(markdown) {
+  const normalized = String(markdown || '').replace(/\r\n/g, '\n');
+  if (!normalized.startsWith('---\n')) {
+    return normalized;
+  }
+  const end = normalized.indexOf('\n---\n', 4);
+  if (end < 0) {
+    return normalized;
+  }
+  return normalized.slice(end + 5).trimStart();
 }
 
 function setRunControlsBusy(isBusy, dryRun) {

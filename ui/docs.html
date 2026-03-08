@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Alloy Docs</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div id="toast-stack" class="toast-stack" aria-live="polite" aria-atomic="false"></div>
+    <div class="app-shell docs-shell">
+      <header class="hero panel compare-hero">
+        <div>
+          <nav class="page-nav" aria-label="Primary">
+            <a id="docs-home-link" class="nav-link" href="/">Control Panel</a>
+            <a id="docs-compare-link" class="nav-link" href="/compare.html">Compare Diffs</a>
+            <a class="nav-link is-active" href="/docs.html">Docs</a>
+          </nav>
+          <nav class="breadcrumbs" aria-label="Breadcrumb">
+            <a href="/">Alloy Control Panel</a>
+            <span>/</span>
+            <span>Docs</span>
+            <span>/</span>
+            <span id="docs-crumb">Operator Guide</span>
+          </nav>
+          <p class="eyebrow">Alloy</p>
+          <h1 id="docs-title">Docs</h1>
+          <p id="docs-subtitle" class="lede">Operator instructions for evals, diffs, and synthesis workflow.</p>
+        </div>
+        <div class="task-chip-row">
+          <button id="refresh-docs" class="ghost-button">Refresh</button>
+        </div>
+      </header>
+
+      <main class="docs-grid">
+        <aside class="panel docs-sidebar-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Guide Set</p>
+              <h2>Available Docs</h2>
+            </div>
+          </div>
+          <div id="docs-list" class="stack compact"></div>
+        </aside>
+
+        <section class="panel docs-content-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Guide</p>
+              <h2 id="docs-content-title">Operator Guide</h2>
+            </div>
+          </div>
+          <article id="docs-content" class="markdown-body"></article>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="/docs.js"></script>
+  </body>
+</html>

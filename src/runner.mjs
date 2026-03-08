@@ -99,13 +99,12 @@ export async function runPreparedCandidates({
   }
 
   let synthesis = null;
-  if (!dryRun && evaluation && task.run_config?.merge_mode === 'auto' && evaluation.decision?.mode === 'winner') {
+  if (!dryRun && evaluation && task.run_config?.merge_mode === 'auto' && evaluation.merge_plan?.mode === 'winner_only') {
     try {
       synthesis = await synthesizeRun({
         runDir,
         task,
-        strategy: 'winner_only',
-        winnerCandidateId: evaluation.decision.winner_candidate_id,
+        mergePlan: evaluation.merge_plan,
         selectedBy: 'alloy-auto'
       });
       await appendJsonl(runEventsPath, {
@@ -113,7 +112,7 @@ export async function runPreparedCandidates({
         kind: 'synthesis.completed',
         project_id: task.project_id,
         task_id: task.task_id,
-        strategy: 'winner_only',
+        strategy: evaluation.merge_plan.mode,
         synthesis_id: synthesis.synthesis_id,
         status: synthesis.status
       });
@@ -127,7 +126,7 @@ export async function runPreparedCandidates({
         kind: 'synthesis.failed',
         project_id: task.project_id,
         task_id: task.task_id,
-        strategy: 'winner_only',
+        strategy: evaluation.merge_plan.mode,
         error: synthesis.error
       });
     }
@@ -151,14 +150,15 @@ export async function runPreparedCandidates({
     synthesis: synthesis
       ? {
           synthesis_id: synthesis.synthesis_id,
-          strategy: synthesis.strategy || 'winner_only',
+          strategy: synthesis.strategy || evaluation?.merge_plan?.mode || 'winner_only',
           status: synthesis.status,
           selected_by: synthesis.selected_by || 'alloy-auto',
           workspace_path: synthesis.workspace_path || null,
           manifest_path: synthesis.artifact_paths?.manifest_path || null,
           verification: synthesis.verification || null,
           jj: synthesis.jj || null,
-          selected_candidates: synthesis.selected_candidates || []
+          selected_candidates: synthesis.selected_candidates || [],
+          merge_plan: synthesis.merge_plan || null
         }
       : null
   };

@@ -10,7 +10,8 @@ import { parseTaskBrief } from '../parser.mjs';
 import { buildProviderEnv, doctorProviders, getProviderLoginCommand, getProviderTestCommand } from '../providers.mjs';
 import { SessionManager } from '../session-manager.mjs';
 import { synthesizeRun } from '../synthesis.mjs';
-import { getCandidateDiff, getCandidateJj, getTaskDetail, listTaskCards } from './data.mjs';
+import { listGuideDocs, readGuideDoc } from './docs-data.mjs';
+import { getCandidateDiff, getCandidateJj, getSynthesisDiff, getTaskDetail, listTaskCards } from './data.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -53,6 +54,18 @@ export function createServer() {
         return sendJson(res, 200, { tasks: await listTaskCards(projectRoot) });
       }
 
+      if (req.method === 'GET' && url.pathname === '/api/docs') {
+        return sendJson(res, 200, { docs: listGuideDocs() });
+      }
+
+      if (req.method === 'GET' && url.pathname.startsWith('/api/docs/')) {
+        const docId = decodeURIComponent(url.pathname.split('/')[3] || '');
+        const doc = await readGuideDoc(projectRoot, docId);
+        return doc
+          ? sendJson(res, 200, doc)
+          : sendJson(res, 404, { error: 'doc_not_found' });
+      }
+
       if (req.method === 'GET' && url.pathname.startsWith('/api/tasks/')) {
         const segments = url.pathname.split('/').filter(Boolean);
         const taskId = decodeURIComponent(segments[2] || '');
@@ -80,6 +93,13 @@ export function createServer() {
           return payload
             ? sendJson(res, 200, payload)
             : sendJson(res, 404, { error: 'candidate_not_found' });
+        }
+
+        if (segments[3] === 'synthesis' && segments[4] === 'diff') {
+          const payload = await getSynthesisDiff(projectRoot, taskId);
+          return payload
+            ? sendJson(res, 200, payload)
+            : sendJson(res, 404, { error: 'synthesis_not_found' });
         }
 
         const detail = await getTaskDetail(projectRoot, taskId);
@@ -246,6 +266,7 @@ async function synthesizeTask(taskId, body) {
       ...detail.task,
       run_config: detail.run_config
     },
+    mergePlan: body?.merge_plan || null,
     strategy: body?.strategy || 'winner_only',
     winnerCandidateId: body?.winner_candidate_id || null,
     fileSelections: body?.file_selections || {},

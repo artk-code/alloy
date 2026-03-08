@@ -15,6 +15,11 @@
           <h1>Control Panel</h1>
           <p class="lede">Multi-agent task routing, provider readiness, deterministic evaluation, and synthesis planning in one operator surface.</p>
         </div>
+        <nav class="page-nav" aria-label="Primary">
+          <a class="nav-link is-active" href="/">Control Panel</a>
+          <button id="hero-open-compare" class="ghost-button" disabled>Compare Diffs</button>
+          <a id="hero-open-docs" class="nav-link" href="/docs.html">Docs</a>
+        </nav>
       </header>
 
       <main class="workspace-grid">
@@ -77,6 +82,7 @@
               <button id="prepare-task" class="ghost-button" disabled>Prepare Run</button>
               <button id="run-task" disabled>Preview Commands</button>
               <button id="run-task-live" disabled>Run Live</button>
+              <button id="open-compare-page" class="ghost-button" disabled>Compare Diffs</button>
               <button id="open-latest-run" class="ghost-button" disabled>Copy Run Path</button>
             </div>
             <p class="hint">Preview keeps costs at zero. Live run launches the enabled provider CLIs and waits for verification and deterministic evaluation.</p>
@@ -89,15 +95,25 @@
               <p class="eyebrow">Operator View</p>
               <h2 id="detail-title">Select a task</h2>
             </div>
-            <span id="detail-state" class="state-pill state-idle">Draft</span>
+            <div class="detail-header-actions">
+              <button id="detail-open-compare" class="ghost-button" disabled>Compare Diffs</button>
+              <span id="detail-state" class="state-pill state-idle">Draft</span>
+            </div>
           </div>
 
           <div id="detail-nav" class="detail-nav"></div>
 
           <div class="detail-layout">
             <div class="editor-column">
-              <label class="field-label" for="task-markdown">Markdown Task Brief</label>
+              <div class="editor-header">
+                <label class="field-label" for="task-markdown">Markdown Task Brief</label>
+                <div class="editor-nav" aria-label="Markdown view mode">
+                  <button id="task-markdown-edit-tab" class="detail-tab is-active" type="button">Edit Source</button>
+                  <button id="task-markdown-preview-tab" class="detail-tab ghost-button" type="button">Render Markdown</button>
+                </div>
+              </div>
               <textarea id="task-markdown" spellcheck="false"></textarea>
+              <article id="task-markdown-preview" class="markdown-body panel-like" hidden></article>
             </div>
 
             <div class="preview-column">
@@ -108,18 +124,8 @@
               </details>
 
               <details class="subpanel collapsible" data-detail-section="compare" open>
-                <summary><h3>Compare + Synthesize</h3></summary>
+                <summary><h3>Compare + Merge</h3></summary>
                 <div id="comparison-view" class="info-stack"></div>
-              </details>
-
-              <details class="subpanel collapsible" data-detail-section="diff" open>
-                <summary><h3>Diff Viewer</h3></summary>
-                <div id="diff-view" class="info-stack"></div>
-              </details>
-
-              <details class="subpanel collapsible" data-detail-section="merge" open>
-                <summary><h3>Merge Builder</h3></summary>
-                <div id="merge-view" class="info-stack"></div>
               </details>
 
               <details class="subpanel collapsible" data-detail-section="candidates" open>
@@ -147,7 +153,7 @@
     </div>
 
     <template id="task-card-template">
-      <article class="task-card">
+      <article class="task-card" role="button" tabindex="0">
         <div class="task-card-top">
           <span class="task-source"></span>
           <span class="task-state"></span>
@@ -161,7 +167,6 @@
           <span class="chip task-checks"></span>
         </div>
         <p class="task-providers"></p>
-        <button class="ghost-button open-card">Open Card</button>
       </article>
     </template>
 

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Alloy Compare Diffs</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div id="toast-stack" class="toast-stack" aria-live="polite" aria-atomic="false"></div>
+    <div class="app-shell compare-shell">
+      <header class="hero panel compare-hero">
+        <div>
+          <nav class="page-nav" aria-label="Primary">
+            <a class="nav-link" href="/">Control Panel</a>
+            <a class="nav-link is-active" href="">Compare Diffs</a>
+            <a id="compare-docs-link" class="nav-link" href="/docs.html">Docs</a>
+          </nav>
+          <nav class="breadcrumbs" aria-label="Breadcrumb">
+            <a href="/">Alloy Control Panel</a>
+            <span>/</span>
+            <span>Compare Diffs</span>
+            <span>/</span>
+            <span id="compare-task-crumb">Task</span>
+          </nav>
+          <p class="eyebrow">Alloy</p>
+          <h1 id="compare-title">Compare Diffs</h1>
+          <p id="compare-subtitle" class="lede">Candidate diffs, merge plan review, and synthesis controls.</p>
+        </div>
+        <div class="task-chip-row">
+          <a class="ghost-button breadcrumb-button" href="/">Back to Control Panel</a>
+          <button id="refresh-compare" class="ghost-button">Refresh</button>
+        </div>
+      </header>
+
+      <main class="compare-grid">
+        <section class="panel compare-summary-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Task</p>
+              <h2>Summary</h2>
+            </div>
+          </div>
+          <div id="compare-summary" class="info-stack"></div>
+        </section>
+
+        <section class="panel compare-candidates-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Candidates</p>
+              <h2>Compare Diffs</h2>
+            </div>
+          </div>
+          <div id="compare-candidates" class="comparison-list"></div>
+        </section>
+
+        <section class="panel compare-merge-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Merge</p>
+              <h2>Plan + Finalization</h2>
+            </div>
+          </div>
+          <div id="compare-merge" class="info-stack"></div>
+        </section>
+
+        <section class="panel compare-diff-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Diffs</p>
+              <h2>Review Surface</h2>
+            </div>
+          </div>
+          <div id="compare-diff" class="info-stack"></div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="/compare.js"></script>
+  </body>
+</html>

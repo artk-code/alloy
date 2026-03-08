@@ -1,5 +1,7 @@
 import fs from 'node:fs/promises';
 
+import { buildMergePlan } from './merge-plan.mjs';
+
 export async function evaluateRun({ task, manifests, outputPath = null }) {
   const candidates = manifests.map((manifest) => evaluateCandidate({ task, manifest }));
   const eligible = candidates.filter((candidate) => candidate.eligible);
@@ -7,6 +9,7 @@ export async function evaluateRun({ task, manifests, outputPath = null }) {
   const pairwise_preferences = buildPairwisePreferences(candidates);
   const contribution_map = buildContributionMap(candidates, eligible);
   const decision = summarizeDecision(buildDecision(candidates, eligible), candidates);
+  const merge_plan = buildMergePlan({ candidates, decision });
 
   const result = {
     task_id: task.task_id,
@@ -16,7 +19,8 @@ export async function evaluateRun({ task, manifests, outputPath = null }) {
     ranking,
     pairwise_preferences,
     contribution_map,
-    decision
+    decision,
+    merge_plan
   };
 
   if (outputPath) {

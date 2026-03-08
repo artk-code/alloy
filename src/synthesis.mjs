@@ -2,11 +2,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { JjAdapter } from './jj.mjs';
+import { buildMergePlanFromSelections, materializeSelectionsFromMergePlan, validateMergePlan } from './merge-plan.mjs';
 import { runAcceptanceChecks } from './verify.mjs';
 
 export async function synthesizeRun({
   runDir,
   task,
+  mergePlan = null,
   strategy = 'winner_only',
   winnerCandidateId = null,
   fileSelections = {},
@@ -21,14 +23,16 @@ export async function synthesizeRun({
     throw new Error('No candidate manifests are available for synthesis.');
   }
 
-  const resolvedWinnerCandidateId = winnerCandidateId || summary.evaluation?.decision?.winner_candidate_id || null;
-  const normalizedStrategy = strategy === 'file_select' ? 'file_select' : 'winner_only';
-  const normalizedSelections = normalizeFileSelections({
-    strategy: normalizedStrategy,
+  const normalizedPlan = normalizeMergePlan({
+    mergePlan,
+    strategy,
+    winnerCandidateId,
     fileSelections,
-    winnerCandidateId: resolvedWinnerCandidateId,
-    candidateById
+    evaluation: summary.evaluation || null,
+    candidates
   });
+  const normalizedSelections = materializeSelectionsFromMergePlan(normalizedPlan);
+  const normalizedStrategy = normalizedPlan.mode === 'winner_only' ? 'winner_only' : 'file_select';
 
   const synthesisRoot = path.join(runDir, 'synthesis');
   const synthesisId = `synth_${new Date().toISOString().replace(/[:.]/g, '-')}`;
@@ -73,7 +77,10 @@ export async function synthesizeRun({
       candidate_id: candidate.candidate_id,
       candidate_slot: candidate.candidate_slot,
       provider: candidate.provider,
-      provider_instance_id: candidate.provider_instance_id
+      provider_instance_id: candidate.provider_instance_id,
+      decision_reason: normalizedPlan.file_decisions.find((decision) => decision.path === selection.path)?.decision_reason || null,
+      confidence: normalizedPlan.file_decisions.find((decision) => decision.path === selection.path)?.confidence || null,
+      risk_level: normalizedPlan.file_decisions.find((decision) => decision.path === selection.path)?.risk_level || null
     };
   }
 
@@ -91,6 +98,7 @@ export async function synthesizeRun({
     selected_by: selectedBy,
     created_at: new Date().toISOString(),
     workspace_path: workspacePath,
+    merge_plan: normalizedPlan,
     selected_candidates: [...new Set(normalizedSelections.map((selection) => selection.candidate_id))],
     selected_files: normalizedSelections,
     contributions: contributionMap,
@@ -143,6 +151,7 @@ export async function synthesizeRun({
     manifest_path: manifest.artifact_paths.manifest_path,
     selected_candidates: manifest.selected_candidates,
     selected_files: normalizedSelections,
+    merge_plan: normalizedPlan,
     verification: manifest.verification,
     jj: manifest.jj
   };
@@ -181,37 +190,22 @@ async function readCandidateManifests(runDir) {
   return manifests.sort((left, right) => left.candidate_slot.localeCompare(right.candidate_slot));
 }
 
-function normalizeFileSelections({ strategy, fileSelections, winnerCandidateId, candidateById }) {
-  if (strategy === 'winner_only') {
-    const winner = winnerCandidateId ? candidateById.get(winnerCandidateId) : null;
-    if (!winner) {
-      throw new Error('Winner-only synthesis requires a valid winner candidate.');
-    }
-    return (winner.changed_files || []).map((filePath) => ({
-      path: filePath,
-      candidate_id: winner.candidate_id
-    }));
+function normalizeMergePlan({ mergePlan, strategy, winnerCandidateId, fileSelections, evaluation, candidates }) {
+  const normalized = mergePlan || buildMergePlanFromSelections({
+    candidates,
+    evaluation,
+    strategy,
+    winnerCandidateId,
+    fileSelections
+  });
+  const validation = validateMergePlan({ mergePlan: normalized, candidates });
+
+  if (!validation.ok) {
+    throw new Error(`Invalid merge plan: ${validation.errors.join('; ')}`);
   }
 
-  const normalized = Object.entries(fileSelections || {})
-    .filter(([, candidateId]) => candidateId)
-    .map(([filePath, candidateId]) => ({
-      path: filePath,
-      candidate_id: candidateId
-    }));
-
-  if (normalized.length === 0) {
-    throw new Error('File-select synthesis requires at least one file selection.');
-  }
-
-  for (const selection of normalized) {
-    const candidate = candidateById.get(selection.candidate_id);
-    if (!candidate) {
-      throw new Error(`Invalid file selection candidate: ${selection.candidate_id}`);
-    }
-    if (!(candidate.changed_files || []).includes(selection.path)) {
-      throw new Error(`Candidate ${selection.candidate_id} does not own selected path ${selection.path}`);
-    }
+  if (normalized.mode === 'no_winner') {
+    throw new Error('Cannot synthesize with a no_winner merge plan.');
   }
 
   return normalized;

@@ -15,8 +15,12 @@ Working today:
 - additional runnable security demo card: SQL injection remediation + writeup
 - board project filter and grouping controls
 - board pagination and cards-per-page controls
+- direct task-card selection that focuses the Operator View and syncs task context into the URL
+- desktop layout that keeps Task Board and Operator View side by side, with routing controls underneath
 - collapsible operator sections for dense task detail views
 - tabbed operator detail panels so compare/diff/merge/debug views do not all render at once
+- native markdown rendering for task briefs inside the Control Panel
+- dedicated in-app docs page for operator guidance
 - Markdown task brief parsing into canonical task JSON
 - human-readable parsed task and evaluator summaries in the operator UI
 - compare and synthesis guidance panels backed by evaluator and `jj` artifact data

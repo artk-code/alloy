@@ -15,6 +15,7 @@ import { runPreparedCandidates } from '../src/runner.mjs';
 import { SessionManager } from '../src/session-manager.mjs';
 import { synthesizeRun } from '../src/synthesis.mjs';
 import { runAcceptanceChecks } from '../src/verify.mjs';
+import { getSynthesisDiff } from '../src/web/data.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -301,12 +302,12 @@ test('synthesizeRun creates verified winner-only and file-select workspaces from
   });
 
   const winnerManifest = JSON.parse(await fs.readFile(path.join(prepared.runDir, 'candidates', 'a-codex-1', 'manifest.json'), 'utf8'));
+  const evaluation = JSON.parse(await fs.readFile(path.join(prepared.runDir, 'evaluation.json'), 'utf8'));
 
   const winnerOnly = await synthesizeRun({
     runDir: prepared.runDir,
     task,
-    strategy: 'winner_only',
-    winnerCandidateId: winnerManifest.candidate_id,
+    mergePlan: evaluation.merge_plan,
     selectedBy: 'test-suite'
   });
   const fileSelect = await synthesizeRun({
@@ -322,19 +323,26 @@ test('synthesizeRun creates verified winner-only and file-select workspaces from
   const updatedSummary = JSON.parse(await fs.readFile(path.join(prepared.runDir, 'run-summary.json'), 'utf8'));
   const winnerPatch = await fs.readFile(winnerOnly.artifact_paths.patch_path, 'utf8');
   const fileSelectPatch = await fs.readFile(fileSelect.artifact_paths.patch_path, 'utf8');
+  const synthesisDiff = await getSynthesisDiff(projectRoot, task.task_id);
 
   assert.equal(winnerOnly.status, 'completed');
   assert.equal(winnerOnly.verification.status, 'pass');
   assert.equal(winnerOnly.selected_files[0].path, 'src/strategy.js');
+  assert.equal(winnerOnly.merge_plan.base_candidate_id, winnerManifest.candidate_id);
   assert.match(winnerPatch, /diff --git a\/src\/strategy\.js b\/src\/strategy\.js/);
 
   assert.equal(fileSelect.status, 'completed');
   assert.equal(fileSelect.verification.status, 'pass');
   assert.equal(fileSelect.selected_files[0].candidate_id, winnerManifest.candidate_id);
+  assert.equal(fileSelect.merge_plan.mode, 'file_select');
   assert.match(fileSelectPatch, /diff --git a\/src\/strategy\.js b\/src\/strategy\.js/);
 
   assert.equal(updatedSummary.synthesis.strategy, 'file_select');
   assert.equal(updatedSummary.synthesis.status, 'completed');
+  assert.equal(updatedSummary.synthesis.merge_plan.mode, 'file_select');
+  assert.ok(synthesisDiff);
+  assert.equal(synthesisDiff.strategy, 'file_select');
+  assert.match(synthesisDiff.patch, /diff --git a\/src\/strategy\.js b\/src\/strategy\.js/);
 
   await fs.rm(prepared.runDir, { recursive: true, force: true });
 });

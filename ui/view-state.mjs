@@ -1,8 +1,6 @@
 export const DETAIL_SECTIONS = [
   { id: 'overview', label: 'Overview' },
   { id: 'compare', label: 'Compare' },
-  { id: 'diff', label: 'Diff' },
-  { id: 'merge', label: 'Merge' },
   { id: 'candidates', label: 'Candidates' },
   { id: 'debug', label: 'Debug' }
 ];

@@ -94,6 +94,7 @@ export async function getTaskDetail(projectRoot, taskId) {
       latest_run_overview: buildLatestRunOverview(parsed.task, latestRun?.summary || null, latestRunAudit),
       comparison_view: buildComparisonView(latestRun?.summary?.evaluation || null, candidates),
       merge_view: buildMergeView(latestRun?.summary || null, candidates, synthesis),
+      compare_url: `/compare.html?task=${encodeURIComponent(taskId)}`,
       warnings: parsed.warnings,
       latest_run: latestRun?.summary || null,
       latest_run_audit: latestRunAudit,
@@ -156,6 +157,39 @@ export async function getCandidateJj(projectRoot, taskId, candidateId) {
     candidate_slot: manifest.candidate_slot,
     provider: manifest.provider,
     jj: manifest.jj || null
+  };
+}
+
+export async function getSynthesisDiff(projectRoot, taskId) {
+  const task = await findTaskById(projectRoot, taskId);
+  const latestRun = task ? await findLatestRun(projectRoot, task.project_id, taskId) : null;
+  if (!latestRun) {
+    return null;
+  }
+
+  const synthesis = await readLatestSynthesisManifest(latestRun.summary);
+  if (!synthesis) {
+    return null;
+  }
+
+  const patchText = await fs.readFile(synthesis.artifact_paths.patch_path, 'utf8').catch(() => '');
+  const diffSummary = await fs.readFile(synthesis.artifact_paths.diff_summary_path, 'utf8').catch(() => '');
+  const filePatches = splitPatchByFile(patchText, synthesis.changed_files || synthesis.selected_files?.map((selection) => selection.path) || []);
+
+  return {
+    task_id: taskId,
+    run_dir: latestRun.runDir,
+    synthesis_id: synthesis.synthesis_id,
+    strategy: synthesis.strategy,
+    label: `Synthesis / ${synthesis.strategy}`,
+    changed_files: synthesis.changed_files || [],
+    diff_summary: diffSummary.trim(),
+    patch: patchText,
+    files: filePatches,
+    verification: synthesis.verification || null,
+    jj: synthesis.jj || null,
+    merge_plan: synthesis.merge_plan || latestRun.summary?.evaluation?.merge_plan || null,
+    contributions: synthesis.contributions || {}
   };
 }
 
@@ -332,7 +366,7 @@ function deriveRunDisplayState(summary, audit = null) {
 
 function buildCardSummary(task, summary, audit = null) {
   if (!summary) {
-    return 'No run prepared yet. Open the card, confirm provider login, and stage a candidate run.';
+    return 'No run prepared yet. Select the task, confirm provider login, and stage a candidate run.';
   }
 
   if (summary.synthesis?.status === 'completed') {
@@ -522,6 +556,7 @@ function buildComparisonView(evaluation, candidates) {
 
   return {
     decision,
+    merge_plan: materializeMergePlan(evaluation?.merge_plan || null, rows),
     contribution_map: materializeContributionMap(contributionMap, rows),
     rows
   };
@@ -535,6 +570,9 @@ function buildMergeView(summary, candidates, synthesis) {
   const candidateDetails = new Map(candidates.map((candidate) => [candidate.candidate_id, candidate]));
   const evaluationByCandidateId = new Map((summary?.evaluation?.candidates || []).map((candidate) => [candidate.candidate_id, candidate]));
   const synthesizedByPath = new Map((synthesis?.selected_files || []).map((selection) => [selection.path, selection.candidate_id]));
+  const mergePlan = summary?.evaluation?.merge_plan || null;
+  const planDecisionsByPath = new Map((mergePlan?.file_decisions || []).map((decision) => [decision.path, decision]));
+  const unresolvedByPath = new Map((mergePlan?.unresolved_conflicts || []).map((conflict) => [conflict.path, conflict]));
   const byPath = new Map();
 
   for (const candidate of candidates) {
@@ -560,11 +598,22 @@ function buildMergeView(summary, candidates, synthesis) {
   return {
     merge_mode: summary?.run_config?.merge_mode || 'hybrid',
     winner_candidate_id: summary?.evaluation?.decision?.winner_candidate_id || null,
+    merge_plan: mergePlan
+      ? {
+          ...mergePlan,
+          base_candidate_label: candidateLabels.get(mergePlan.base_candidate_id) || null
+        }
+      : null,
     files: [...byPath.entries()]
       .map(([filePath, owners]) => ({
         path: filePath,
         owners,
         contested: owners.length > 1,
+        planned_candidate_id: planDecisionsByPath.get(filePath)?.chosen_candidate_id || null,
+        planned_decision_reason: planDecisionsByPath.get(filePath)?.decision_reason || null,
+        planned_confidence: planDecisionsByPath.get(filePath)?.confidence || null,
+        planned_risk_level: planDecisionsByPath.get(filePath)?.risk_level || null,
+        unresolved_conflict: unresolvedByPath.get(filePath) || null,
         synthesized_candidate_id: synthesizedByPath.get(filePath) || null,
         selection_reasons: Object.fromEntries(owners.map((owner) => [owner.candidate_id, buildSelectionReason({
           filePath,
@@ -572,7 +621,8 @@ function buildMergeView(summary, candidates, synthesis) {
           owners,
           winnerCandidateId: summary?.evaluation?.decision?.winner_candidate_id || null,
           candidateDetails,
-          synthesizedCandidateId: synthesizedByPath.get(filePath) || null
+          synthesizedCandidateId: synthesizedByPath.get(filePath) || null,
+          mergePlanDecision: planDecisionsByPath.get(filePath) || null
         })]))
       }))
       .sort((left, right) => left.path.localeCompare(right.path)),
@@ -584,6 +634,7 @@ function buildMergeView(summary, candidates, synthesis) {
           selected_by: synthesis.selected_by,
           verification: synthesis.verification,
           changed_files: synthesis.changed_files || synthesis.selected_files?.map((selection) => selection.path) || [],
+          merge_plan: synthesis.merge_plan || null,
           selected_candidates: (synthesis.selected_candidates || []).map((candidateId) => ({
             candidate_id: candidateId,
             label: candidateLabels.get(candidateId) || candidateId
@@ -632,9 +683,37 @@ function materializeContributionMap(contributionMap, rows) {
   }));
 }
 
-function buildSelectionReason({ owner, owners, winnerCandidateId, synthesizedCandidateId }) {
+function materializeMergePlan(mergePlan, rows) {
+  if (!mergePlan) {
+    return null;
+  }
+
+  const byCandidateId = new Map(rows.map((row) => [row.candidate_id, row]));
+  return {
+    ...mergePlan,
+    base_candidate_label: mergePlan.base_candidate_id ? byCandidateId.get(mergePlan.base_candidate_id)?.label || mergePlan.base_candidate_id : null,
+    file_decisions: (mergePlan.file_decisions || []).map((decision) => ({
+      ...decision,
+      chosen_candidate_label: byCandidateId.get(decision.chosen_candidate_id)?.label || decision.chosen_candidate_id,
+      contender_labels: (decision.contender_candidate_ids || []).map((candidateId) => byCandidateId.get(candidateId)?.label || candidateId)
+    })),
+    unresolved_conflicts: (mergePlan.unresolved_conflicts || []).map((conflict) => ({
+      ...conflict,
+      contender_labels: (conflict.contender_candidate_ids || []).map((candidateId) => byCandidateId.get(candidateId)?.label || candidateId),
+      recommended_candidate_label: conflict.recommended_candidate_id
+        ? byCandidateId.get(conflict.recommended_candidate_id)?.label || conflict.recommended_candidate_id
+        : null
+    }))
+  };
+}
+
+function buildSelectionReason({ owner, owners, winnerCandidateId, synthesizedCandidateId, mergePlanDecision }) {
   if (synthesizedCandidateId && owner.candidate_id === synthesizedCandidateId) {
     return 'selected in latest synthesis';
+  }
+
+  if (mergePlanDecision && owner.candidate_id === mergePlanDecision.chosen_candidate_id) {
+    return `merge plan: ${mergePlanDecision.decision_reason}`;
   }
 
   if (owners.length === 1) {

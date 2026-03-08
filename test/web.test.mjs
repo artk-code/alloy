@@ -59,6 +59,7 @@ test('getTaskDetail returns markdown, parsed task data, and default run config',
   assert.equal(detail.latest_run_overview.run_origin, 'preview');
   assert.match(detail.latest_run_overview.run_origin_label, /Prepared Workspace|Command Preview/);
   assert.equal(detail.comparison_view.decision.mode, 'pending');
+  assert.match(detail.compare_url, /compare\.html\?task=/);
   assert.ok(Array.isArray(detail.comparison_view.rows));
   assert.ok(Array.isArray(detail.merge_view.files));
   if (detail.merge_view.files[0]) {
@@ -79,8 +80,15 @@ test('buildTerminalLoginLaunch always exposes a human command', () => {
 
 test('web UI avoids blocking browser modal APIs for provider and run actions', async () => {
   const appSource = await fs.readFile(path.join(projectRoot, 'ui', 'app.js'), 'utf8');
+  const indexHtml = await fs.readFile(path.join(projectRoot, 'ui', 'index.html'), 'utf8');
+  const compareHtml = await fs.readFile(path.join(projectRoot, 'ui', 'compare.html'), 'utf8');
+  const docsHtml = await fs.readFile(path.join(projectRoot, 'ui', 'docs.html'), 'utf8');
 
   assert.doesNotMatch(appSource, /window\.alert\s*\(/);
   assert.doesNotMatch(appSource, /window\.confirm\s*\(/);
   assert.doesNotMatch(appSource, /window\.prompt\s*\(/);
+  assert.match(indexHtml, /hero-open-docs/);
+  assert.match(indexHtml, /task-markdown-preview-tab/);
+  assert.match(compareHtml, /compare-docs-link/);
+  assert.match(docsHtml, /docs-content/);
 });
