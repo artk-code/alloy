@@ -11,7 +11,9 @@ const state = {
   diffCandidateId: null,
   diffFilePath: null,
   mergeSelections: {},
-  mergeFilter: 'all'
+  mergeFilter: 'all',
+  blindMode: false,
+  blindReviewProvider: null
 };
 
 const summaryRoot = document.querySelector('#compare-summary');
@@ -21,6 +23,7 @@ const diffRoot = document.querySelector('#compare-diff');
 const titleRoot = document.querySelector('#compare-title');
 const subtitleRoot = document.querySelector('#compare-subtitle');
 const taskCrumbRoot = document.querySelector('#compare-task-crumb');
+const compareOperatorLink = document.querySelector('#compare-operator-link');
 const compareDocsLink = document.querySelector('#compare-docs-link');
 const toastStack = document.querySelector('#toast-stack');
 
@@ -60,6 +63,17 @@ async function loadTaskDetail() {
   state.taskDetail = await response.json();
   state.diffCandidateId = pickDefaultDiffCandidateId(state.taskDetail, state.focusCandidateId || state.diffCandidateId);
   state.mergeSelections = buildInitialMergeSelections(state.taskDetail.merge_view, state.mergeSelections);
+  const configuredBlindReviewProvider = state.taskDetail.run_config?.judge && state.taskDetail.run_config.judge !== 'none'
+    ? state.taskDetail.run_config.judge
+    : null;
+  const taskBlindReviewProvider = state.taskDetail.task?.judge && state.taskDetail.task.judge !== 'none'
+    ? state.taskDetail.task.judge
+    : null;
+  state.blindReviewProvider = state.blindReviewProvider
+    || configuredBlindReviewProvider
+    || taskBlindReviewProvider
+    || state.taskDetail.task?.providers?.[0]
+    || null;
 }
 
 async function loadCandidateDiff(candidateId) {
@@ -128,6 +142,9 @@ function renderPage() {
   if (compareDocsLink) {
     compareDocsLink.href = buildDocsUrl(state.taskId);
   }
+  if (compareOperatorLink) {
+    compareOperatorLink.href = buildOperatorUrl(state.taskId);
+  }
 
   renderSummary();
   renderCandidates();
@@ -164,6 +181,9 @@ function renderSummary() {
 
   const mergePlan = detail.comparison_view?.merge_plan;
   const judgeRationale = detail.comparison_view?.judge_rationale || detail.judge_rationale || null;
+  const blindReview = detail.comparison_view?.blind_review || null;
+  const composerPlan = detail.comparison_view?.composer_plan || null;
+  const agentBlindReviews = detail.comparison_view?.agent_blind_reviews || [];
   const synthesis = detail.merge_view?.synthesis || null;
   const publication = state.publicationView || detail.publication_view || detail.merge_view?.publication || null;
   if (mergePlan) {
@@ -197,6 +217,45 @@ function renderSummary() {
       'No major deterministic risks flagged.'
     );
   }
+
+  if (blindReview) {
+    appendInfoBlock(summaryRoot, 'Blind Review', [
+      blindReview.decision?.mode || 'pending',
+      blindReview.decision?.confidence ? `confidence ${blindReview.decision.confidence}` : null,
+      blindReview.decision?.winner?.label || null,
+      `${blindReview.candidates?.length || 0} blind candidate${blindReview.candidates?.length === 1 ? '' : 's'}`
+    ].filter(Boolean).join(' • '));
+    appendInfoBlock(summaryRoot, 'Blind Overview', blindReview.guidance?.overview || 'No blind review overview is available yet.');
+  }
+
+  if (composerPlan) {
+    appendInfoBlock(summaryRoot, 'Composer Plan', [
+      composerPlan.mode,
+      composerPlan.confidence ? `confidence ${composerPlan.confidence}` : null,
+      composerPlan.contested_file_count ? `${composerPlan.contested_file_count} contested` : 'no contested files',
+      composerPlan.review_required ? 'human review required' : 'review optional'
+    ].filter(Boolean).join(' • '));
+    appendInfoBlock(summaryRoot, 'Composer Summary', composerPlan.summary);
+  }
+
+  if (agentBlindReviews.length > 0) {
+    appendListBlock(
+      summaryRoot,
+      'Agent Blind Reviews',
+      agentBlindReviews.map((review) => (
+        [
+          review.provider,
+          review.status,
+          review.recommendation?.recommended_mode || null,
+          review.recommendation?.recommended_base_blind_id || null,
+          review.recommendation?.confidence ? `confidence ${review.recommendation.confidence}` : null
+        ].filter(Boolean).join(' • ')
+      )),
+      'No agent blind reviews have been run yet.'
+    );
+  }
+
+  renderBlindReviewControls();
 
   if (synthesis) {
     appendInfoBlock(summaryRoot, 'Synthesis Status', [
@@ -235,7 +294,7 @@ function renderCandidates() {
     const header = document.createElement('div');
     header.className = 'candidate-header';
     const label = document.createElement('strong');
-    label.textContent = row.label;
+    label.textContent = state.blindMode ? (row.blind_label || row.label) : row.label;
     const status = document.createElement('span');
     status.textContent = row.score != null ? `${row.score}/100` : formatStatusBadge(row.status);
     status.className = `candidate-status ${stateClass(row.eligible ? 'valid' : row.verification_status)}`;
@@ -252,7 +311,7 @@ function renderCandidates() {
 
     const summary = document.createElement('p');
     summary.className = 'comparison-summary';
-    summary.textContent = row.summary;
+    summary.textContent = state.blindMode && row.blind_summary ? row.blind_summary : row.summary;
 
     const actions = document.createElement('div');
     actions.className = 'task-chip-row';
@@ -328,6 +387,29 @@ function renderMerge() {
       'Operator Guidance',
       merge.judge_rationale.operator_guidance || [],
       'No operator guidance is available yet.'
+    );
+  }
+
+  if (merge.composer_plan) {
+    appendInfoBlock(
+      mergeRoot,
+      'Blind Composer Plan',
+      [
+        merge.composer_plan.mode,
+        merge.composer_plan.confidence ? `confidence ${merge.composer_plan.confidence}` : null,
+        merge.composer_plan.review_required ? 'human review required' : 'review optional'
+      ].filter(Boolean).join(' • ')
+    );
+    appendInfoBlock(
+      mergeRoot,
+      'Composer Summary',
+      merge.composer_plan.summary
+    );
+    appendListBlock(
+      mergeRoot,
+      'Composer Steps',
+      merge.composer_plan.operator_steps || [],
+      'No composer steps are available yet.'
     );
   }
 
@@ -614,7 +696,7 @@ function renderDiff() {
     for (const row of state.taskDetail?.comparison_view?.rows || []) {
       const option = document.createElement('option');
       option.value = row.candidate_id;
-      option.textContent = `${row.label} • ${row.changed_file_count} files`;
+      option.textContent = `${state.blindMode ? (row.blind_label || row.label) : row.label} • ${row.changed_file_count} files`;
       selector.appendChild(option);
     }
     selector.value = state.diffCandidateId || '';
@@ -853,6 +935,48 @@ async function pushPublicationAction() {
   }
 }
 
+async function runBlindReviewAgentAction() {
+  if (!state.blindReviewProvider || state.blindReviewProvider === 'none') {
+    showToast({
+      title: 'Blind review is disabled',
+      lines: ['Choose a blind review CLI first, or leave evaluation deterministic-only.'],
+      tone: 'warn'
+    });
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/tasks/${encodeURIComponent(state.taskId)}/blind-review/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        provider: state.blindReviewProvider
+      })
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || 'blind_review_run_failed');
+    }
+
+    showToast({
+      title: 'Blind agent review completed',
+      lines: [
+        result.blind_review_agent.provider,
+        result.blind_review_agent.status,
+        result.blind_review_agent.recommendation?.recommended_mode || null
+      ].filter(Boolean)
+    });
+
+    await boot();
+  } catch (error) {
+    showToast({
+      title: 'Blind agent review failed',
+      lines: [error.message || String(error)],
+      tone: 'danger'
+    });
+  }
+}
+
 function renderPublicationPanel(root, publication, publicationReadiness) {
   const publicationBlock = document.createElement('div');
   publicationBlock.className = 'info-block';
@@ -975,6 +1099,71 @@ function renderPublicationPanel(root, publication, publicationReadiness) {
   root.appendChild(publicationBlock);
 }
 
+function renderBlindReviewControls() {
+  const detail = state.taskDetail;
+  if (!detail) {
+    return;
+  }
+
+  const block = document.createElement('div');
+  block.className = 'info-block';
+  const title = document.createElement('h4');
+  title.textContent = 'Blind Review Controls';
+  block.appendChild(title);
+
+  const modeRow = document.createElement('div');
+  modeRow.className = 'task-chip-row';
+
+  const blindToggle = document.createElement('button');
+  blindToggle.className = state.blindMode ? '' : 'ghost-button';
+  blindToggle.textContent = state.blindMode ? 'Blind Labels On' : 'Blind Labels Off';
+  blindToggle.addEventListener('click', () => {
+    state.blindMode = !state.blindMode;
+    renderPage();
+  });
+  modeRow.appendChild(blindToggle);
+
+  const providerSelect = document.createElement('select');
+  const disabledOption = document.createElement('option');
+  disabledOption.value = 'none';
+  disabledOption.textContent = 'Deterministic only';
+  providerSelect.appendChild(disabledOption);
+  for (const provider of detail.task?.providers || []) {
+    const option = document.createElement('option');
+    option.value = provider;
+    option.textContent = humanizeProvider(provider);
+    providerSelect.appendChild(option);
+  }
+  if (state.blindReviewProvider) {
+    providerSelect.value = state.blindReviewProvider;
+  } else {
+    providerSelect.value = 'none';
+  }
+  providerSelect.addEventListener('change', () => {
+    state.blindReviewProvider = providerSelect.value;
+    renderPage();
+  });
+  modeRow.appendChild(providerSelect);
+
+  const runButton = document.createElement('button');
+  runButton.textContent = 'Run Blind Agent Review';
+  runButton.disabled = providerSelect.value === 'none';
+  runButton.addEventListener('click', async () => {
+    await runBlindReviewAgentAction();
+  });
+  modeRow.appendChild(runButton);
+
+  block.appendChild(modeRow);
+
+  const body = document.createElement('p');
+  body.textContent = providerSelect.value === 'none'
+    ? 'Blind mode still hides provider identity in the candidate list and diff selector. Deterministic evaluation remains available without launching any blind review CLI.'
+    : 'Blind mode hides provider identity in the candidate list and diff selector. Blind agent review launches a separate CLI reviewer that reads saved artifacts and writes a structured recommendation for human approval.';
+  block.appendChild(body);
+
+  summaryRoot.appendChild(block);
+}
+
 function buildManualMergePlan(merge, selections) {
   const fileDecisions = (merge.files || [])
     .map((file) => {
@@ -1057,6 +1246,14 @@ function buildDocsUrl(taskId) {
     params.set('task', taskId);
   }
   return `/docs.html?${params.toString()}`;
+}
+
+function buildOperatorUrl(taskId) {
+  if (!taskId) {
+    return '/operator.html';
+  }
+  const params = new URLSearchParams({ task: taskId });
+  return `/operator.html?${params.toString()}`;
 }
 
 function appendInfoBlock(root, heading, body) {

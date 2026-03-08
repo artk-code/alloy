@@ -55,6 +55,16 @@ test('buildDefaultRunConfig includes the conservative merge mode default', async
   assert.equal(runConfig.providers.length, 3);
 });
 
+test('normalizeRunConfig allows deterministic-only blind review mode', async () => {
+  const parsed = await parseTaskBriefFile(ticTacToeTaskPath);
+  const runConfig = normalizeRunConfig(parsed.task, {
+    ...buildDefaultRunConfig(parsed.task),
+    judge: 'none'
+  });
+
+  assert.equal(runConfig.judge, 'none');
+});
+
 test('buildPromptPackets expands run config into deterministic candidate slots', async () => {
   const parsed = await parseTaskBriefFile(ticTacToeTaskPath);
   const runConfig = normalizeRunConfig(parsed.task, {

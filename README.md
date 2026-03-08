@@ -11,15 +11,17 @@ Current architecture note:
 
 Working today:
 - Alloy Control Panel web shell for project-labeled task cards, provider readiness, run config, and candidate visibility
+- dedicated `Operator View` for markdown task editing, task creation/import, parsed task review, and candidate detail
+- dedicated `Compare Diffs` view for candidate review, synthesis, blind review, and publication
 - primary demo card: tic-tac-toe perfect-play repair
 - additional runnable security demo card: SQL injection remediation + writeup
 - board project filter and grouping controls
 - board pagination and cards-per-page controls
-- direct task-card selection that focuses the Operator View and syncs task context into the URL
-- desktop layout that keeps Task Board and Operator View side by side, with routing controls underneath
-- collapsible operator sections for dense task detail views
-- tabbed operator detail panels so compare/diff/merge/debug views do not all render at once
-- native markdown rendering for task briefs inside the Control Panel
+- direct task-card selection that focuses the selected task and syncs task context into the URL
+- compact Control Panel plus separate Operator View and Compare Diffs surfaces
+- collapsible/tabbed operator sections for dense task detail views
+- native markdown rendering for task briefs and docs
+- task creation from pasted markdown or imported markdown files in `Operator View`
 - dedicated in-app docs page for operator guidance
 - Markdown task brief parsing into canonical task JSON
 - human-readable parsed task and evaluator summaries in the operator UI
@@ -61,8 +63,8 @@ Working today:
 - honest board/detail provenance labels instead of implying that every passing artifact came from a live provider run
 
 Not implemented yet:
-- blind judge/composer layers
-- in-app Task Composer for custom user tasks
+- blind-review recommendation consumption in synthesis/publication
+- structured Task Composer fields on top of the current markdown-first task creation/import flow
 - final PR publishing
 - persisted project-level dashboards and saved board preferences
 
@@ -146,7 +148,8 @@ Important UI honesty note:
 
 Current task-authoring limitation:
 - custom tasks are still stored as markdown files under `samples/tasks`
-- the Control Panel can parse and edit task markdown, but creating new user tasks in-app is still a planned feature
+- `Operator View` can now create/import those files, but the composer is still markdown-first and intended for advanced users
+- importing arbitrary markdown is not yet a hardened security path; only import trusted local files you understand
 
 ## Current Scaffold Outputs
 

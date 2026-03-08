@@ -25,7 +25,7 @@ export function buildDefaultRunConfig(task, { specs = DEFAULT_PROVIDER_SPECS } =
 
   return {
     mode: task.mode,
-    judge: task.judge,
+    judge: resolveJudge(task.judge, 'none', { specs }),
     merge_mode: 'hybrid',
     max_parallel_candidates: providers.reduce((count, provider) => count + provider.agents, 0),
     providers
@@ -60,7 +60,7 @@ export function normalizeRunConfig(task, runConfig, { specs = DEFAULT_PROVIDER_S
     throw new Error('Run config must enable at least one provider.');
   }
 
-  const judge = cleanString(runConfig.judge) || fallback.judge;
+  const judge = resolveJudge(runConfig.judge, fallback.judge, { specs });
   const maxParallelCandidates = Number.parseInt(runConfig.max_parallel_candidates, 10);
 
   return {
@@ -117,6 +117,18 @@ function cleanString(value) {
     return '';
   }
   return String(value).trim();
+}
+
+function resolveJudge(value, fallback, { specs }) {
+  const requested = cleanString(value);
+  const normalized = requested.toLowerCase();
+  if (!requested) {
+    return fallback || 'none';
+  }
+  if (normalized === 'none' || normalized === 'disabled' || normalized === 'deterministic_only') {
+    return 'none';
+  }
+  return specs[requested] ? requested : (fallback || 'none');
 }
 
 function resolveMergeMode(value, fallback) {

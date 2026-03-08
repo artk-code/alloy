@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 
+import { buildBlindJudgePacket, buildComposerPlan } from './blind-review.mjs';
 import { buildJudgeRationale } from './judge-rationale.mjs';
 import { buildMergePlan } from './merge-plan.mjs';
 
@@ -19,6 +20,22 @@ export async function evaluateRun({ task, manifests, outputPath = null }) {
     mergePlan: merge_plan,
     contributionMap: contribution_map
   });
+  const blind_review = buildBlindJudgePacket({
+    task,
+    evaluatedAt: judge_rationale.evaluated_at,
+    candidates,
+    ranking,
+    pairwisePreferences: pairwise_preferences,
+    decision,
+    mergePlan: merge_plan,
+    judgeRationale: judge_rationale,
+    contributionMap: contribution_map
+  });
+  const composer_plan = buildComposerPlan({
+    blindJudgePacket: blind_review,
+    mergePlan: merge_plan,
+    judgeRationale: judge_rationale
+  });
 
   const result = {
     task_id: task.task_id,
@@ -30,7 +47,9 @@ export async function evaluateRun({ task, manifests, outputPath = null }) {
     contribution_map,
     decision,
     merge_plan,
-    judge_rationale
+    judge_rationale,
+    blind_review,
+    composer_plan
   };
 
   if (outputPath) {

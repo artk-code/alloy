@@ -15,6 +15,7 @@ const docsSubtitleRoot = document.querySelector('#docs-subtitle');
 const docsContentTitleRoot = document.querySelector('#docs-content-title');
 const docsCrumbRoot = document.querySelector('#docs-crumb');
 const docsHomeLink = document.querySelector('#docs-home-link');
+const docsOperatorLink = document.querySelector('#docs-operator-link');
 const docsCompareLink = document.querySelector('#docs-compare-link');
 const toastStack = document.querySelector('#toast-stack');
 
@@ -59,6 +60,7 @@ function renderPage() {
   document.title = state.currentDoc?.title ? `Alloy Docs - ${state.currentDoc.title}` : 'Alloy Docs';
 
   docsHomeLink.href = state.taskId ? `/?task=${encodeURIComponent(state.taskId)}` : '/';
+  docsOperatorLink.href = state.taskId ? `/operator.html?task=${encodeURIComponent(state.taskId)}` : '/operator.html';
   docsCompareLink.href = state.taskId ? `/compare.html?task=${encodeURIComponent(state.taskId)}` : '/compare.html';
 
   renderDocsList();

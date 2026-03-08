@@ -1,6 +1,5 @@
-import { renderMarkdownInto } from './markdown-viewer.mjs';
-import { DETAIL_SECTIONS, normalizeDetailSection, paginateItems } from './view-state.mjs';
 import { initThemeToggle } from './theme.mjs';
+import { paginateItems } from './view-state.mjs';
 
 const searchParams = new URLSearchParams(window.location.search);
 
@@ -17,8 +16,6 @@ const state = {
   boardGrouping: 'project',
   boardPage: 1,
   boardPageSize: 6,
-  detailSection: 'overview',
-  editorMode: 'source',
   runPollTimer: null,
   runInFlight: false
 };
@@ -33,21 +30,15 @@ const sessionList = document.querySelector('#session-list');
 const boardSummary = document.querySelector('#board-summary');
 const detailTitle = document.querySelector('#detail-title');
 const detailState = document.querySelector('#detail-state');
-const detailNav = document.querySelector('#detail-nav');
-const taskMarkdown = document.querySelector('#task-markdown');
-const taskBrief = document.querySelector('#task-brief');
-const evaluationCall = document.querySelector('#evaluation-call');
-const comparisonView = document.querySelector('#comparison-view');
+const detailSummary = document.querySelector('#detail-summary');
 const taskJson = document.querySelector('#task-json');
 const runSummary = document.querySelector('#run-summary');
-const candidateCards = document.querySelector('#candidate-cards');
 const toastStack = document.querySelector('#toast-stack');
+const heroOpenOperatorButton = document.querySelector('#hero-open-operator');
 const heroOpenCompareButton = document.querySelector('#hero-open-compare');
 const heroOpenDocsLink = document.querySelector('#hero-open-docs');
+const detailOpenOperatorButton = document.querySelector('#detail-open-operator');
 const detailOpenCompareButton = document.querySelector('#detail-open-compare');
-const taskMarkdownEditTab = document.querySelector('#task-markdown-edit-tab');
-const taskMarkdownPreviewTab = document.querySelector('#task-markdown-preview-tab');
-const taskMarkdownPreview = document.querySelector('#task-markdown-preview');
 const prepareButton = document.querySelector('#prepare-task');
 const runButton = document.querySelector('#run-task');
 const runLiveButton = document.querySelector('#run-task-live');
@@ -56,12 +47,14 @@ const openLatestRunButton = document.querySelector('#open-latest-run');
 
 const providerTemplate = document.querySelector('#provider-template');
 const runConfigTemplate = document.querySelector('#run-config-template');
-const candidateTemplate = document.querySelector('#candidate-template');
 const taskTemplate = document.querySelector('#task-card-template');
 const sessionTemplate = document.querySelector('#session-template');
 
 initThemeToggle();
 
+heroOpenOperatorButton.addEventListener('click', () => {
+  window.location.href = buildOperatorUrl(state.selectedTaskId);
+});
 document.querySelector('#refresh-providers').addEventListener('click', async () => {
   await loadProviders();
   renderRunConfig();
@@ -76,13 +69,8 @@ detailOpenCompareButton.addEventListener('click', () => {
     window.location.href = buildCompareUrl(state.selectedTaskId);
   }
 });
-taskMarkdownEditTab.addEventListener('click', () => {
-  state.editorMode = 'source';
-  renderEditorMode();
-});
-taskMarkdownPreviewTab.addEventListener('click', () => {
-  state.editorMode = 'preview';
-  renderEditorMode();
+detailOpenOperatorButton.addEventListener('click', () => {
+  window.location.href = buildOperatorUrl(state.selectedTaskId);
 });
 prepareButton.addEventListener('click', () => runSelectedTask('prepare', { dryRun: true }));
 runButton.addEventListener('click', () => runSelectedTask('run', { dryRun: true }));
@@ -100,16 +88,6 @@ openLatestRunButton.addEventListener('click', () => {
       lines: [state.taskDetail.run_dir]
     });
   }
-});
-
-taskMarkdown.addEventListener('input', () => {
-  const markdown = taskMarkdown.value;
-  renderMarkdownPreview();
-  if (!markdown) {
-    return;
-  }
-  window.clearTimeout(taskMarkdown._parseTimer);
-  taskMarkdown._parseTimer = window.setTimeout(() => parseMarkdownPreview(markdown), 300);
 });
 
 async function boot() {
@@ -162,31 +140,10 @@ async function selectTask(taskId) {
   const response = await fetch(`/api/tasks/${encodeURIComponent(taskId)}`);
   state.taskDetail = await response.json();
   state.runConfig = ensureRunConfigDefaults(deepClone(state.taskDetail.run_config || { providers: [] }));
-  state.parsedPreview = state.taskDetail.task;
-  state.previewValidation = {
-    ok: true,
-    errors: [],
-    warnings: state.taskDetail.warnings || []
-  };
   state.liveSessions = state.taskDetail.current_sessions || [];
-  state.detailSection = normalizeDetailSection(state.detailSection);
-  taskMarkdown.value = state.taskDetail.markdown;
-  renderMarkdownPreview();
   renderDetail();
   renderRunConfig();
   renderSessions();
-}
-
-async function parseMarkdownPreview(markdown) {
-  const response = await fetch('/api/parse-markdown', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ markdown, sourcePath: relativeTaskPath() })
-  });
-  const payload = await response.json();
-  state.parsedPreview = payload.source_task || null;
-  state.previewValidation = payload.validation || null;
-  renderDetail();
 }
 
 async function runSelectedTask(action, { dryRun }) {
@@ -223,7 +180,7 @@ async function runSelectedTask(action, { dryRun }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action,
-        markdown: taskMarkdown.value,
+        markdown: state.taskDetail?.markdown || '',
         run_config: state.runConfig,
         dry_run: dryRun
       })
@@ -515,30 +472,31 @@ function renderRunConfig() {
   runConfigRoot.innerHTML = '';
   runPolicyRoot.innerHTML = '';
   if (!state.taskDetail || !state.runConfig) {
-    runConfigSummary.textContent = 'Select a task to configure providers.';
+    runConfigSummary.textContent = 'Select a task to configure execution.';
     setRunButtonsDisabled(true, true, true);
     return;
   }
 
-  const providerMeta = getProviderMetaMap();
-  const configs = state.runConfig.providers || [];
-  const enabledProviders = configs.filter((provider) => provider.enabled && Number(provider.agents) > 0);
-  const enabledAgents = enabledProviders.reduce((sum, provider) => sum + Number(provider.agents || 0), 0);
-  const liveRunnableProviders = enabledProviders.filter((config) => isLiveRunnable(providerMeta.get(config.provider)));
-  const invalidProviders = enabledProviders.filter((config) => isLiveBlocked(providerMeta.get(config.provider)));
-  runConfigSummary.textContent = `${enabledProviders.length} providers enabled • ${enabledAgents} candidate sessions • ${liveRunnableProviders.length} runnable live • ${invalidProviders.length} need login or install • judge ${humanizeProvider(state.runConfig.judge)} • merge ${state.runConfig.merge_mode}`;
-  renderRunPolicy();
+  const snapshot = buildRunConfigSnapshot();
+  runConfigSummary.textContent = snapshot.summary;
+  renderRunPolicy(snapshot);
 
-  for (const config of configs) {
-    const provider = providerMeta.get(config.provider) || {};
+  for (const config of snapshot.configs) {
+    const provider = snapshot.providerMeta.get(config.provider) || {};
+    const execution = describeProviderExecution(config, provider);
     const node = runConfigTemplate.content.firstElementChild.cloneNode(true);
     node.querySelector('.provider-config-name').textContent = provider.display_name || config.provider;
     node.querySelector('.provider-config-meta').textContent = [
-      provider.installed ? (provider.version || 'installed') : 'not installed',
-      `login ${displayState(provider.auth_status || 'unknown')}`,
-      `run ${config.transport}`,
+      execution.selection_summary,
+      execution.preview_summary,
+      execution.live_summary,
+      `transport ${config.transport}`,
       provider.auth_detail || 'No auth detail available.'
     ].join(' • ');
+
+    const planStateEl = node.querySelector('.provider-config-plan');
+    planStateEl.textContent = formatStatusBadge(execution.plan_badge);
+    planStateEl.className = `provider-state ${stateClass(execution.plan_badge)}`;
 
     const authStateEl = node.querySelector('.provider-config-auth');
     const authState = provider.installed ? (provider.auth_status || 'unknown') : 'not_installed';
@@ -582,33 +540,90 @@ function renderRunConfig() {
       config.transport = transportSelect.value;
     });
 
+    const hint = node.querySelector('.provider-config-hint');
+    hint.textContent = execution.hint;
+
     runConfigRoot.appendChild(node);
   }
 
   const disablePreview = !hasEnabledProviders();
-  const disableLive = liveRunnableProviders.length === 0;
+  const disableLive = snapshot.liveRunnableProviders.length === 0;
   setRunButtonsDisabled(disablePreview, disablePreview, disableLive);
 }
 
-function renderRunPolicy() {
-  const block = document.createElement('article');
-  block.className = 'provider-config-row';
+function renderRunPolicy(snapshot) {
+  const flowBlock = document.createElement('article');
+  flowBlock.className = 'provider-config-row';
 
-  const header = document.createElement('div');
-  header.className = 'provider-config-top';
-  const title = document.createElement('strong');
-  title.textContent = 'Evaluation + Merge';
-  const hint = document.createElement('span');
-  hint.className = 'provider-state state-warn';
-  hint.textContent = `Judge ${humanizeProvider(state.runConfig.judge)}`;
-  header.append(title, hint);
+  const flowHeader = document.createElement('div');
+  flowHeader.className = 'provider-config-top';
+  const flowTitle = document.createElement('strong');
+  flowTitle.textContent = '1. Execution Order';
+  const flowState = document.createElement('span');
+  flowState.className = 'provider-state state-idle';
+  flowState.textContent = `${snapshot.enabledAgents} candidate session${snapshot.enabledAgents === 1 ? '' : 's'}`;
+  flowHeader.append(flowTitle, flowState);
 
-  const meta = document.createElement('p');
-  meta.className = 'provider-config-meta';
-  meta.textContent = 'Choose whether Alloy should stop at scoring, propose a merge, or auto-finalize a clear deterministic winner.';
+  const flowMeta = document.createElement('p');
+  flowMeta.className = 'provider-config-meta';
+  flowMeta.textContent = 'Candidate runs write outputs to disk first. Deterministic evaluation always happens from saved artifacts. Blind review is optional and can run later from Compare Diffs.';
+
+  const flowHint = document.createElement('p');
+  flowHint.className = 'provider-config-hint';
+  flowHint.textContent = [
+    snapshot.liveRunnableProviders.length > 0
+      ? `Live ready now: ${snapshot.liveRunnableProviders.map((provider) => humanizeProvider(provider.provider)).join(', ')}.`
+      : 'No provider is currently live-ready.',
+    snapshot.manualCheckProviders.length > 0
+      ? `Manual live check: ${snapshot.manualCheckProviders.map((provider) => humanizeProvider(provider.provider)).join(', ')}.`
+      : null,
+    snapshot.blockedProviders.length > 0
+      ? `Blocked for live run: ${snapshot.blockedProviders.map((provider) => humanizeProvider(provider.provider)).join(', ')}.`
+      : null
+  ].filter(Boolean).join(' ');
+  flowBlock.append(flowHeader, flowMeta, flowHint);
+
+  const reviewBlock = document.createElement('article');
+  reviewBlock.className = 'provider-config-row';
+
+  const reviewHeader = document.createElement('div');
+  reviewHeader.className = 'provider-config-top';
+  const reviewTitle = document.createElement('strong');
+  reviewTitle.textContent = '2. Review Controls';
+  const reviewState = document.createElement('span');
+  reviewState.className = `provider-state ${state.runConfig.judge === 'none' ? 'state-idle' : 'state-warn'}`;
+  reviewState.textContent = state.runConfig.judge === 'none'
+    ? '• deterministic only'
+    : `• blind review ${humanizeProvider(state.runConfig.judge)}`;
+  reviewHeader.append(reviewTitle, reviewState);
+
+  const reviewMeta = document.createElement('p');
+  reviewMeta.className = 'provider-config-meta';
+  reviewMeta.textContent = 'Merge mode changes how aggressively Alloy finalizes deterministic results. Blind review CLI is optional and only affects later asynchronous review passes.';
 
   const controls = document.createElement('div');
   controls.className = 'provider-config-controls';
+
+  const blindReviewLabel = document.createElement('label');
+  blindReviewLabel.textContent = 'Blind Review CLI';
+  const blindReviewSelect = document.createElement('select');
+  const disabledOption = document.createElement('option');
+  disabledOption.value = 'none';
+  disabledOption.textContent = 'Deterministic only';
+  blindReviewSelect.appendChild(disabledOption);
+  for (const provider of buildBlindReviewOptions(snapshot)) {
+    const option = document.createElement('option');
+    option.value = provider.provider;
+    option.textContent = provider.label;
+    blindReviewSelect.appendChild(option);
+  }
+  blindReviewSelect.value = state.runConfig.judge || 'none';
+  blindReviewSelect.addEventListener('change', () => {
+    state.runConfig.judge = blindReviewSelect.value;
+    renderRunConfig();
+    renderDetail();
+  });
+  blindReviewLabel.appendChild(blindReviewSelect);
 
   const mergeLabel = document.createElement('label');
   mergeLabel.textContent = 'Merge Mode';
@@ -627,25 +642,19 @@ function renderRunPolicy() {
   });
   mergeLabel.appendChild(mergeSelect);
 
-  const judgeLabel = document.createElement('label');
-  judgeLabel.textContent = 'Judge';
-  const judgeInput = document.createElement('input');
-  judgeInput.type = 'text';
-  judgeInput.value = humanizeProvider(state.runConfig.judge);
-  judgeInput.disabled = true;
-  judgeLabel.appendChild(judgeInput);
+  controls.append(blindReviewLabel, mergeLabel);
+  reviewBlock.append(reviewHeader, reviewMeta, controls);
 
-  const modeLabel = document.createElement('label');
-  modeLabel.textContent = 'Task Mode';
-  const modeInput = document.createElement('input');
-  modeInput.type = 'text';
-  modeInput.value = state.runConfig.mode || state.taskDetail.task.mode || 'race';
-  modeInput.disabled = true;
-  modeLabel.appendChild(modeInput);
+  const reviewHint = document.createElement('p');
+  reviewHint.className = 'provider-config-hint';
+  reviewHint.textContent = [
+    explainBlindReviewSelection(state.runConfig.judge),
+    explainMergeMode(state.runConfig.merge_mode),
+    `Task prompt mode remains ${state.runConfig.mode || state.taskDetail.task.mode || 'race'} for candidate instructions.`
+  ].join(' ');
+  reviewBlock.appendChild(reviewHint);
 
-  controls.append(mergeLabel, judgeLabel, modeLabel);
-  block.append(header, meta, controls);
-  runPolicyRoot.appendChild(block);
+  runPolicyRoot.append(flowBlock, reviewBlock);
 }
 
 function renderDetail() {
@@ -653,79 +662,140 @@ function renderDetail() {
     return;
   }
 
-  const task = state.parsedPreview || state.taskDetail.task;
-  const comparisonRows = new Map((state.taskDetail.comparison_view?.rows || []).map((row) => [row.candidate_id, row]));
-  const evaluationByCandidateId = new Map((state.taskDetail.evaluation?.candidates || []).map((candidate) => [candidate.candidate_id, candidate]));
+  const task = state.taskDetail.task;
+  const overview = state.taskDetail.latest_run_overview || null;
+  const comparison = state.taskDetail.comparison_view || null;
+  const publication = state.taskDetail.publication_view || state.taskDetail.merge_view?.publication || null;
+  const finalists = state.taskDetail.evaluation?.decision?.finalists || overview?.finalists || [];
 
   detailTitle.textContent = task.title || state.taskDetail.task.title;
-  const detailStatus = state.taskDetail.latest_run_overview?.status_label || 'Draft';
+  const detailStatus = overview?.status_label || 'Draft';
   detailState.textContent = formatStatusBadge(detailStatus);
   detailState.className = `state-pill ${stateClass(detailStatus)}`;
 
-  renderDetailNav();
-  renderTaskBrief(task);
-  renderEvaluationCall(state.taskDetail.latest_run_overview, state.taskDetail.evaluation);
-  renderComparisonView(state.taskDetail.comparison_view);
-  applyDetailSectionVisibility();
-  renderEditorMode();
+  detailSummary.innerHTML = '';
+
+  appendInfoBlock(
+    detailSummary,
+    'Task',
+    [
+      task.project_label ? `${task.project_label} (${task.project_id})` : task.project_id,
+      task.repo || null,
+      task.mode ? `mode ${task.mode}` : null
+    ].filter(Boolean).join(' • ')
+  );
+  appendInfoBlock(
+    detailSummary,
+    'Objective',
+    task.context || task.title || 'No objective is available.'
+  );
+  appendInfoBlock(
+    detailSummary,
+    'Current Read',
+    overview?.decision_summary || 'No evaluator decision is available yet.'
+  );
+  appendInfoBlock(
+    detailSummary,
+    'Execution',
+    overview?.execution_summary || 'No run execution summary is available yet.'
+  );
+  appendInfoBlock(
+    detailSummary,
+    'Run Provenance',
+    [
+      overview?.run_origin_label || 'No run',
+      overview?.run_origin_detail || null,
+      overview?.proof_level ? `proof ${overview.proof_level}` : null
+    ].filter(Boolean).join(' • ')
+  );
+  appendInfoBlock(
+    detailSummary,
+    'Run Plan',
+    [
+      `${(state.runConfig?.providers || []).filter((provider) => provider.enabled && Number(provider.agents) > 0).length} provider selections`,
+      `${(state.runConfig?.providers || []).reduce((sum, provider) => (
+        provider.enabled ? sum + Number(provider.agents || 0) : sum
+      ), 0)} candidate sessions`,
+      `blind review ${humanizeProvider(state.runConfig?.judge || 'none')}`,
+      `merge ${state.runConfig?.merge_mode || 'hybrid'}`
+    ].join(' • ')
+  );
+
+  appendListBlock(
+    detailSummary,
+    'Acceptance Checks',
+    task.acceptance_checks || [],
+    'No acceptance checks declared.'
+  );
+  appendListBlock(
+    detailSummary,
+    'Finalists',
+    finalists.map((finalist) => `${finalist.label} • ${finalist.score}/100`),
+    'No finalists yet.'
+  );
+
+  if (comparison?.judge_rationale) {
+    appendInfoBlock(detailSummary, 'Judge Overview', comparison.judge_rationale.overview);
+    appendInfoBlock(detailSummary, 'Next Action', comparison.judge_rationale.next_action);
+  }
+
+  if (publication) {
+    appendInfoBlock(
+      detailSummary,
+      'Publication',
+      [
+        publication.status || null,
+        publication.summary || null,
+        publication.target_branch_or_bookmark || null
+      ].filter(Boolean).join(' • ')
+    );
+  }
+
+  const actionBlock = document.createElement('div');
+  actionBlock.className = 'info-block';
+  const actionTitle = document.createElement('h4');
+  actionTitle.textContent = 'Task Surfaces';
+  const actionBody = document.createElement('p');
+  actionBody.textContent = 'Use Operator View for markdown editing, evaluation review, candidate cards, and debug state. Use Compare Diffs for merge review and publication.';
+  const actionRow = document.createElement('div');
+  actionRow.className = 'task-chip-row';
+
+  const operatorLink = document.createElement('a');
+  operatorLink.className = 'ghost-button';
+  operatorLink.href = buildOperatorUrl(state.selectedTaskId);
+  operatorLink.textContent = 'Open Operator View';
+
+  const compareLink = document.createElement('a');
+  compareLink.className = 'ghost-button';
+  compareLink.href = buildCompareUrl(state.selectedTaskId);
+  compareLink.textContent = 'Open Compare Diffs';
+
+  const docsLink = document.createElement('a');
+  docsLink.className = 'ghost-button';
+  docsLink.href = buildDocsUrl(state.selectedTaskId);
+  docsLink.textContent = 'Open Docs';
+
+  actionRow.append(operatorLink, compareLink, docsLink);
+  actionBlock.append(actionTitle, actionBody, actionRow);
+  detailSummary.appendChild(actionBlock);
 
   taskJson.textContent = JSON.stringify({
     task,
-    validation: state.previewValidation || {},
     run_config: state.runConfig || state.taskDetail.run_config,
     sessions: state.liveSessions,
+    latest_run_overview: overview,
     merge_view: state.taskDetail.merge_view,
+    publication_view: state.taskDetail.publication_view,
     compare_url: state.taskDetail.compare_url
   }, null, 2);
   runSummary.textContent = JSON.stringify(state.taskDetail.latest_run || { message: 'No run yet.' }, null, 2);
 
-  candidateCards.innerHTML = '';
-  for (const candidate of state.taskDetail.candidates || []) {
-    const node = candidateTemplate.content.firstElementChild.cloneNode(true);
-    const comparison = comparisonRows.get(candidate.candidate_id);
-    const evaluation = evaluationByCandidateId.get(candidate.candidate_id);
-    const instanceId = candidate.provider_instance_id ? ` • ${candidate.provider_instance_id}` : '';
-    node.querySelector('.candidate-label').textContent = `${candidate.candidate_slot} • ${humanizeProvider(candidate.provider)}${instanceId}`;
-
-    const status = candidate.verification?.status === 'pass'
-      ? `${candidate.status} / verified`
-      : candidate.verification?.status === 'fail'
-        ? `${candidate.status} / verification failed`
-        : candidate.status;
-    node.querySelector('.candidate-status').textContent = formatStatusBadge(status);
-    node.querySelector('.candidate-status').className = `candidate-status ${stateClass(status)}`;
-    node.querySelector('.candidate-summary').textContent = evaluation?.summary
-      || comparison?.summary
-      || candidate.summary
-      || 'No candidate summary yet.';
-
-    node.querySelector('.candidate-score').textContent = comparison
-      ? [
-          comparison.score != null ? `Score ${comparison.score}/100` : 'Score pending',
-          comparison.eligible ? 'eligible' : 'not eligible',
-          `${comparison.changed_file_count} files`,
-          `${comparison.total_changed_lines} lines`,
-          comparison.jj_change_id ? `jj ${shortId(comparison.jj_change_id)}` : null
-        ].filter(Boolean).join(' • ')
-      : 'Deterministic evaluation has not run yet.';
-
-    node.querySelector('.candidate-verification').textContent = candidate.verification
-      ? candidate.verification.checks.map((check) => `${check.status.toUpperCase()}: ${check.command}`).join(' | ')
-      : 'Verification not run yet.';
-
-    const inspectButton = document.createElement('button');
-    inspectButton.className = 'ghost-button';
-    inspectButton.textContent = 'Open Compare';
-    inspectButton.addEventListener('click', async () => {
-      window.location.href = buildCompareUrl(state.selectedTaskId, candidate.candidate_id);
-    });
-    node.appendChild(inspectButton);
-    candidateCards.appendChild(node);
-  }
-
   openCompareButton.disabled = !state.selectedTaskId;
+  heroOpenOperatorButton.disabled = false;
   heroOpenCompareButton.disabled = !state.selectedTaskId;
+  detailOpenOperatorButton.disabled = !state.selectedTaskId;
   detailOpenCompareButton.disabled = !state.selectedTaskId;
+  heroOpenOperatorButton.textContent = state.selectedTaskId ? 'Operator View' : 'Create Task';
   heroOpenDocsLink.href = buildDocsUrl(state.selectedTaskId);
   openLatestRunButton.disabled = !state.taskDetail.run_dir;
 }
@@ -784,7 +854,7 @@ function renderTaskBrief(task) {
   const value = document.createElement('p');
   value.textContent = [
     `Mode ${task.mode || 'unknown'}`,
-    `Judge ${humanizeProvider(task.judge)}`,
+    `Blind review ${humanizeProvider(state.runConfig?.judge || task.judge || 'none')}`,
     `Review ${task.human_review_policy || 'standard'}`,
     `Publish ${task.publish_policy || 'manual'}`
   ].join(' • ');
@@ -885,6 +955,9 @@ function renderComparisonView(comparison) {
   }
   const mergeView = state.taskDetail?.merge_view || null;
   const publication = state.taskDetail?.publication_view || mergeView?.publication || null;
+  const blindReview = comparison.blind_review || null;
+  const composerPlan = comparison.composer_plan || null;
+  const agentBlindReviews = comparison.agent_blind_reviews || [];
 
   appendInfoBlock(
     comparisonView,
@@ -915,6 +988,51 @@ function renderComparisonView(comparison) {
         `${strength.label}: ${strength.candidate_label} • ${strength.reason}`
       )),
       'No deterministic strengths are available yet.'
+    );
+  }
+
+  if (blindReview) {
+    appendInfoBlock(
+      comparisonView,
+      'Blind Review',
+      [
+        blindReview.decision?.mode || 'pending',
+        blindReview.decision?.confidence ? `confidence ${blindReview.decision.confidence}` : null,
+        blindReview.decision?.winner?.label || null
+      ].filter(Boolean).join(' • ')
+    );
+    appendInfoBlock(
+      comparisonView,
+      'Blind Overview',
+      blindReview.guidance?.overview || 'No blind review packet is available yet.'
+    );
+  }
+
+  if (composerPlan) {
+    appendInfoBlock(
+      comparisonView,
+      'Composer Plan',
+      [
+        composerPlan.mode,
+        composerPlan.confidence ? `confidence ${composerPlan.confidence}` : null,
+        composerPlan.review_required ? 'human review required' : 'review optional'
+      ].filter(Boolean).join(' • ')
+    );
+  }
+
+  if (agentBlindReviews.length > 0) {
+    appendListBlock(
+      comparisonView,
+      'Agent Blind Reviews',
+      agentBlindReviews.map((review) => (
+        [
+          review.provider,
+          review.status,
+          review.recommendation?.recommended_mode || null,
+          review.recommendation?.confidence ? `confidence ${review.recommendation.confidence}` : null
+        ].filter(Boolean).join(' • ')
+      )),
+      'No blind agent review has been run yet.'
     );
   }
 
@@ -1147,6 +1265,15 @@ function buildCompareUrl(taskId, candidateId = null) {
   return `/compare.html?${params.toString()}`;
 }
 
+function buildOperatorUrl(taskId = null) {
+  const params = new URLSearchParams();
+  if (taskId) {
+    params.set('task', taskId);
+  }
+  const query = params.toString();
+  return query ? `/operator.html?${query}` : '/operator.html';
+}
+
 function buildDocsUrl(taskId = null) {
   const params = new URLSearchParams({ doc: 'operator-guide' });
   if (taskId) {
@@ -1262,6 +1389,157 @@ function buildLiveRunWarning() {
     : null;
 }
 
+function buildRunConfigSnapshot() {
+  const providerMeta = getProviderMetaMap();
+  const configs = state.runConfig?.providers || [];
+  const enabledProviders = configs.filter((provider) => provider.enabled && Number(provider.agents) > 0);
+  const enabledAgents = enabledProviders.reduce((sum, provider) => sum + Number(provider.agents || 0), 0);
+  const liveRunnableProviders = enabledProviders.filter((config) => isLiveRunnable(providerMeta.get(config.provider)));
+  const blockedProviders = enabledProviders.filter((config) => isLiveBlocked(providerMeta.get(config.provider)));
+  const manualCheckProviders = enabledProviders.filter((config) => {
+    const provider = providerMeta.get(config.provider);
+    return provider?.installed && provider.auth_status === 'manual_check';
+  });
+
+  return {
+    providerMeta,
+    configs,
+    enabledProviders,
+    enabledAgents,
+    liveRunnableProviders,
+    blockedProviders,
+    manualCheckProviders,
+    summary: summarizeRunConfig({
+      enabledProviders,
+      enabledAgents,
+      liveRunnableProviders,
+      blockedProviders,
+      manualCheckProviders,
+      judge: state.runConfig?.judge || 'none'
+    })
+  };
+}
+
+function summarizeRunConfig({
+  enabledProviders,
+  enabledAgents,
+  liveRunnableProviders,
+  blockedProviders,
+  manualCheckProviders,
+  judge
+}) {
+  if (enabledProviders.length === 0) {
+    return 'Enable at least one provider to prepare or run candidates.';
+  }
+
+  return [
+    `${enabledAgents} candidate session${enabledAgents === 1 ? '' : 's'} selected across ${enabledProviders.length} provider${enabledProviders.length === 1 ? '' : 's'}.`,
+    liveRunnableProviders.length > 0
+      ? `Live ready: ${liveRunnableProviders.map((provider) => humanizeProvider(provider.provider)).join(', ')}.`
+      : 'No provider is live-ready yet.',
+    manualCheckProviders.length > 0
+      ? `Manual live check: ${manualCheckProviders.map((provider) => humanizeProvider(provider.provider)).join(', ')}.`
+      : null,
+    blockedProviders.length > 0
+      ? `Blocked for live run: ${blockedProviders.map((provider) => humanizeProvider(provider.provider)).join(', ')}.`
+      : null,
+    judge === 'none'
+      ? 'Blind review is disabled until you choose a reviewer.'
+      : `Blind review will use ${humanizeProvider(judge)} when requested.`
+  ].filter(Boolean).join(' ');
+}
+
+function describeProviderExecution(config, provider) {
+  const agents = Number(config.agents || 0);
+  const selected = Boolean(config.enabled) && agents > 0;
+  const installed = Boolean(provider?.installed);
+  const authStatus = installed ? (provider.auth_status || 'unknown') : 'not_installed';
+
+  if (!selected) {
+    return {
+      plan_badge: 'disabled',
+      selection_summary: 'not selected',
+      preview_summary: 'preview skipped',
+      live_summary: 'live skipped',
+      hint: 'Enable this provider and assign at least one agent to include it in preview or live runs.'
+    };
+  }
+
+  if (!installed) {
+    return {
+      plan_badge: 'live_blocked',
+      selection_summary: `${agents} candidate session${agents === 1 ? '' : 's'} selected`,
+      preview_summary: 'preview commands available',
+      live_summary: 'live blocked until CLI install',
+      hint: 'Preview can still generate commands. Install the CLI before launching a live run.'
+    };
+  }
+
+  if (authStatus === 'invalid') {
+    return {
+      plan_badge: 'live_blocked',
+      selection_summary: `${agents} candidate session${agents === 1 ? '' : 's'} selected`,
+      preview_summary: 'preview commands available',
+      live_summary: 'live blocked until login repair',
+      hint: 'Use Providers > Open Login or Test Auth before launching this provider live.'
+    };
+  }
+
+  if (authStatus === 'manual_check') {
+    return {
+      plan_badge: 'manual_check',
+      selection_summary: `${agents} candidate session${agents === 1 ? '' : 's'} selected`,
+      preview_summary: 'preview commands available',
+      live_summary: 'manual live auth check',
+      hint: 'Preview is safe. Before a live run, verify login in the provider CLI session manually.'
+    };
+  }
+
+  return {
+    plan_badge: 'live_ready',
+    selection_summary: `${agents} candidate session${agents === 1 ? '' : 's'} selected`,
+    preview_summary: 'preview commands available',
+    live_summary: 'live ready',
+    hint: 'This provider can participate in both preview and live runs.'
+  };
+}
+
+function buildBlindReviewOptions(snapshot) {
+  const options = new Map();
+  for (const config of snapshot.configs || []) {
+    options.set(config.provider, {
+      provider: config.provider,
+      label: humanizeProvider(config.provider)
+    });
+  }
+  for (const provider of snapshot.providerMeta.values()) {
+    options.set(provider.provider, {
+      provider: provider.provider,
+      label: provider.display_name || humanizeProvider(provider.provider)
+    });
+  }
+  return [...options.values()].sort((left, right) => left.label.localeCompare(right.label));
+}
+
+function explainBlindReviewSelection(provider) {
+  if (!provider || provider === 'none') {
+    return 'Deterministic evaluation runs automatically from disk. No blind review CLI is required.';
+  }
+  return `${humanizeProvider(provider)} is configured as the optional blind review CLI for later async review passes.`;
+}
+
+function explainMergeMode(mode) {
+  switch (mode) {
+    case 'auto':
+      return 'Auto finalizes only a clear deterministic winner; anything ambiguous still waits for review.';
+    case 'manual':
+      return 'Manual never finalizes automatically; humans decide what to synthesize and publish.';
+    case 'hybrid':
+    default:
+      return 'Hybrid lets Alloy prepare a merge recommendation while keeping the human at the final merge boundary.';
+  }
+}
+
 function getProviderMetaMap() {
   return new Map((state.providers?.providers || []).map((provider) => [provider.provider, provider]));
 }
@@ -1320,6 +1598,8 @@ function humanizeProvider(provider) {
       return 'Gemini CLI';
     case 'codex':
       return 'Codex';
+    case 'none':
+      return 'Deterministic Only';
     default:
       return provider || 'unknown';
   }
@@ -1366,7 +1646,7 @@ function formatStatusBadge(value, { provider = null } = {}) {
   if (provider === 'gemini' || normalized.includes('manual') || normalized.includes('unknown')) {
     return `? ${label}`;
   }
-  if (normalized.includes('fail') || normalized.includes('invalid') || normalized.includes('not installed') || normalized.includes('not_installed') || normalized.includes('no winner')) {
+  if (normalized.includes('fail') || normalized.includes('invalid') || normalized.includes('blocked') || normalized.includes('not installed') || normalized.includes('not_installed') || normalized.includes('no winner')) {
     return `✕ ${label}`;
   }
   if (normalized.includes('ready') || normalized.includes('pass') || normalized.includes('valid') || normalized.includes('published') || normalized.includes('verified') || normalized.includes('synthesized')) {
@@ -1381,6 +1661,7 @@ function formatStatusBadge(value, { provider = null } = {}) {
 function ensureRunConfigDefaults(runConfig) {
   return {
     ...runConfig,
+    judge: runConfig?.judge || 'none',
     merge_mode: runConfig?.merge_mode || 'hybrid',
     providers: Array.isArray(runConfig?.providers) ? runConfig.providers : []
   };
@@ -1422,7 +1703,7 @@ function deepClone(value) {
 
 function stateClass(value) {
   const normalized = String(value).toLowerCase();
-  if (normalized.includes('fail') || normalized.includes('invalid') || normalized.includes('not_installed') || normalized.includes('no winner')) {
+  if (normalized.includes('fail') || normalized.includes('invalid') || normalized.includes('blocked') || normalized.includes('not_installed') || normalized.includes('no winner')) {
     return 'state-danger';
   }
   if (normalized.includes('ready') || normalized.includes('pass') || normalized.includes('valid') || normalized.includes('published') || normalized.includes('verified') || normalized.includes('synthesized')) {

@@ -25,6 +25,7 @@
         </div>
         <nav class="page-nav" aria-label="Primary">
           <a class="nav-link is-active" href="/">Control Panel</a>
+          <button id="hero-open-operator" class="ghost-button" disabled>Operator View</button>
           <button id="hero-open-compare" class="ghost-button" disabled>Compare Diffs</button>
           <a id="hero-open-docs" class="nav-link" href="/docs.html">Docs</a>
           <button id="theme-toggle" class="ghost-button" type="button">Dark Mode</button>
@@ -72,8 +73,8 @@
             <div class="panel-header">
               <div>
                 <p class="eyebrow">Routing</p>
-                <h2>Run Config</h2>
-                <p id="run-config-summary" class="hint">Select a task to configure providers.</p>
+                <h2>Run Plan</h2>
+                <p id="run-config-summary" class="hint">Select a task to configure execution.</p>
               </div>
             </div>
             <div id="run-policy" class="stack compact"></div>
@@ -101,62 +102,29 @@
         <section class="detail panel detail-column">
           <div class="panel-header">
             <div>
-              <p class="eyebrow">Operator View</p>
+              <p class="eyebrow">Selected Task</p>
               <h2 id="detail-title">Select a task</h2>
             </div>
             <div class="detail-header-actions">
+              <button id="detail-open-operator" class="ghost-button" disabled>Operator View</button>
               <button id="detail-open-compare" class="ghost-button" disabled>Compare Diffs</button>
               <span id="detail-state" class="state-pill state-idle">Draft</span>
             </div>
           </div>
-
-          <div id="detail-nav" class="detail-nav"></div>
-
-          <div class="detail-layout">
-            <div class="editor-column">
-              <div class="editor-header">
-                <label class="field-label" for="task-markdown">Markdown Task Brief</label>
-                <div class="editor-nav" aria-label="Markdown view mode">
-                  <button id="task-markdown-edit-tab" class="detail-tab is-active" type="button">Edit Source</button>
-                  <button id="task-markdown-preview-tab" class="detail-tab ghost-button" type="button">Render Markdown</button>
-                </div>
+          <div id="detail-summary" class="info-stack"></div>
+          <details class="subpanel debug-panel">
+            <summary>Selected Task Debug JSON</summary>
+            <div class="debug-stack">
+              <div>
+                <h4>Task Snapshot</h4>
+                <pre id="task-json">{}</pre>
               </div>
-              <textarea id="task-markdown" spellcheck="false"></textarea>
-              <article id="task-markdown-preview" class="markdown-body panel-like" hidden></article>
+              <div>
+                <h4>Latest Run Summary</h4>
+                <pre id="run-summary">No run selected.</pre>
+              </div>
             </div>
-
-            <div class="preview-column">
-              <details class="subpanel collapsible" data-detail-section="overview" open>
-                <summary><h3>Overview</h3></summary>
-                <div id="task-brief" class="info-stack"></div>
-                <div id="evaluation-call" class="info-stack"></div>
-              </details>
-
-              <details class="subpanel collapsible" data-detail-section="compare" open>
-                <summary><h3>Compare + Merge</h3></summary>
-                <div id="comparison-view" class="info-stack"></div>
-              </details>
-
-              <details class="subpanel collapsible" data-detail-section="candidates" open>
-                <summary><h3>Candidate Cards</h3></summary>
-                <div id="candidate-cards" class="stack"></div>
-              </details>
-
-              <details class="subpanel debug-panel" data-detail-section="debug">
-                <summary>Operator Debug JSON</summary>
-                <div class="debug-stack">
-                  <div>
-                    <h4>Parsed Task</h4>
-                    <pre id="task-json">{}</pre>
-                  </div>
-                  <div>
-                    <h4>Latest Run Summary</h4>
-                    <pre id="run-summary">No run selected.</pre>
-                  </div>
-                </div>
-              </details>
-            </div>
-          </div>
+          </details>
         </section>
       </main>
     </div>
@@ -200,7 +168,10 @@
             <input type="checkbox" class="provider-enabled">
             <span class="provider-config-name"></span>
           </label>
-          <span class="provider-config-auth"></span>
+          <div class="provider-config-badges">
+            <span class="provider-config-plan"></span>
+            <span class="provider-config-auth"></span>
+          </div>
         </div>
         <p class="provider-config-meta"></p>
         <div class="provider-config-controls">
@@ -217,6 +188,7 @@
             <select class="provider-transport"></select>
           </label>
         </div>
+        <p class="provider-config-hint"></p>
       </article>
     </template>
 

@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { buildTerminalCommandLaunch, buildTerminalLoginLaunch } from '../auth-launch.mjs';
+import { runBlindReviewAgent } from '../blind-review-agent.mjs';
 import { prepareTaskFromFile, prepareTaskFromMarkdown, runTaskFromPrepared } from '../orchestrator.mjs';
 import { parseTaskBrief } from '../parser.mjs';
 import { buildProviderEnv, doctorProviders, getProviderLoginCommand, getProviderTestCommand } from '../providers.mjs';
@@ -20,6 +21,8 @@ const uiRoot = path.join(projectRoot, 'ui');
 const host = process.env.ALLOY_HOST || '127.0.0.1';
 const port = Number.parseInt(process.env.ALLOY_PORT || '4173', 10);
 const sessionManager = new SessionManager({ projectRoot });
+const MAX_TASK_IMPORT_BYTES = 256 * 1024;
+const ALLOWED_TASK_IMPORT_EXTENSIONS = new Set(['.md', '.markdown']);
 
 export function createServer() {
   return http.createServer(async (req, res) => {
@@ -52,6 +55,18 @@ export function createServer() {
 
       if (req.method === 'GET' && url.pathname === '/api/tasks') {
         return sendJson(res, 200, { tasks: await listTaskCards(projectRoot) });
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/tasks/create') {
+        try {
+          return sendJson(res, 200, await createTaskFile(projectRoot, await readJsonBody(req)));
+        } catch (error) {
+          const statusCode = error.validation ? 400 : 500;
+          return sendJson(res, statusCode, {
+            error: error.message || String(error),
+            validation: error.validation || null
+          });
+        }
       }
 
       if (req.method === 'GET' && url.pathname === '/api/docs') {
@@ -151,6 +166,11 @@ export function createServer() {
       if (req.method === 'POST' && url.pathname.startsWith('/api/tasks/') && url.pathname.endsWith('/publication/push')) {
         const taskId = decodeURIComponent(url.pathname.split('/')[3] || '');
         return sendJson(res, 200, await pushTaskPublication(taskId, await readJsonBody(req)));
+      }
+
+      if (req.method === 'POST' && url.pathname.startsWith('/api/tasks/') && url.pathname.endsWith('/blind-review/run')) {
+        const taskId = decodeURIComponent(url.pathname.split('/')[3] || '');
+        return sendJson(res, 200, await runTaskBlindReview(taskId, await readJsonBody(req)));
       }
 
       if (req.method === 'POST' && url.pathname === '/api/parse-markdown') {
@@ -372,6 +392,79 @@ async function pushTaskPublication(taskId, body) {
   };
 }
 
+export async function createTaskFile(rootDir, body) {
+  const sourcePath = cleanTaskPathInput(body?.source_path);
+  const { markdown, securityWarnings } = await resolveTaskMarkdown(rootDir, body?.markdown, sourcePath);
+  const parsed = parseTaskBrief(markdown, sourcePath || '<web-ui>');
+
+  if (!parsed.ok) {
+    const message = parsed.errors.map((error) => error.message).join(' | ') || 'Task markdown failed validation.';
+    const error = new Error(message);
+    error.validation = {
+      ok: parsed.ok,
+      errors: parsed.errors,
+      warnings: parsed.warnings
+    };
+    throw error;
+  }
+
+  const taskFilePath = resolveTaskOutputPath(rootDir, body?.output_name, parsed.task.task_id);
+  await fs.mkdir(path.dirname(taskFilePath), { recursive: true });
+
+  const exists = await fs.stat(taskFilePath).then(() => true).catch(() => false);
+  if (exists) {
+    throw new Error(`Task file already exists: ${taskFilePath}`);
+  }
+
+  await fs.writeFile(taskFilePath, markdown, 'utf8');
+
+  return {
+    task_id: parsed.task.task_id,
+    markdown_path: taskFilePath,
+    task: parsed.task,
+    security_warnings: securityWarnings,
+    validation: {
+      ok: parsed.ok,
+      errors: parsed.errors,
+      warnings: parsed.warnings
+    }
+  };
+}
+
+async function runTaskBlindReview(taskId, body) {
+  const detail = await getTaskDetail(projectRoot, taskId);
+  if (!detail || !detail.run_dir) {
+    throw new Error(`No completed run is available for blind review on task ${taskId}`);
+  }
+  if (!detail.latest_run?.evaluation?.blind_review || !detail.latest_run?.evaluation?.composer_plan) {
+    throw new Error(`No blind review packet is available for task ${taskId}`);
+  }
+
+  const provider = body?.provider || detail.run_config?.judge || detail.task?.judge;
+  if (!provider || provider === 'none') {
+    throw new Error(`No blind review provider is configured for task ${taskId}`);
+  }
+
+  const providerConfig = (detail.run_config?.providers || []).find((entry) => entry.provider === provider) || null;
+  const review = await runBlindReviewAgent({
+    runDir: detail.run_dir,
+    task: {
+      ...detail.task,
+      run_config: detail.run_config
+    },
+    provider,
+    profileId: body?.profile_id || providerConfig?.profile_id || 'default',
+    transport: body?.transport || providerConfig?.transport || 'pipe',
+    sessionManager,
+    maxTurns: Number.parseInt(body?.max_turns || '12', 10) || 12
+  });
+
+  return {
+    task_id: taskId,
+    blind_review_agent: review
+  };
+}
+
 async function openAuthTest(provider) {
   const test = getProviderTestCommand(provider);
   const launcher = buildTerminalCommandLaunch({
@@ -465,6 +558,64 @@ function sendJson(res, statusCode, value) {
 
 function shellQuote(value) {
   return `'${String(value).replace(/'/g, `'"'"'`)}'`;
+}
+
+function cleanTaskPathInput(value) {
+  const next = String(value || '').trim();
+  return next || null;
+}
+
+async function resolveTaskMarkdown(rootDir, inlineMarkdown, sourcePath) {
+  const markdown = String(inlineMarkdown || '').trim();
+  if (markdown) {
+    return { markdown, securityWarnings: [] };
+  }
+  if (!sourcePath) {
+    throw new Error('Provide task markdown or a source markdown path.');
+  }
+
+  const resolvedPath = path.resolve(rootDir, sourcePath);
+  const extension = path.extname(resolvedPath).toLowerCase();
+  if (!ALLOWED_TASK_IMPORT_EXTENSIONS.has(extension)) {
+    throw new Error(`Only markdown imports are supported right now (.md, .markdown): ${resolvedPath}`);
+  }
+
+  const stats = await fs.stat(resolvedPath).catch(() => null);
+  if (!stats || !stats.isFile()) {
+    throw new Error(`Task source file not found: ${resolvedPath}`);
+  }
+  if (stats.size > MAX_TASK_IMPORT_BYTES) {
+    throw new Error(`Task source file is too large (${stats.size} bytes). Limit is ${MAX_TASK_IMPORT_BYTES} bytes.`);
+  }
+
+  const importedMarkdown = await fs.readFile(resolvedPath, 'utf8');
+  if (importedMarkdown.includes('\u0000')) {
+    throw new Error(`Task source file appears to contain binary content: ${resolvedPath}`);
+  }
+
+  const securityWarnings = [];
+  if (!resolvedPath.startsWith(`${rootDir}${path.sep}`) && resolvedPath !== rootDir) {
+    securityWarnings.push('Imported markdown came from outside the Alloy workspace. Only import trusted local files in this testing build.');
+  }
+  securityWarnings.push('Imported markdown becomes Alloy task input. Review it before running providers, evaluation, or synthesis.');
+
+  return {
+    markdown: importedMarkdown,
+    securityWarnings
+  };
+}
+
+function resolveTaskOutputPath(rootDir, outputName, taskId) {
+  const tasksDir = path.join(rootDir, 'samples', 'tasks');
+  const requestedName = String(outputName || '').trim();
+  const fallbackName = `${taskId}.task.md`;
+  const baseName = path.basename(requestedName || fallbackName);
+  const normalized = baseName.endsWith('.task.md')
+    ? baseName
+    : baseName.endsWith('.md')
+      ? baseName.replace(/\.md$/i, '.task.md')
+      : `${baseName}.task.md`;
+  return path.join(tasksDir, normalized);
 }
 
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {

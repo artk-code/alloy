@@ -72,6 +72,10 @@ test('evaluateRun emits a winner-only merge plan for a clear deterministic winne
   assert.equal(result.judge_rationale.mode, 'winner');
   assert.equal(result.judge_rationale.base_candidate_id, 'cand_a');
   assert.equal(result.judge_rationale.file_rationale.length, 2);
+  assert.equal(result.blind_review.candidates[0].label, 'Candidate A');
+  assert.equal(result.blind_review.decision.winner.label, 'Candidate A');
+  assert.doesNotMatch(result.blind_review.candidates[0].summary, /codex|gemini|claude/i);
+  assert.equal(result.composer_plan.mode, 'winner_finalize');
   assert.match(result.judge_rationale.overview, /deterministic leader/i);
   assert.match(result.judge_rationale.next_action, /finalize/i);
 
@@ -112,6 +116,10 @@ test('evaluateRun emits manual-review merge plan data for a contested close fini
   assert.equal(result.judge_rationale.mode, 'synthesize');
   assert.equal(result.judge_rationale.unresolved_conflicts.length, 1);
   assert.equal(result.judge_rationale.file_rationale[0].contested, true);
+  assert.equal(result.blind_review.decision.finalists[0].label, 'Candidate A');
+  assert.equal(result.blind_review.merge_scope.unresolved_conflicts[0].contenders[0].label, 'Candidate A');
+  assert.equal(result.composer_plan.mode, 'file_compose');
+  assert.equal(result.composer_plan.review_required, true);
   assert.match(result.judge_rationale.overview, /contested file/i);
 
   const validation = validateMergePlan({

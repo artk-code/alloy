@@ -1,7 +1,7 @@
 # Next Session
 
 Status date: March 8, 2026
-Purpose: Give the next compact-session agent an accurate starting point from the current pushed state after merge-plan, compare/docs, judge-rationale, synthesis-review, stack-shaping, and dark-mode work landed on `main`.
+Purpose: Give the next compact-session agent an accurate starting point from the current pushed state after merge-plan, compare/docs, judge-rationale, synthesis-review, publication, blind-review, and Operator View work landed on `main`.
 
 ## Read First
 
@@ -23,17 +23,20 @@ The current pushed repo already includes:
 - synthesis publication-readiness metadata added
 - publication preview and approval state added
 - publication push state and API added
+- optional async blind-review agent runs added
+- dedicated `Operator View` page added
+- task creation/import from `Operator View` added
 - synthesis `jj` stack shaping added
 - dedicated `Compare Diffs` page added
 - dedicated in-app `Docs` page added
 - native markdown rendering added for task and docs surfaces
-- task-aware top-nav links added across Control Panel, Compare Diffs, and Docs
+- task-aware top-nav links added across Control Panel, Operator View, Compare Diffs, and Docs
 - task cards now focus the selected task directly instead of relying on a separate `Open Card` button
-- the Control Panel desktop layout now keeps Task Board and Operator View side by side, with routing controls below them
+- the Control Panel now stays compact while Operator View holds the heavy task-detail workflow
 - persistent light/dark mode across all top-level pages via local storage
 
 Tests last verified locally:
-- `29/29` passing
+- `33/33` passing
 
 Important local files added or heavily changed:
 - [schemas/merge-plan.schema.json](/Users/codex/stack-judge/schemas/merge-plan.schema.json)
@@ -46,7 +49,11 @@ Important local files added or heavily changed:
 - [src/web/data.mjs](/Users/codex/stack-judge/src/web/data.mjs)
 - [src/web/server.mjs](/Users/codex/stack-judge/src/web/server.mjs)
 - [src/web/docs-data.mjs](/Users/codex/stack-judge/src/web/docs-data.mjs)
+- [src/blind-review.mjs](/Users/codex/stack-judge/src/blind-review.mjs)
+- [src/blind-review-agent.mjs](/Users/codex/stack-judge/src/blind-review-agent.mjs)
 - [ui/app.js](/Users/codex/stack-judge/ui/app.js)
+- [ui/operator.html](/Users/codex/stack-judge/ui/operator.html)
+- [ui/operator.js](/Users/codex/stack-judge/ui/operator.js)
 - [ui/compare.html](/Users/codex/stack-judge/ui/compare.html)
 - [ui/compare.js](/Users/codex/stack-judge/ui/compare.js)
 - [ui/docs.html](/Users/codex/stack-judge/ui/docs.html)
@@ -65,17 +72,20 @@ Start by validating the current pushed build:
 1. confirm the running web server is serving the current tree
 2. manually verify these routes and pages:
    - `/`
+   - `/operator.html`
    - `/compare.html?task=task_20260308_tic_tac_toe_perfect_play`
    - `/docs.html?doc=operator-guide&task=task_20260308_tic_tac_toe_perfect_play`
    - `/api/tasks/task_20260308_tic_tac_toe_perfect_play`
    - `/api/tasks/task_20260308_tic_tac_toe_perfect_play/synthesis/diff`
    - `/api/docs/operator-guide`
+   - `POST /api/tasks/create`
 3. verify task-aware nav links:
-   - Control Panel -> Compare Diffs -> Docs
-   - Docs -> Control Panel / Compare Diffs
+   - Control Panel -> Operator View -> Compare Diffs -> Docs
+   - Docs -> Control Panel / Operator View / Compare Diffs
 4. verify theme persistence across page navigation and refresh
-5. verify the task markdown source/render toggle
-6. only after that, clean up any remaining UI/data inconsistencies before adding new product features
+5. verify the task markdown source/render toggle in `Operator View`
+6. verify task creation/import from `Operator View`
+7. only after that, clean up any remaining UI/data inconsistencies before adding new product features
 
 ## Current Limitation On Browser Smoke Tests
 
@@ -93,17 +103,17 @@ If the next agent wants browser automation, they should add a repo-local Playwri
 
 After manual verification of the current pushed build, the next priorities should be:
 
-1. Add a blind judge/composer layer on top of deterministic evaluation
+1. Consume blind-review recommendations in the synthesis/publication flow
    - deterministic evaluation remains the gatekeeper
-   - judge/composer should improve close-call synthesis, not replace hard gates
+   - blind review already exists as a persisted async artifact; the gap is using it productively
 
 2. Add a local candidate/synthesis testing workflow
    - one-click or one-command path from the UI/docs into the selected workspace
    - make local validation easy once a candidate or synthesis is chosen
 
-3. Add an in-app Task Composer
-   - operators should be able to create and edit custom task briefs without filesystem editing
-   - keep markdown as the underlying artifact, but make the GUI the primary authoring surface
+3. Expand the in-app Task Composer
+   - operators can already create/import markdown task files from `Operator View`
+   - the next step is a safer structured editor and richer validation/preview, not re-adding basic creation
 
 4. Add broader eval cards
    - smoke
@@ -190,13 +200,13 @@ node scripts/check-demo-state.mjs
 
 Use this order unless a blocking regression is found:
 
-1. Blind judge/composer
-   - The next highest-value gap is better close-call synthesis without weakening deterministic gates.
-   - Keep deterministic checks as the hard gate and layer blind judge/composer output on top.
+1. Blind-review recommendation consumption
+   - The next highest-value gap is using saved blind-review output to shape merge and publication decisions without weakening deterministic gates.
+   - Keep deterministic checks as the hard gate and layer persisted blind-review output on top.
    - Deliverables:
-     - anonymized candidate presentation
-     - structured judge output artifact
-     - composer path for close-call synthesis only
+     - decision rules for when blind review changes merge guidance
+     - UI emphasis for aligned vs conflicting deterministic/blind recommendations
+     - publication gating when blind review raises high-risk objections
 
 2. Local testing workflow
    - Operators need a direct path from the UI to a chosen candidate or synthesis workspace.
@@ -205,14 +215,14 @@ Use this order unless a blocking regression is found:
       - one-click or one-command open path
       - explicit local validation commands beside the chosen workspace
 
-3. In-app Task Composer
-   - Custom tasks should not require editing markdown in the filesystem.
-   - Keep markdown as the persisted source format, but add a GUI composer/editor and save flow.
+3. Structured Task Composer expansion
+   - Custom tasks can now be created or imported from `Operator View`.
+   - Keep markdown as the persisted source format, but add a safer GUI composer/editor and save flow on top.
    - Deliverables:
-     - create new task from the Control Panel
-     - edit title/frontmatter/body in the UI
-     - save back to a `.task.md` file
-     - validate and preview the parsed task before run preparation
+     - structured field inputs for Alloy frontmatter
+     - markdown/body preview beside parsed validation
+     - safe import guidance and clearer validation errors before save
+     - edit existing task files without dropping to the filesystem
 
 4. Broader eval coverage
    - Add a smoke task and a compact algorithm task so Alloy is easier to demo and regress-test quickly.

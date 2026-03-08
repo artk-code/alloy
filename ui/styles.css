@@ -240,6 +240,17 @@ a.ghost-button:hover {
   width: min(100%, 2400px);
 }
 
+.operator-shell {
+  width: min(100%, 2200px);
+}
+
+.operator-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(30rem, 1.1fr) minmax(24rem, 1fr);
+  align-items: start;
+}
+
 .compare-grid {
   display: grid;
   gap: 1rem;
@@ -264,6 +275,32 @@ a.ghost-button:hover {
 
 .compare-summary-panel {
   grid-area: summary;
+}
+
+.operator-editor-panel,
+.operator-summary-panel {
+  min-width: 0;
+}
+
+.operator-composer-controls {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(12rem, 1fr) minmax(16rem, 1.2fr) auto;
+  margin-bottom: 1rem;
+}
+
+.operator-composer-controls input {
+  width: 100%;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  color: var(--text);
+  padding: 0.72rem 0.8rem;
+}
+
+.operator-stack {
+  display: grid;
+  gap: 1rem;
 }
 
 .compare-candidates-panel {
@@ -326,6 +363,12 @@ a.ghost-button:hover {
   color: var(--accent-primary-text);
 }
 
+.column {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+}
+
 .provider-column {
   grid-area: providers;
 }
@@ -344,9 +387,16 @@ a.ghost-button:hover {
   grid-area: detail;
 }
 
-.column {
-  display: grid;
-  gap: 1rem;
+.provider-column,
+.board-column,
+.routing-column,
+.detail-column {
+  min-width: 0;
+  overflow: visible;
+  resize: none;
+}
+
+.provider-column {
   align-content: start;
 }
 
@@ -593,11 +643,24 @@ a.ghost-button:hover {
   gap: 0.75rem;
 }
 
+.provider-config-badges {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .provider-config-controls label,
 .field-label {
   display: grid;
   gap: 0.35rem;
   font-size: 0.85rem;
+}
+
+.provider-config-hint {
+  color: var(--muted);
+  font-size: 0.82rem;
 }
 
 .provenance-list {
@@ -902,6 +965,13 @@ pre {
       "routing";
   }
 
+  .provider-column,
+  .board-column,
+  .detail-column,
+  .routing-column {
+    resize: none;
+  }
+
   .routing-column {
     grid-template-columns: 1fr;
   }
@@ -915,6 +985,7 @@ pre {
       "diff";
   }
 
+  .operator-grid,
   .docs-grid {
     grid-template-columns: 1fr;
   }
@@ -933,6 +1004,7 @@ pre {
     grid-template-columns: 1fr;
   }
 
+  .operator-composer-controls,
   .board-toolbar {
     grid-template-columns: 1fr;
   }

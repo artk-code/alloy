@@ -93,7 +93,7 @@ export async function getTaskDetail(projectRoot, taskId) {
       evaluation: latestRun?.summary?.evaluation || null,
       judge_rationale: latestRun?.summary?.evaluation?.judge_rationale || null,
       latest_run_overview: buildLatestRunOverview(parsed.task, latestRun?.summary || null, latestRunAudit),
-      comparison_view: buildComparisonView(latestRun?.summary?.evaluation || null, candidates),
+      comparison_view: buildComparisonView(latestRun?.summary?.evaluation || null, candidates, latestRun?.summary || null),
       merge_view: buildMergeView(latestRun?.summary || null, candidates, synthesis),
       publication_view: buildPublicationView(latestRun?.summary || null, synthesis, parsed.task, candidates),
       compare_url: `/compare.html?task=${encodeURIComponent(taskId)}`,
@@ -530,10 +530,12 @@ function formatProviderLabels(providers = []) {
   return providers.map((provider) => PROVIDER_LABELS[provider] || provider);
 }
 
-function buildComparisonView(evaluation, candidates) {
+function buildComparisonView(evaluation, candidates, summary = null) {
   const byCandidateId = new Map((evaluation?.candidates || []).map((candidate) => [candidate.candidate_id, candidate]));
+  const blindByCandidateId = new Map((evaluation?.blind_review?.candidates || []).map((candidate) => [candidate.candidate_id, candidate]));
   const rows = candidates.map((candidate) => {
     const evalCandidate = byCandidateId.get(candidate.candidate_id);
+    const blindCandidate = blindByCandidateId.get(candidate.candidate_id);
     const patchStats = evalCandidate?.metrics?.patch_stats
       || candidate.jj?.patch_stats
       || { file_count: candidate.changed_files?.length || 0, total_changed_lines: 0 };
@@ -549,6 +551,9 @@ function buildComparisonView(evaluation, candidates) {
       score: evalCandidate?.scorecard?.total ?? null,
       eligible: evalCandidate?.eligible ?? false,
       summary: evalCandidate?.summary || candidate.summary || 'No candidate summary yet.',
+      blind_id: blindCandidate?.blind_id || null,
+      blind_label: blindCandidate?.label || null,
+      blind_summary: blindCandidate?.summary || null,
       changed_files: candidate.changed_files || [],
       changed_file_count: patchStats.file_count ?? candidate.changed_files?.length ?? 0,
       total_changed_lines: patchStats.total_changed_lines ?? 0,
@@ -576,6 +581,9 @@ function buildComparisonView(evaluation, candidates) {
     decision,
     merge_plan: materializeMergePlan(evaluation?.merge_plan || null, rows),
     judge_rationale: materializeJudgeRationale(evaluation?.judge_rationale || null, rows),
+    blind_review: materializeBlindReview(evaluation?.blind_review || null, rows),
+    composer_plan: materializeComposerPlan(evaluation?.composer_plan || null),
+    agent_blind_reviews: materializeAgentBlindReviews(summary?.agent_blind_reviews || {}),
     contribution_map: materializeContributionMap(contributionMap, rows),
     rows
   };
@@ -628,6 +636,8 @@ function buildMergeView(summary, candidates, synthesis) {
       candidate_id: candidateId,
       label
     }))),
+    composer_plan: materializeComposerPlan(summary?.evaluation?.composer_plan || null),
+    agent_blind_reviews: materializeAgentBlindReviews(summary?.agent_blind_reviews || {}),
     files: [...byPath.entries()]
       .map(([filePath, owners]) => ({
         path: filePath,
@@ -834,6 +844,77 @@ function materializeJudgeRationale(judgeRationale, rows) {
   };
 }
 
+function materializeBlindReview(blindReview, rows) {
+  if (!blindReview) {
+    return null;
+  }
+
+  const byCandidateId = new Map((rows || []).map((row) => [row.candidate_id, row]));
+  return {
+    ...blindReview,
+    candidates: (blindReview.candidates || []).map((candidate) => ({
+      ...candidate,
+      label: candidate.label,
+      revealed_label: byCandidateId.get(candidate.candidate_id)?.label || candidate.label
+    })),
+    ranking: (blindReview.ranking || []).map((entry) => ({
+      ...entry,
+      revealed_label: byCandidateId.get(entry.candidate_id)?.label || entry.label
+    })),
+    decision: blindReview.decision
+      ? {
+          ...blindReview.decision,
+          finalists: (blindReview.decision.finalists || []).map((finalist) => ({
+            ...finalist,
+            revealed_label: byCandidateId.get(finalist.candidate_id)?.label || finalist.label
+          })),
+          winner: blindReview.decision.winner
+            ? {
+                ...blindReview.decision.winner,
+                revealed_label: byCandidateId.get(blindReview.decision.winner.candidate_id)?.label || blindReview.decision.winner.label
+              }
+            : null
+        }
+      : null,
+    guidance: blindReview.guidance
+      ? {
+          ...blindReview.guidance,
+          strengths: (blindReview.guidance.strengths || []).map((strength) => ({
+            ...strength,
+            candidate: strength.candidate
+              ? {
+                  ...strength.candidate,
+                  revealed_label: byCandidateId.get(strength.candidate.candidate_id)?.label || strength.candidate.label
+                }
+              : null
+          })),
+          top_score: blindReview.guidance.top_score
+            ? {
+                ...blindReview.guidance.top_score,
+                revealed_label: byCandidateId.get(blindReview.guidance.top_score.candidate_id)?.label || blindReview.guidance.top_score.label
+              }
+            : null
+        }
+      : null
+  };
+}
+
+function materializeComposerPlan(composerPlan) {
+  if (!composerPlan) {
+    return null;
+  }
+
+  return {
+    ...composerPlan,
+    contested_file_count: (composerPlan.file_allocations || []).filter((file) => file.contested).length
+  };
+}
+
+function materializeAgentBlindReviews(agentBlindReviews) {
+  return Object.values(agentBlindReviews || {})
+    .sort((left, right) => String(right.completed_at || '').localeCompare(String(left.completed_at || '')));
+}
+
 function buildSelectionReason({ owner, owners, winnerCandidateId, synthesizedCandidateId, mergePlanDecision }) {
   if (synthesizedCandidateId && owner.candidate_id === synthesizedCandidateId) {
     return 'selected in latest synthesis';
@@ -978,7 +1059,7 @@ function buildRunAudit({ task, summary, candidates, runDir, matchedScope }) {
       proof_level: 'live',
       verified_candidates: verifiedCandidates,
       replay_backed: false,
-      legacy_run
+      legacy_run: legacyRun
     };
   }
 

@@ -79,9 +79,13 @@ export async function runPreparedCandidates({
       outputPath: path.join(runDir, 'evaluation.json')
     });
   const judgeRationalePath = path.join(runDir, 'judge-rationale.json');
+  const blindReviewPath = path.join(runDir, 'blind-judge-packet.json');
+  const composerPlanPath = path.join(runDir, 'composer-plan.json');
 
   if (evaluation) {
     await fs.writeFile(judgeRationalePath, JSON.stringify(evaluation.judge_rationale, null, 2) + '\n', 'utf8');
+    await fs.writeFile(blindReviewPath, JSON.stringify(evaluation.blind_review, null, 2) + '\n', 'utf8');
+    await fs.writeFile(composerPlanPath, JSON.stringify(evaluation.composer_plan, null, 2) + '\n', 'utf8');
     const byCandidateId = new Map(evaluation.candidates.map((candidate) => [candidate.candidate_id, candidate]));
     await Promise.all(manifests.map(async (entry) => {
       const manifest = await readJson(entry.manifestPath);
@@ -97,7 +101,9 @@ export async function runPreparedCandidates({
       project_id: task.project_id,
       task_id: task.task_id,
       decision: evaluation.decision,
-      judge_rationale_path: judgeRationalePath
+      judge_rationale_path: judgeRationalePath,
+      blind_review_path: blindReviewPath,
+      composer_plan_path: composerPlanPath
     });
   }
 
@@ -151,6 +157,8 @@ export async function runPreparedCandidates({
     candidate_results: candidateResults,
     evaluation,
     judge_rationale_path: evaluation ? judgeRationalePath : null,
+    blind_review_path: evaluation ? blindReviewPath : null,
+    composer_plan_path: evaluation ? composerPlanPath : null,
     synthesis: synthesis
       ? {
           synthesis_id: synthesis.synthesis_id,

@@ -18,15 +18,17 @@ Alloy should not merely pick a single winner. It should:
 
 The current implementation priorities should be:
 
-1. Blind judge/composer on top of deterministic gates
+1. Consume blind-review recommendations on top of deterministic gates
    - deterministic evaluation stays the gatekeeper
-   - judge/composer improves close-call synthesis decisions
+   - blind review already exists as a saved async artifact layer
+   - the next step is using that recommendation to improve close-call synthesis and publication decisions
 
 2. Local candidate and synthesis testing
    - one-click operator flow to open and test a candidate or synthesis workspace locally
 
-3. In-app Task Composer
-   - custom tasks should be authored and edited through the Control Panel
+3. Structured Task Composer expansion
+   - task creation/import now exists in `Operator View`
+   - the next step is a safer structured editor on top of the current markdown-first flow
    - markdown files should remain the persisted task format, not the primary UX
 
 4. Broader evaluation coverage
@@ -70,9 +72,11 @@ This is the correct V1 boundary.
 Current landed review features:
 - dedicated compare page for candidate and synthesis diffs
 - merge-plan and judge-rationale rendering
+- separate `Operator View` page for markdown editing, task creation/import, and candidate detail
 - manual-override and contested-file cues
 - review-oriented `jj` stack shaping metadata
 - publication-readiness blockers for synthesized results
+- persisted blind-review artifacts and async blind-review CLI recommendations
 
 These foundations are already in place, so the next work should build on them rather than recreate them.
 
@@ -291,16 +295,16 @@ Code remains on disk and in version control:
 
 ## Near-Term Milestones
 
-### Milestone 1: Blind Judge And Composer
+### Milestone 1: Blind Review Recommendation Consumption
 
 Deliver:
-- anonymized candidate presentation for judging
-- structured judge output layered on top of deterministic gates
-- composer path for close-call synthesis decisions
+- deterministic vs blind-review comparison in the UI
+- clear decision rules for when blind review changes merge guidance
+- publication blockers when blind review raises high-risk objections
 
 Acceptance:
 - deterministic checks still gate eligibility
-- judge/composer improves close-call synthesis without replacing hard gates
+- blind review improves close-call synthesis guidance without replacing hard gates
 
 ### Milestone 2: Local Testing Workflow
 
@@ -311,13 +315,14 @@ Deliver:
 Acceptance:
 - operator can open a candidate or synthesis workspace locally and run checks without hunting for paths
 
-### Milestone 3: In-App Task Composer
+### Milestone 3: Structured Task Composer Expansion
 
 Deliver:
-- create new custom task from the Control Panel
-- edit markdown/frontmatter/body in the UI
+- structured field editor for Alloy frontmatter
+- markdown/body editing in `Operator View`
 - save to a `.task.md` file
 - validate and preview before run preparation
+- keep create/import guardrails and security warnings visible
 
 Acceptance:
 - operator can create a custom task without manually creating files on disk
@@ -358,9 +363,9 @@ Build the synthesis engine conservatively.
 
 Preferred sequence from the current state:
 
-1. blind judge/composer on top of deterministic gates
+1. consume blind-review recommendations on top of deterministic gates
 2. local testing workflow
-3. in-app Task Composer
+3. structured Task Composer expansion
 4. broader eval coverage
 5. PR creation from the pushed synthesis ref
 6. SQLite control-plane metadata
@@ -387,17 +392,17 @@ That is how Alloy can combine the strongest code contributions in a readable, re
 
 This is the practical build order from the current shipped state:
 
-1. Blind judge/composer
+1. Blind-review recommendation consumption
    - Highest product differentiation after the publishable-stack groundwork is in place.
-   - Keep deterministic evaluation as the gatekeeper; use judge/composer only for close-call synthesis decisions.
+   - Keep deterministic evaluation as the gatekeeper; use blind review only to refine close-call synthesis and publication decisions.
 
 2. Local testing workflow
    - Make candidate and synthesis workspaces easy to open and validate locally.
    - This improves operator confidence and shortens debugging loops.
 
-3. In-app Task Composer
-   - Custom tasks should not require manual file creation in `samples/tasks`.
-   - Keep markdown as the source of truth, but move authoring into the product.
+3. Structured Task Composer expansion
+   - Basic task creation/import already exists in `Operator View`.
+   - Keep markdown as the source of truth, but move safer task authoring into the product.
 
 4. Broader eval coverage
    - Add smoke and compact algorithm tasks so Alloy can be demonstrated quickly and regression-tested cheaply.
