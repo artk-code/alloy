@@ -20,15 +20,17 @@ The current implementation priorities should be:
 
 1. Consume blind-review recommendations on top of deterministic gates
    - deterministic evaluation stays the gatekeeper
-   - blind review already exists as a saved async artifact layer
+   - blind review now gates publication when it disagrees with deterministic evaluation
    - next step:
-     - mark deterministic/blind agreement explicitly
-     - block publication on high-risk disagreement
+     - use blind review earlier in merge guidance
+     - keep publication gating intact
      - never let blind review rescue a failed deterministic run
 
 2. Local candidate and synthesis testing
-   - one-click operator flow to open and test a candidate or synthesis workspace locally
-   - show the exact commands beside the chosen workspace
+   - this is now implemented in `Review`
+   - next step:
+     - refine target ranking if needed
+     - keep the commands and workspace path obvious
 
 3. Structured Task Composer expansion
    - task creation/import now exists in `Tasks`
@@ -398,15 +400,14 @@ Build the synthesis engine conservatively.
 
 Preferred sequence from the current state:
 
-1. consume blind-review recommendations on top of deterministic gates
-2. local testing workflow
-3. tasks page cleanup
-4. fast regression tasks
-5. PR creation from the pushed synthesis ref
-6. compare-surface refinement
-7. SQLite control-plane metadata
-8. trace grading and `jj` operation-history mining
-9. symbol-level synthesis for selected languages
+1. consume blind-review recommendations earlier in merge guidance
+2. tasks page cleanup
+3. fast regression tasks
+4. PR creation from the pushed synthesis ref
+5. compare-surface refinement
+6. SQLite control-plane metadata
+7. trace grading and `jj` operation-history mining
+8. symbol-level synthesis for selected languages
 
 Do not jump directly to:
 - free-form hunk splicing
@@ -430,12 +431,12 @@ That is how Alloy can combine the strongest code contributions in a readable, re
 This is the practical build order from the current shipped state:
 
 1. Blind-review recommendation consumption
-   - Highest product differentiation after the publishable-stack groundwork is in place.
-   - Keep deterministic evaluation as the gatekeeper; use blind review only to refine close-call synthesis and publication decisions.
+   - Publication gating is already implemented.
+   - The next step is to use blind review earlier to refine close-call merge guidance before synthesis.
 
 2. Local testing workflow
-   - Make candidate and synthesis workspaces easy to open and validate locally.
-   - This improves operator confidence and shortens debugging loops.
+   - Implemented in `Review`.
+   - Preserve it while improving task authoring and faster eval coverage.
 
 3. Structured Task Composer expansion
    - Basic task creation/import already exists in `Tasks`.

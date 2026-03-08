@@ -46,6 +46,8 @@ Working today:
 - synthesized diff summaries with contested/manual-override cues and publication-readiness status
 - publication preview and approval state in `Review`
 - publication push state in `Review`
+- blind-review consensus and disagreement gating for publication in `Review`
+- target-by-target local testing from `Review` with visible validation commands
 - run provenance labeling in the UI so cards distinguish:
   - command previews
   - live CLI runs
@@ -77,7 +79,7 @@ Working today:
 - honest board/detail provenance labels instead of implying that every passing artifact came from a live provider run
 
 Not implemented yet:
-- blind-review recommendation consumption in synthesis/publication
+- blind-review recommendation consumption in merge-plan or synthesis selection before publication
 - a fully hardened structured task editor and import path for non-expert users
 - final PR publishing
 - persisted project-level dashboards and saved board preferences

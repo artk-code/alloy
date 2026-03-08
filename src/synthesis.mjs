@@ -572,13 +572,19 @@ function buildPublicationReadiness({ manifest, mergePlan }) {
 }
 
 async function buildPublicationState({ manifest, task, summary, jj }) {
+  const mergePlan = manifest.merge_plan || summary?.synthesis?.merge_plan || summary?.evaluation?.merge_plan || null;
   const readiness = manifest.publication_readiness || buildPublicationReadiness({
     manifest,
-    mergePlan: manifest.merge_plan || summary?.synthesis?.merge_plan || summary?.evaluation?.merge_plan || null
+    mergePlan
   });
   const previous = manifest.publication || summary?.synthesis?.publication || {};
+  const blindReviewGate = buildBlindReviewPublicationGate({
+    summary,
+    mergePlan,
+    humanApprovedAt: previous.human_approved_at || null
+  });
   const publishPolicy = task?.publish_policy || 'manual';
-  const approvalRequired = publishPolicy !== 'auto_if_high_confidence';
+  const approvalRequired = publishPolicy !== 'auto_if_high_confidence' || blindReviewGate.requires_human_approval;
   const preview = await buildPublicationPreview({
     manifest,
     task,
@@ -595,13 +601,23 @@ async function buildPublicationState({ manifest, task, summary, jj }) {
     status = 'publish_failed';
   } else if (!readiness.ready) {
     status = 'blocked';
+  } else if (blindReviewGate.blocks_publication) {
+    status = 'needs_human_review';
   } else if (approvalRequired && !previous.human_approved_at) {
     status = 'awaiting_approval';
   } else {
     status = 'push_ready';
   }
 
+  const publicationReady = readiness.ready && !blindReviewGate.blocks_publication;
+  const blockers = [
+    ...readiness.blockers,
+    ...(blindReviewGate.blocks_publication ? [blindReviewGate.summary] : [])
+  ];
   const requiredActions = [...readiness.required_actions];
+  if (blindReviewGate.status === 'disagrees' && !previous.human_approved_at) {
+    requiredActions.unshift('Review the blind-review disagreement and record explicit human approval before publication.');
+  }
   if (approvalRequired && !previous.human_approved_at && readiness.ready) {
     requiredActions.unshift('Record explicit human approval before any remote push step.');
   }
@@ -615,11 +631,12 @@ async function buildPublicationState({ manifest, task, summary, jj }) {
   return {
     status,
     summary: summarizePublicationStatus(status),
-    ready: readiness.ready,
+    ready: publicationReady,
     eligible_for_approval: readiness.eligible_for_approval,
     approval_required: approvalRequired,
-    blockers: [...readiness.blockers],
+    blockers,
     required_actions: uniqueStrings(requiredActions),
+    blind_review_gate: blindReviewGate,
     human_approved_at: previous.human_approved_at || null,
     human_approved_by: previous.human_approved_by || null,
     human_approval_note: previous.human_approval_note || null,
@@ -631,6 +648,170 @@ async function buildPublicationState({ manifest, task, summary, jj }) {
     push_result: previous.push_result || null,
     push_error: previous.push_result?.error || null
   };
+}
+
+export function buildBlindReviewPublicationGate({ summary, mergePlan, humanApprovedAt = null }) {
+  const agentBlindReviews = Object.values(summary?.agent_blind_reviews || {})
+    .filter((review) => review?.status === 'completed' && review?.recommendation)
+    .sort((left, right) => String(right.completed_at || '').localeCompare(String(left.completed_at || '')));
+
+  if (agentBlindReviews.length === 0) {
+    return {
+      status: 'not_run',
+      summary: 'No async blind review recommendation has been recorded yet.',
+      requires_human_approval: false,
+      blocks_publication: false,
+      latest_recommendation: null,
+      reviews: []
+    };
+  }
+
+  const aliasMap = summary?.evaluation?.blind_review?.alias_map || {};
+  const blindIdToCandidateId = new Map(
+    Object.entries(aliasMap)
+      .map(([candidateId, alias]) => [alias?.blind_id, candidateId])
+      .filter(([blindId, candidateId]) => blindId && candidateId)
+  );
+  const expectedMode = summary?.evaluation?.composer_plan?.mode || deriveExpectedBlindReviewMode(mergePlan);
+  const expectedBaseCandidateId = mergePlan?.base_candidate_id || summary?.evaluation?.decision?.winner_candidate_id || null;
+  const expectedFileDecisions = new Map((mergePlan?.file_decisions || []).map((decision) => [decision.path, decision.chosen_candidate_id]));
+
+  const reviews = agentBlindReviews.map((review) => assessBlindReviewRecommendation({
+    review,
+    expectedMode,
+    expectedBaseCandidateId,
+    expectedFileDecisions,
+    blindIdToCandidateId
+  }));
+  const disagreements = reviews.filter((review) => review.status === 'disagrees');
+  const aligned = reviews.filter((review) => review.status === 'aligned');
+  const requiresHumanApproval = reviews.some((review) => review.human_approval_required);
+
+  if (disagreements.length > 0) {
+    return {
+      status: humanApprovedAt ? 'overridden_by_human' : 'disagrees',
+      summary: humanApprovedAt
+        ? 'A blind review disagreed with the deterministic merge plan, but a human explicitly approved publication.'
+        : `${disagreements.length} blind review recommendation${disagreements.length === 1 ? '' : 's'} disagree with the deterministic merge plan.`,
+      requires_human_approval: true,
+      blocks_publication: !humanApprovedAt,
+      latest_recommendation: reviews[0] || null,
+      reviews
+    };
+  }
+
+  if (aligned.length > 0) {
+    return {
+      status: 'aligned',
+      summary: `${aligned.length} blind review recommendation${aligned.length === 1 ? '' : 's'} align with the deterministic merge and publication plan.`,
+      requires_human_approval: requiresHumanApproval,
+      blocks_publication: false,
+      latest_recommendation: reviews[0] || null,
+      reviews
+    };
+  }
+
+  return {
+    status: 'inconclusive',
+    summary: 'Blind review recommendations were recorded but could not be compared cleanly to the deterministic merge plan.',
+    requires_human_approval: requiresHumanApproval,
+    blocks_publication: false,
+    latest_recommendation: reviews[0] || null,
+    reviews
+  };
+}
+
+function assessBlindReviewRecommendation({
+  review,
+  expectedMode,
+  expectedBaseCandidateId,
+  expectedFileDecisions,
+  blindIdToCandidateId
+}) {
+  const recommendation = review.recommendation || {};
+  const mismatches = [];
+  const compared = [];
+
+  if (recommendation.recommended_mode && expectedMode) {
+    compared.push('mode');
+    if (recommendation.recommended_mode !== expectedMode) {
+      mismatches.push(`mode ${recommendation.recommended_mode} != ${expectedMode}`);
+    }
+  }
+
+  const recommendedBaseCandidateId = blindIdToCandidateId.get(recommendation.recommended_base_blind_id) || null;
+  if (recommendation.recommended_base_blind_id && expectedBaseCandidateId) {
+    compared.push('base');
+    if (recommendedBaseCandidateId !== expectedBaseCandidateId) {
+      mismatches.push(`base ${recommendation.recommended_base_blind_id} != ${candidateIdToBlindId(expectedBaseCandidateId, blindIdToCandidateId)}`);
+    }
+  }
+
+  for (const override of recommendation.file_overrides || []) {
+    const overrideBlindId = override.chosen_blind_id
+      || override.recommended_blind_id
+      || override.candidate_blind_id
+      || override.blind_id
+      || null;
+    if (!override.path || !overrideBlindId) {
+      continue;
+    }
+
+    compared.push(`file:${override.path}`);
+    const expectedCandidateId = expectedFileDecisions.get(override.path) || null;
+    const overrideCandidateId = blindIdToCandidateId.get(overrideBlindId) || null;
+    if (!expectedCandidateId) {
+      mismatches.push(`override ${override.path} is outside the deterministic merge plan`);
+      continue;
+    }
+    if (overrideCandidateId !== expectedCandidateId) {
+      mismatches.push(`override ${override.path} -> ${overrideBlindId} disagrees with deterministic allocation`);
+    }
+  }
+
+  let status = 'inconclusive';
+  let summary = recommendation.summary || 'No blind review summary was provided.';
+  if (mismatches.length > 0) {
+    status = 'disagrees';
+    summary = recommendation.summary || `Blind review disagrees with deterministic evaluation: ${mismatches.join('; ')}`;
+  } else if (compared.length > 0) {
+    status = 'aligned';
+    summary = recommendation.summary || 'Blind review aligns with deterministic evaluation.';
+  }
+
+  return {
+    provider: review.provider,
+    status,
+    summary,
+    completed_at: review.completed_at || null,
+    recommended_mode: recommendation.recommended_mode || null,
+    recommended_base_blind_id: recommendation.recommended_base_blind_id || null,
+    recommended_base_candidate_id: recommendedBaseCandidateId,
+    human_approval_required: recommendation.human_approval_required !== false,
+    reasons: recommendation.reasons || [],
+    mismatches,
+    file_override_count: (recommendation.file_overrides || []).length,
+    recommendation
+  };
+}
+
+function deriveExpectedBlindReviewMode(mergePlan) {
+  if (!mergePlan || mergePlan.mode === 'no_winner') {
+    return 'blocked';
+  }
+  if (mergePlan.mode === 'winner_only') {
+    return 'winner_finalize';
+  }
+  return 'file_compose';
+}
+
+function candidateIdToBlindId(candidateId, blindIdToCandidateId) {
+  for (const [blindId, mappedCandidateId] of blindIdToCandidateId.entries()) {
+    if (mappedCandidateId === candidateId) {
+      return blindId;
+    }
+  }
+  return candidateId;
 }
 
 async function buildPublicationPreview({ manifest, task, summary, jj, targetRemote, targetRef }) {
@@ -693,6 +874,8 @@ async function readSynthesisState(runDir) {
 
 function summarizePublicationStatus(status) {
   switch (status) {
+    case 'needs_human_review':
+      return 'Blind review disagrees with the deterministic merge plan. Human review is required before publication.';
     case 'awaiting_approval':
       return 'Ready for explicit human approval before any remote publish step.';
     case 'push_ready':

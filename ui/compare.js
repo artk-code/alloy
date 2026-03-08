@@ -228,6 +228,13 @@ function renderSummary() {
     appendInfoBlock(summaryRoot, 'Blind Overview', blindReview.guidance?.overview || 'No blind review overview is available yet.');
   }
 
+  if (publication?.blind_review_gate) {
+    appendInfoBlock(summaryRoot, 'Blind Review Gate', [
+      publication.blind_review_gate.status,
+      publication.blind_review_gate.summary
+    ].filter(Boolean).join(' • '));
+  }
+
   if (composerPlan) {
     appendInfoBlock(summaryRoot, 'Composer Plan', [
       composerPlan.mode,
@@ -1019,6 +1026,31 @@ function renderPublicationPanel(root, publication, publicationReadiness) {
   );
 
   if (publication) {
+    if (publication.blind_review_gate) {
+      appendInfoBlock(
+        publicationBlock,
+        'Blind Review Gate',
+        [
+          publication.blind_review_gate.status,
+          publication.blind_review_gate.summary
+        ].filter(Boolean).join(' • ')
+      );
+      appendListBlock(
+        publicationBlock,
+        'Blind Review Recommendations',
+        (publication.blind_review_gate.reviews || []).map((review) => (
+          [
+            humanizeProvider(review.provider),
+            review.status,
+            review.recommended_mode || null,
+            review.recommended_base_blind_id || null,
+            review.summary || null
+          ].filter(Boolean).join(' • ')
+        )),
+        'No async blind review recommendations have been recorded yet.'
+      );
+    }
+
     appendInfoBlock(
       publicationBlock,
       'Approval',
@@ -1265,46 +1297,99 @@ function renderLocalTestingBlock(root, localTesting) {
   block.className = 'info-block';
   const title = document.createElement('h4');
   title.textContent = 'Local Testing';
+  block.appendChild(title);
+
+  if (localTesting.instruction_summary) {
+    const summary = document.createElement('p');
+    summary.textContent = localTesting.instruction_summary;
+    block.appendChild(summary);
+  }
+
+  if (localTesting.preferred_target) {
+    appendInfoBlock(
+      block,
+      'Preferred Target',
+      [
+        localTesting.preferred_target.label,
+        localTesting.preferred_target.recommendation || null,
+        localTesting.preferred_target.workspace_path || null
+      ].filter(Boolean).join(' • ')
+    );
+  }
+
+  const targets = localTesting.targets || [];
+  if (targets.length === 0) {
+    appendListBlock(
+      block,
+      'Available Targets',
+      [],
+      'No local testing targets are available yet.'
+    );
+    root.appendChild(block);
+    return;
+  }
+
+  const targetStack = document.createElement('div');
+  targetStack.className = 'info-stack';
+  for (const target of targets) {
+    targetStack.appendChild(renderLocalTestingTarget(target, localTesting.preferred_target?.target_id || null));
+  }
+  block.appendChild(targetStack);
+
+  root.appendChild(block);
+}
+
+function renderLocalTestingTarget(target, preferredTargetId) {
+  const targetBlock = document.createElement('section');
+  targetBlock.className = 'info-block';
+
+  const title = document.createElement('h4');
+  title.textContent = target.label;
+  targetBlock.appendChild(title);
+
   const summary = document.createElement('p');
   summary.textContent = [
-    localTesting.preferred_target.label,
-    localTesting.preferred_target.recommendation || null,
-    localTesting.preferred_target.workspace_path || null
+    target.target_id === preferredTargetId ? 'preferred target' : null,
+    target.kind,
+    target.verification_status ? `verification ${target.verification_status}` : null,
+    target.workspace_path || null
   ].filter(Boolean).join(' • ');
+  targetBlock.appendChild(summary);
+
   const actions = document.createElement('div');
   actions.className = 'task-chip-row';
 
   const openButton = document.createElement('button');
   openButton.className = 'ghost-button';
-  openButton.textContent = 'Open Preferred Workspace';
+  openButton.textContent = 'Open Workspace';
   openButton.addEventListener('click', async () => {
-    await openLocalTestingTarget(localTesting.preferred_target.target_id);
+    await openLocalTestingTarget(target.target_id);
   });
+  actions.appendChild(openButton);
 
   const copyButton = document.createElement('button');
   copyButton.className = 'ghost-button';
-  copyButton.textContent = 'Copy Validation Commands';
+  copyButton.textContent = 'Copy Commands';
   copyButton.addEventListener('click', async () => {
-    await copyLocalTestingCommands(localTesting.preferred_target);
+    await copyLocalTestingCommands(target);
   });
+  actions.appendChild(copyButton);
 
-  actions.append(openButton, copyButton);
-  block.append(title, summary, actions);
+  targetBlock.appendChild(actions);
 
-  appendListBlock(
-    block,
-    'Available Targets',
-    (localTesting.targets || []).map((target) => (
-      [
-        target.label,
-        target.kind,
-        target.verification_status ? `verification ${target.verification_status}` : null
-      ].filter(Boolean).join(' • ')
-    )),
-    'No local testing targets are available yet.'
-  );
+  const commandBlock = document.createElement('div');
+  commandBlock.className = 'info-block';
+  const commandTitle = document.createElement('h4');
+  commandTitle.textContent = 'Validation Commands';
+  commandBlock.appendChild(commandTitle);
+  const commandPre = document.createElement('pre');
+  commandPre.textContent = (target.validation_commands || []).length > 0
+    ? target.validation_commands.join('\n')
+    : 'No validation commands were captured for this target yet.';
+  commandBlock.appendChild(commandPre);
+  targetBlock.appendChild(commandBlock);
 
-  root.appendChild(block);
+  return targetBlock;
 }
 
 function appendInfoBlock(root, heading, body) {
@@ -1414,10 +1499,10 @@ function formatStatusBadge(status) {
   if (lowered.includes('pass') || lowered === 'valid' || lowered === 'completed') {
     return `✓ ${displayState(status)}`;
   }
-  if (lowered.includes('fail') || lowered.includes('invalid') || lowered.includes('error')) {
+  if (lowered.includes('fail') || lowered.includes('invalid') || lowered.includes('error') || lowered.includes('blocked')) {
     return `✕ ${displayState(status)}`;
   }
-  if (lowered.includes('manual') || lowered.includes('unknown')) {
+  if (lowered.includes('manual') || lowered.includes('unknown') || lowered.includes('needs')) {
     return `? ${displayState(status)}`;
   }
   return `• ${displayState(status)}`;
@@ -1432,10 +1517,10 @@ function stateClass(value) {
   if (lowered.includes('pass') || lowered === 'valid' || lowered === 'completed') {
     return 'state-valid';
   }
-  if (lowered.includes('fail') || lowered.includes('invalid') || lowered.includes('error')) {
+  if (lowered.includes('fail') || lowered.includes('invalid') || lowered.includes('error') || lowered.includes('blocked')) {
     return 'state-fail';
   }
-  if (lowered.includes('warn') || lowered.includes('manual') || lowered.includes('unknown')) {
+  if (lowered.includes('warn') || lowered.includes('manual') || lowered.includes('unknown') || lowered.includes('needs')) {
     return 'state-warn';
   }
   return 'state-idle';

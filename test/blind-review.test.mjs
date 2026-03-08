@@ -6,6 +6,7 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 import { runBlindReviewAgent } from '../src/blind-review-agent.mjs';
+import { buildBlindReviewPublicationGate } from '../src/synthesis.mjs';
 import { SessionManager } from '../src/session-manager.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -111,4 +112,101 @@ test('runBlindReviewAgent reviews saved artifacts and writes a structured recomm
   assert.equal(updatedSummary.agent_blind_reviews.codex.recommendation.recommended_mode, 'winner_finalize');
 
   await fs.rm(tempRoot, { recursive: true, force: true });
+});
+
+test('buildBlindReviewPublicationGate reports aligned blind review recommendations', () => {
+  const gate = buildBlindReviewPublicationGate({
+    summary: {
+      evaluation: {
+        decision: {
+          winner_candidate_id: 'cand_a'
+        },
+        blind_review: {
+          alias_map: {
+            cand_a: { blind_id: 'candidate_a', label: 'Candidate A' }
+          }
+        },
+        composer_plan: {
+          mode: 'winner_finalize'
+        }
+      },
+      agent_blind_reviews: {
+        codex: {
+          provider: 'codex',
+          status: 'completed',
+          completed_at: '2026-03-08T01:00:00.000Z',
+          recommendation: {
+            recommended_mode: 'winner_finalize',
+            recommended_base_blind_id: 'candidate_a',
+            summary: 'Candidate A remains correct.',
+            reasons: ['Deterministic winner still looks safest.'],
+            file_overrides: [],
+            human_approval_required: true
+          }
+        }
+      }
+    },
+    mergePlan: {
+      base_candidate_id: 'cand_a',
+      mode: 'winner_only',
+      file_decisions: [],
+      unresolved_conflicts: []
+    }
+  });
+
+  assert.equal(gate.status, 'aligned');
+  assert.equal(gate.blocks_publication, false);
+  assert.equal(gate.reviews[0].status, 'aligned');
+});
+
+test('buildBlindReviewPublicationGate blocks publication when blind review disagrees until a human approves', () => {
+  const input = {
+    summary: {
+      evaluation: {
+        decision: {
+          winner_candidate_id: 'cand_a'
+        },
+        blind_review: {
+          alias_map: {
+            cand_a: { blind_id: 'candidate_a', label: 'Candidate A' }
+          }
+        },
+        composer_plan: {
+          mode: 'winner_finalize'
+        }
+      },
+      agent_blind_reviews: {
+        gemini: {
+          provider: 'gemini',
+          status: 'completed',
+          completed_at: '2026-03-08T02:00:00.000Z',
+          recommendation: {
+            recommended_mode: 'file_compose',
+            recommended_base_blind_id: 'candidate_a',
+            summary: 'File-level composition is safer.',
+            reasons: ['Deterministic winner should not be finalized whole.'],
+            file_overrides: [],
+            human_approval_required: true
+          }
+        }
+      }
+    },
+    mergePlan: {
+      base_candidate_id: 'cand_a',
+      mode: 'winner_only',
+      file_decisions: [],
+      unresolved_conflicts: []
+    }
+  };
+
+  const blockedGate = buildBlindReviewPublicationGate(input);
+  const approvedGate = buildBlindReviewPublicationGate({
+    ...input,
+    humanApprovedAt: '2026-03-08T03:00:00.000Z'
+  });
+
+  assert.equal(blockedGate.status, 'disagrees');
+  assert.equal(blockedGate.blocks_publication, true);
+  assert.equal(approvedGate.status, 'overridden_by_human');
+  assert.equal(approvedGate.blocks_publication, false);
 });

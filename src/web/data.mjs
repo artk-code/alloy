@@ -815,6 +815,7 @@ function buildPublicationView(summary, synthesis, task, candidates = []) {
     ready: publication?.ready ?? readiness?.ready ?? false,
     eligible_for_approval: publication?.eligible_for_approval ?? readiness?.eligible_for_approval ?? false,
     approval_required: publication?.approval_required ?? ((task?.publish_policy || 'manual') !== 'auto_if_high_confidence'),
+    blind_review_gate: publication?.blind_review_gate || null,
     human_approved_at: publication?.human_approved_at || null,
     human_approved_by: publication?.human_approved_by || null,
     human_approval_note: publication?.human_approval_note || null,
@@ -876,6 +877,9 @@ function buildLocalTestingView(task, summary, candidates, synthesis) {
             : 'Best available candidate workspace'
         }
       : null,
+    instruction_summary: targets.length > 0
+      ? 'Open a workspace directly from Review and run the recorded validation commands without searching under runs/.'
+      : 'Run or synthesize candidates first to create local testing targets.',
     targets
   };
 }

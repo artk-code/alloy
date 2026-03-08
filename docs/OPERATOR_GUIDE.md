@@ -291,11 +291,37 @@ Inside `Review`:
 9. If you want a separate async blind review, use `Blind Review Controls`:
    - choose a blind review CLI or leave it disabled
    - run the blind review agent to write a recommendation from saved artifacts
-   - treat that recommendation as advice for human approval, not as an automatic merge
+   - Alloy compares that recommendation to the deterministic merge/publication plan
+   - if the blind review disagrees, publication stops at `needs human review` until someone approves it explicitly
 10. Use `Preview Publication` to refresh the publish target and blocker state.
 11. Use `Approve Publication` once the synthesized result is acceptable.
 12. Use `Push Approved Ref` to publish the approved bookmark/branch target.
 13. Treat PR publication as a later step; push is the current remote publication boundary.
+
+## How To Test A Candidate Or Synthesis Locally
+
+Use `Review -> Local Testing`.
+
+What Alloy now gives you there:
+- one section per candidate or synthesis target
+- `Open Workspace` for that target
+- `Copy Commands` for its recorded validation commands
+- the exact commands shown inline so you can run them manually
+
+Recommended sequence:
+
+1. Open `Review`.
+2. Scroll to `Local Testing`.
+3. Choose the target you actually want to validate:
+   - a candidate workspace if you are comparing implementations
+   - the synthesis workspace if you are validating the merged result
+4. Click `Open Workspace`.
+5. Run the visible validation commands in that terminal.
+
+Important:
+- Alloy opens the terminal in the correct workspace
+- the commands come from recorded verification data when available
+- if no commands are shown yet, rerun verification or synthesis first
 
 Important rule:
 - Alloy is conservative by design

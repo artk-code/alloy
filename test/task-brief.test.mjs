@@ -364,6 +364,26 @@ test('synthesizeRun creates verified winner-only and file-select workspaces from
   assert.equal(fileSelect.publication.publish_preview.stack_group_count, 1);
   assert.match(fileSelectPatch, /diff --git a\/src\/strategy\.js b\/src\/strategy\.js/);
 
+  const summaryPath = path.join(prepared.runDir, 'run-summary.json');
+  const blindReviewSummary = JSON.parse(await fs.readFile(summaryPath, 'utf8'));
+  blindReviewSummary.agent_blind_reviews = {
+    gemini: {
+      provider: 'gemini',
+      status: 'completed',
+      completed_at: '2026-03-08T04:00:00.000Z',
+      recommendation: {
+        recommended_mode: 'file_compose',
+        recommended_base_blind_id: blindReviewSummary.evaluation?.blind_review?.decision?.winner?.blind_id || 'candidate_a',
+        confidence: 'medium',
+        summary: 'A blind reviewer wants additional human review before publication.',
+        reasons: ['File-level composition is safer than whole-candidate finalization.'],
+        file_overrides: [],
+        human_approval_required: true
+      }
+    }
+  };
+  await fs.writeFile(summaryPath, JSON.stringify(blindReviewSummary, null, 2) + '\n', 'utf8');
+
   const preview = await refreshPublicationState({
     runDir: prepared.runDir,
     task
@@ -398,20 +418,27 @@ test('synthesizeRun creates verified winner-only and file-select workspaces from
   assert.equal(updatedSummary.synthesis.merge_plan.mode, 'file_select');
   assert.equal(updatedSummary.synthesis.publication_readiness.ready, true);
   assert.equal(updatedSummary.synthesis.publication.status, 'pushed');
+  assert.equal(updatedSummary.synthesis.publication.blind_review_gate.status, 'overridden_by_human');
   assert.ok(synthesisDiff);
   assert.equal(synthesisDiff.strategy, 'file_select');
   assert.equal(synthesisDiff.publication_readiness.ready, true);
   assert.equal(synthesisDiff.publication.status, 'pushed');
+  assert.equal(synthesisDiff.publication.blind_review_gate.status, 'overridden_by_human');
   assert.equal(synthesisDiff.selected_files[0].selection_origin, 'merge_plan');
   assert.match(synthesisDiff.patch, /diff --git a\/src\/strategy\.js b\/src\/strategy\.js/);
-  assert.equal(preview.status, 'awaiting_approval');
+  assert.equal(preview.status, 'needs_human_review');
+  assert.equal(preview.ready, false);
+  assert.equal(preview.blind_review_gate.status, 'disagrees');
   assert.equal(approved.status, 'push_ready');
   assert.equal(approved.human_approved_by, 'test-suite');
+  assert.equal(approved.ready, true);
+  assert.equal(approved.blind_review_gate.status, 'overridden_by_human');
   assert.equal(failedPush.status, 'publish_failed');
   assert.equal(failedPush.push_result.status, 'failed');
   assert.equal(pushed.status, 'pushed');
   assert.equal(pushed.push_result.status, 'success');
   assert.equal(publicationView.status, 'pushed');
+  assert.equal(publicationView.blind_review_gate.status, 'overridden_by_human');
   assert.equal(detail.publication_view.status, 'pushed');
   assert.equal(detail.merge_view.publication.status, 'pushed');
   assert.match(detail.publication_view.target_branch_or_bookmark, /alloy\/task-20260308-tic-tac-toe-perfect-play\//);

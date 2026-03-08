@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { buildTerminalLoginLaunch } from '../src/auth-launch.mjs';
-import { getTaskDetail, listTaskCards, listTaskCatalog } from '../src/web/data.mjs';
+import { getTaskDetail, getTaskLocalTesting, listTaskCards, listTaskCatalog } from '../src/web/data.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -76,6 +76,20 @@ test('getTaskDetail returns markdown, parsed task data, and default run config',
   assert.ok(Array.isArray(detail.sessions));
 });
 
+test('getTaskLocalTesting exposes concrete workspace targets and validation commands for review', async () => {
+  const testing = await getTaskLocalTesting(projectRoot, 'task_20260308_tic_tac_toe_perfect_play');
+
+  assert.ok(testing);
+  assert.equal(testing.has_targets, true);
+  assert.equal(typeof testing.instruction_summary, 'string');
+  assert.ok(testing.instruction_summary.length > 0);
+  assert.ok(testing.preferred_target);
+  assert.match(testing.preferred_target.workspace_path, /runs\/|candidates\//);
+  assert.ok(Array.isArray(testing.preferred_target.validation_commands));
+  assert.ok(testing.preferred_target.validation_commands.length > 0);
+  assert.match(testing.preferred_target.validation_commands.join(' '), /eval-perfect-play|npm test/);
+});
+
 test('listTaskCatalog includes queued and non-queue metadata for task setup', async () => {
   const catalog = await listTaskCatalog(projectRoot);
   const ticTacToe = catalog.find((task) => task.task_id === 'task_20260308_tic_tac_toe_perfect_play');
@@ -128,6 +142,9 @@ test('web UI avoids blocking browser modal APIs for provider and run actions', a
   assert.match(compareSource, /publication\/approve/);
   assert.match(compareSource, /publication\/push/);
   assert.match(compareSource, /blind-review\/run/);
+  assert.match(compareSource, /Blind Review Gate/);
+  assert.match(compareSource, /Open Workspace/);
+  assert.match(compareSource, /Copy Commands/);
   assert.match(compareSource, /buildOperatorUrl/);
   assert.match(compareSource, /initThemeToggle/);
   assert.match(docsSource, /docs-operator-link/);

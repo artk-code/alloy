@@ -804,7 +804,8 @@ function renderDetail() {
       [
         publication.status || null,
         publication.summary || null,
-        publication.target_branch_or_bookmark || null
+        publication.target_branch_or_bookmark || null,
+        publication.blind_review_gate?.status ? `blind review ${publication.blind_review_gate.status}` : null
       ].filter(Boolean).join(' • ')
     );
   }

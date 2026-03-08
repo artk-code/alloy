@@ -36,7 +36,7 @@ The current pushed repo already includes:
 - persistent light/dark mode across all top-level pages via local storage
 
 Tests last verified locally:
-- `38/38` passing
+- `41/41` passing
 
 Important local files added or heavily changed:
 - [schemas/merge-plan.schema.json](/Users/codex/stack-judge/schemas/merge-plan.schema.json)
@@ -117,29 +117,24 @@ If the next agent wants browser automation, they should add a repo-local Playwri
 
 ## Concrete Next Priorities
 
-1. Make blind review affect merge/publication state.
-   - If blind review agrees with deterministic evaluation, show `aligned`.
-   - If it disagrees, mark publication as blocked pending human approval.
-   - Keep deterministic failures as hard stops.
+1. Make blind review influence merge guidance before publication.
+   - Blind review already gates publication.
+   - The next step is to surface aligned/disagreeing blind recommendations earlier in merge decisions, without letting them bypass deterministic failures.
 
-2. Add local testing from `Review`.
-   - Add an `Open Workspace` action for the selected candidate or synthesis result.
-   - Show the exact test commands next to that action.
-
-3. Finish the `Tasks` page cleanup.
+2. Finish the `Tasks` page cleanup.
    - Keep guided fields as the primary flow.
    - Make saved-task editing clearer.
    - Keep raw markdown for advanced use only.
 
-4. Add two fast tasks:
+3. Add two fast tasks:
    - `FizzBuzz CLI`
    - `Roman Numerals`
    These should run fast and validate the pipeline without the heavier demo repos.
 
-5. Add PR creation from a pushed synthesis ref.
+4. Add PR creation from a pushed synthesis ref.
    - Only allow this after approval and successful push.
 
-6. Add repo-local browser smoke tests later.
+5. Add repo-local browser smoke tests later.
    - Only with repo-local tooling.
 
 ## Publication Flow Status
@@ -155,6 +150,10 @@ What now works:
 - push approved bookmark/branch target
 - persist success/failure result
 - show publish target and push outcome in the UI
+- compare async blind-review recommendations to the deterministic publication plan
+- block publication on blind-review disagreement until a human approves
+- open candidate or synthesis workspaces directly from `Review`
+- show exact validation commands per local testing target
 
 Current next publication increment:
 - PR creation from the approved, pushed ref
@@ -215,6 +214,6 @@ node scripts/check-demo-state.mjs
 
 For the next slice to count as complete:
 
-1. Blind review can change the publication state shown in `Review`.
-2. A human can open the selected workspace and run local checks without searching under `runs/`.
-3. A human can load a demo task from `Tasks`, generate task source, save it, and queue it without touching the filesystem manually.
+1. Blind review can influence merge guidance before publication, not only the publication gate.
+2. A human can edit and save an existing task from `Tasks` without dropping into raw markdown for normal cases.
+3. A human can load a fast demo task, queue it, run it, and review its diff without touching the filesystem manually.

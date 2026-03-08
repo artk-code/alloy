@@ -54,9 +54,14 @@ run work   import     blind review / approve / push
   - manual-override and contested-file cues
   - publication-readiness status
   - publication preview and approval state
+  - blind-review consensus and disagreement state for publication
   - operator-controlled branch/bookmark push state
   - review-oriented `jj` stack shaping metadata
 - Alloy can launch an optional blind-review CLI later against saved run artifacts and persist a structured recommendation for human approval.
+- `Review` now exposes local testing targets directly with:
+  - `Open Workspace`
+  - `Copy Commands`
+  - visible validation commands per candidate or synthesis workspace
 - The board/detail UI now classifies run provenance so it can distinguish:
   - command previews
   - live CLI runs
@@ -82,6 +87,7 @@ Real today:
 - persisted publication-readiness metadata for synthesized results
 - persisted publication preview and approval metadata for synthesized results
 - persisted publication push results for synthesized results
+- persisted blind-review publication gate state for synthesized results
 - local API and browser UI
 - persisted `judge-rationale.json` artifact per evaluated run
 - persisted `blind-judge-packet.json` and `composer-plan.json` artifacts per evaluated run
@@ -99,7 +105,7 @@ Still limited:
 - the automated integration path currently replays a stored working tic-tac-toe fix artifact into a real candidate workspace
 - some historical run artifacts under `runs/` were created with older mock/replay helpers and still exist for audit purposes
 - Gemini auth is intentionally treated as manual operator verification in the current build
-- blind-review recommendations do not automatically rewrite the synthesis or publication decision yet
+- blind-review recommendations do not automatically rewrite the merge plan or synthesis file allocations yet
 - the current in-app Task Composer is now guided-field-first, but the raw markdown source is still part of the save path and the overall flow is not hardened for non-expert users yet
 - final PR creation is not implemented yet
 - no repo-local browser smoke harness exists yet, so browser validation is still mostly manual
@@ -117,7 +123,8 @@ Current demo proof:
 8. Alloy persists and renders a separate judge rationale artifact for human review.
 9. Alloy shapes synthesized results into a reviewable `jj` stack when multiple file categories are present.
 10. Alloy computes publication-readiness blockers, publication previews, explicit human approval state, and real remote push results without pretending PR automation is already implemented.
-11. Alloy can run an optional blind-review CLI later against saved artifacts and persist a recommendation for the human reviewer.
+11. Alloy can run an optional blind-review CLI later against saved artifacts, compare that recommendation to the deterministic plan, and block publication until a human approves any disagreement.
+12. Alloy can open candidate or synthesis workspaces directly from `Review` and show the exact validation commands beside each target.
 
 That is enough to prove the orchestration, verification, artifact, and conservative merge path. It is not yet enough to claim full live multi-provider synthesis with autonomous composition.
 
@@ -177,29 +184,24 @@ That is enough to prove the orchestration, verification, artifact, and conservat
 ## Highest-Value Next Steps
 
 1. Make blind review change real decisions, not just the UI.
-   - When blind review agrees with deterministic evaluation, show that clearly.
-   - When blind review disagrees, mark publication as `needs human review`.
-   - Do not let blind review override failed deterministic checks.
+   - Blind review now gates publication.
+   - The next step is to let it influence merge recommendations before synthesis, without bypassing deterministic gates.
 
-2. Add a local testing button for the chosen candidate or synthesis workspace.
-   - The operator should be able to open a terminal in the right workspace from `Review`.
-   - Show the exact test commands beside that button.
-
-3. Tighten the `Tasks` page.
+2. Tighten the `Tasks` page.
    - Keep guided fields as the main path.
    - Make it easy to edit an existing saved task without manually touching raw markdown.
    - Keep source import behind explicit warnings and validation.
 
-4. Add two fast regression cards.
+3. Add two fast regression cards.
    - `FizzBuzz CLI`
    - `Roman Numerals`
    These are not headline demos. They exist to prove queue -> run -> verify -> diff capture quickly.
 
-5. Add PR creation only after push succeeds.
+4. Add PR creation only after push succeeds.
    - Use the pushed synthesis ref as the only source for PR creation.
    - Keep PR creation behind explicit human approval.
 
-6. Add repo-local browser smoke tests later.
+5. Add repo-local browser smoke tests later.
    - Only do this with a reproducible repo-local runner.
    - Do not rely on ambient browser tooling.
 
@@ -208,15 +210,13 @@ That is enough to prove the orchestration, verification, artifact, and conservat
 Build in this order:
 
 1. Blind-review decision consumption
-2. Local testing from `Review`
-3. `Tasks` editing and validation cleanup
-4. Add `FizzBuzz CLI` and `Roman Numerals` cards
-5. PR creation from a pushed synthesis ref
-6. Repo-local browser smoke tests
+2. `Tasks` editing and validation cleanup
+3. Add `FizzBuzz CLI` and `Roman Numerals` cards
+4. PR creation from a pushed synthesis ref
+5. Repo-local browser smoke tests
 
 Why this order:
-- blind review already exists on disk, so using it is the shortest path to better decision quality
-- local testing is the fastest trust improvement for humans
+- blind review is now consumed at publication time, so the next value is to move that judgment earlier into merge guidance
 - the `Tasks` page is now usable but still needs cleanup around save/edit flow
 - fast cards improve regression speed once the flow above is solid
 - PR creation should stay behind push and approval
