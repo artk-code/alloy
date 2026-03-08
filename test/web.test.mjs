@@ -18,6 +18,8 @@ test('listTaskCards prioritizes the tic-tac-toe demo card for the first board vi
   assert.equal(cards[0].source_system, 'symphony');
   assert.equal(cards[0].source_task_id, 'demo_card_tic_tac_toe_perfect_play');
   assert.match(cards[0].title, /perfect play/i);
+  assert.match(cards[0].acceptance_summary, /check/i);
+  assert.equal(typeof cards[0].card_summary, 'string');
 });
 
 test('getTaskDetail returns markdown, parsed task data, and default run config', async () => {
@@ -29,6 +31,8 @@ test('getTaskDetail returns markdown, parsed task data, and default run config',
   assert.equal(detail.run_config.providers.length, 3);
   assert.equal(detail.run_config.providers[0].provider, 'codex');
   assert.ok(detail.run_config.providers[0].agents >= 1);
+  assert.equal(detail.task_brief.repo_label, 'demo/tic-tac-toe on main');
+  assert.match(detail.latest_run_overview.execution_summary, /candidate/i);
   assert.ok(Array.isArray(detail.candidates));
   assert.ok(Array.isArray(detail.sessions));
 });

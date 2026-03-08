@@ -10,9 +10,10 @@ Current architecture note:
 ## Current POC Status
 
 Working today:
-- Symphony-style task board and card detail web shell
+- Alloy Control Panel web shell for task cards, provider readiness, run config, and candidate visibility
 - primary demo card: tic-tac-toe perfect-play repair
 - Markdown task brief parsing into canonical task JSON
+- human-readable parsed task and evaluator summaries in the operator UI
 - operator-controlled `run_config` with:
   - provider enable/disable
   - agent counts per provider
@@ -37,11 +38,11 @@ This repository currently contains:
 - demo and operator experience specs
 - setup guides
 - task brief and GUI specs
-- Symphony manager integration notes
+- Symphony-inspired workflow notes and integration references
 - adapter and runner notes
 - runtime/auth architecture notes
 - a working Node scaffold for `task brief -> run config -> prompt packet -> session-backed candidate run`
-- a first web shell for task cards, provider readiness, run config, and candidate/session visibility
+- the Alloy Control Panel for task cards, provider readiness, run config, evaluator summaries, and candidate/session visibility
 
 Core planning docs:
 - `IMPLEMENTATION_PLAN.md`
@@ -71,7 +72,7 @@ npm run task:prepare
 npm run task:run:dry
 ```
 
-Launch the local board:
+Launch the Alloy Control Panel:
 
 ```bash
 npm run web

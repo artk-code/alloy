@@ -159,7 +159,7 @@ export async function doctorProviders({ specs = DEFAULT_PROVIDER_SPECS, timeoutM
     const spec = getProviderSpec(provider, specs);
     try {
       const { stdout, stderr } = await execFileAsync(spec.binary, spec.versionArgs, { timeout: timeoutMs });
-      const version = `${stdout || ''}${stderr || ''}`.trim();
+      const version = normalizeVersionOutput(`${stdout || ''}${stderr || ''}`);
       return {
         provider,
         display_name: spec.displayName,
@@ -207,6 +207,14 @@ export async function doctorProviders({ specs = DEFAULT_PROVIDER_SPECS, timeoutM
     providers: results,
     all_installed: results.every((result) => result.installed)
   };
+}
+
+function normalizeVersionOutput(output) {
+  const lines = String(output)
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return lines[0] || null;
 }
 
 export function getProviderLoginCommand(provider, specs = DEFAULT_PROVIDER_SPECS) {

@@ -6,7 +6,7 @@ export async function evaluateRun({ task, manifests, outputPath = null }) {
   const ranking = [...candidates].sort(compareCandidates).map((candidate) => candidate.candidate_id);
   const pairwise_preferences = buildPairwisePreferences(candidates);
   const contribution_map = buildContributionMap(candidates, eligible);
-  const decision = buildDecision(candidates, eligible);
+  const decision = summarizeDecision(buildDecision(candidates, eligible), candidates);
 
   const result = {
     task_id: task.task_id,
@@ -70,7 +70,19 @@ function evaluateCandidate({ task, manifest }) {
       outside_allowed_paths: outsideAllowedPaths
     },
     scorecard,
-    reasons
+    reasons,
+    summary: buildCandidateSummary({
+      provider: manifest.provider,
+      providerInstanceId: manifest.provider_instance_id,
+      candidateSlot: manifest.candidate_slot,
+      verificationPassed,
+      completedCleanly,
+      changedFiles,
+      patchStats,
+      blockedPathTouches,
+      outsideAllowedPaths,
+      hasChanges
+    })
   };
 }
 
@@ -191,6 +203,46 @@ function buildDecision(candidates, eligible) {
   };
 }
 
+function summarizeDecision(decision, candidates) {
+  const candidatesById = new Map(candidates.map((candidate) => [candidate.candidate_id, candidate]));
+  const winner = decision.winner_candidate_id ? candidatesById.get(decision.winner_candidate_id) : null;
+  const finalists = (decision.finalist_candidate_ids || [])
+    .map((candidateId) => candidatesById.get(candidateId))
+    .filter(Boolean);
+
+  let summary = 'No deterministic winner was found.';
+  let card_summary = 'Waiting on a passing candidate.';
+
+  if (decision.mode === 'winner' && winner) {
+    summary = `Winner: ${formatCandidateLabel(winner)} with ${winner.scorecard.total}/100 after deterministic verification. ${decision.rationale}`;
+    card_summary = `${formatCandidateLabel(winner)} is currently leading. ${decision.rationale}`;
+  } else if (decision.mode === 'synthesize' && finalists.length > 0) {
+    const finalistLabels = finalists.map(formatCandidateLabel).join(', ');
+    summary = `Synthesis recommended across ${finalistLabels}. ${decision.rationale}`;
+    card_summary = `Close finish between ${finalistLabels}; synthesis is justified.`;
+  } else if (decision.mode === 'no_winner') {
+    summary = `No winner: ${decision.rationale}`;
+    card_summary = 'No candidate passed deterministic gates yet.';
+  }
+
+  return {
+    ...decision,
+    summary,
+    card_summary,
+    finalists: finalists.map((candidate) => ({
+      candidate_id: candidate.candidate_id,
+      label: formatCandidateLabel(candidate),
+      score: candidate.scorecard.total,
+      eligible: candidate.eligible
+    })),
+    winner: winner ? {
+      candidate_id: winner.candidate_id,
+      label: formatCandidateLabel(winner),
+      score: winner.scorecard.total
+    } : null
+  };
+}
+
 function compareCandidates(left, right) {
   if (left.eligible !== right.eligible) {
     return left.eligible ? -1 : 1;
@@ -258,4 +310,43 @@ function emptyPatchStats(fileCount) {
     removed_lines: 0,
     total_changed_lines: 0
   };
+}
+
+function buildCandidateSummary({
+  provider,
+  providerInstanceId,
+  candidateSlot,
+  verificationPassed,
+  completedCleanly,
+  changedFiles,
+  patchStats,
+  blockedPathTouches,
+  outsideAllowedPaths,
+  hasChanges
+}) {
+  const label = `${candidateSlot} / ${providerInstanceId || provider}`;
+  if (!hasChanges) {
+    return `${label} produced no captured code changes.`;
+  }
+
+  const status = verificationPassed
+    ? 'passed verification'
+    : completedCleanly
+      ? 'finished but did not satisfy verification'
+      : 'did not complete cleanly';
+
+  const scopeNotes = [];
+  if (blockedPathTouches.length > 0) {
+    scopeNotes.push(`touched blocked paths: ${blockedPathTouches.join(', ')}`);
+  } else if (outsideAllowedPaths.length > 0) {
+    scopeNotes.push(`edited outside the preferred scope: ${outsideAllowedPaths.join(', ')}`);
+  } else {
+    scopeNotes.push('stayed inside the preferred path scope');
+  }
+
+  return `${label} ${status}, touched ${changedFiles.length} file${changedFiles.length === 1 ? '' : 's'}, and changed ${patchStats.total_changed_lines} lines. ${scopeNotes.join('. ')}.`;
+}
+
+function formatCandidateLabel(candidate) {
+  return `${candidate.candidate_slot} / ${candidate.provider}`;
 }

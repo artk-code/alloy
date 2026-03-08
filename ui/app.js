@@ -3,7 +3,9 @@ const state = {
   selectedTaskId: null,
   taskDetail: null,
   providers: null,
-  runConfig: null
+  runConfig: null,
+  parsedPreview: null,
+  previewValidation: null
 };
 
 const board = document.querySelector('#task-board');
@@ -15,6 +17,8 @@ const boardSummary = document.querySelector('#board-summary');
 const detailTitle = document.querySelector('#detail-title');
 const detailState = document.querySelector('#detail-state');
 const taskMarkdown = document.querySelector('#task-markdown');
+const taskBrief = document.querySelector('#task-brief');
+const evaluationCall = document.querySelector('#evaluation-call');
 const taskJson = document.querySelector('#task-json');
 const runSummary = document.querySelector('#run-summary');
 const candidateCards = document.querySelector('#candidate-cards');
@@ -76,6 +80,12 @@ async function selectTask(taskId) {
   const response = await fetch(`/api/tasks/${encodeURIComponent(taskId)}`);
   state.taskDetail = await response.json();
   state.runConfig = deepClone(state.taskDetail.run_config || { providers: [] });
+  state.parsedPreview = state.taskDetail.task;
+  state.previewValidation = {
+    ok: true,
+    errors: [],
+    warnings: state.taskDetail.warnings || []
+  };
   taskMarkdown.value = state.taskDetail.markdown;
   renderDetail();
   renderRunConfig();
@@ -89,11 +99,9 @@ async function parseMarkdownPreview(markdown) {
     body: JSON.stringify({ markdown, sourcePath: relativeTaskPath() })
   });
   const payload = await response.json();
-  taskJson.textContent = JSON.stringify({
-    task: payload.source_task || {},
-    validation: payload.validation || {},
-    run_config: state.runConfig || {}
-  }, null, 2);
+  state.parsedPreview = payload.source_task || null;
+  state.previewValidation = payload.validation || null;
+  renderDetail();
 }
 
 async function runSelectedTask(action) {
@@ -122,17 +130,22 @@ async function runSelectedTask(action) {
 
 function renderBoard() {
   board.innerHTML = '';
-  boardSummary.textContent = `${state.tasks.length} task card${state.tasks.length === 1 ? '' : 's'}`;
+  boardSummary.textContent = `${state.tasks.length} task card${state.tasks.length === 1 ? '' : 's'} in view`;
 
   for (const task of state.tasks) {
     const node = taskTemplate.content.firstElementChild.cloneNode(true);
     node.querySelector('.task-source').textContent = task.source_system;
+
     const stateEl = node.querySelector('.task-state');
     stateEl.textContent = task.state;
     stateEl.className = `task-state ${stateClass(task.state)}`;
+
     node.querySelector('h3').textContent = task.title;
-    node.querySelector('.task-meta').textContent = `${task.repo} • judge ${task.judge}`;
-    node.querySelector('.task-providers').textContent = `Providers: ${task.providers.join(', ')}`;
+    node.querySelector('.task-meta').textContent = `${task.repo} • judge ${humanizeProvider(task.judge)}`;
+    node.querySelector('.task-summary').textContent = task.card_summary || task.objective;
+    node.querySelector('.task-eval').textContent = summarizeTaskDecision(task);
+    node.querySelector('.task-checks').textContent = task.acceptance_summary || 'No checks';
+    node.querySelector('.task-providers').textContent = `Candidates: ${(task.provider_labels || task.providers || []).join(', ')}`;
     node.querySelector('.open-card').addEventListener('click', () => selectTask(task.task_id));
     board.appendChild(node);
   }
@@ -146,10 +159,12 @@ function renderProviders() {
     node.querySelector('.provider-meta').textContent = provider.installed
       ? `${provider.binary} • ${provider.version || 'version unknown'} • run ${provider.default_transport}`
       : `${provider.binary} missing`;
+
     const stateEl = node.querySelector('.provider-state');
     const authState = provider.installed ? provider.auth_status : 'not_installed';
     stateEl.textContent = authState;
     stateEl.className = `provider-state ${stateClass(authState)}`;
+
     node.querySelector('.provider-login').addEventListener('click', async () => {
       const response = await fetch(`/api/providers/${provider.provider}/open-login`, { method: 'POST' });
       const payload = await response.json();
@@ -184,7 +199,7 @@ function renderRunConfig() {
   const configs = state.runConfig.providers || [];
   const enabledProviders = configs.filter((provider) => provider.enabled && Number(provider.agents) > 0);
   const enabledAgents = enabledProviders.reduce((sum, provider) => sum + Number(provider.agents || 0), 0);
-  runConfigSummary.textContent = `${enabledProviders.length} providers enabled • ${enabledAgents} candidate sessions • judge ${state.runConfig.judge}`;
+  runConfigSummary.textContent = `${enabledProviders.length} providers enabled • ${enabledAgents} candidate sessions • judge ${humanizeProvider(state.runConfig.judge)}`;
 
   for (const config of configs) {
     const provider = providerMeta.get(config.provider) || {};
@@ -251,21 +266,29 @@ function renderDetail() {
     return;
   }
 
+  const task = state.parsedPreview || state.taskDetail.task;
   const evaluationByCandidateId = new Map((state.taskDetail.evaluation?.candidates || []).map((candidate) => [candidate.candidate_id, candidate]));
-  detailTitle.textContent = state.taskDetail.task.title;
+
+  detailTitle.textContent = task.title || state.taskDetail.task.title;
   detailState.textContent = state.taskDetail.latest_run ? mapRunState(state.taskDetail.latest_run.status) : 'Draft';
   detailState.className = `state-pill ${stateClass(detailState.textContent)}`;
+
+  renderTaskBrief(task);
+  renderEvaluationCall(state.taskDetail.latest_run_overview, state.taskDetail.evaluation);
+
   taskJson.textContent = JSON.stringify({
-    task: state.taskDetail.task,
+    task,
+    validation: state.previewValidation || {},
     run_config: state.runConfig || state.taskDetail.run_config,
     sessions: state.taskDetail.sessions || []
   }, null, 2);
   runSummary.textContent = JSON.stringify(state.taskDetail.latest_run || { message: 'No run yet.' }, null, 2);
+
   candidateCards.innerHTML = '';
   for (const candidate of state.taskDetail.candidates || []) {
     const node = candidateTemplate.content.firstElementChild.cloneNode(true);
     const instanceId = candidate.provider_instance_id ? ` • ${candidate.provider_instance_id}` : '';
-    node.querySelector('.candidate-label').textContent = `${candidate.candidate_slot} • ${candidate.provider}${instanceId}`;
+    node.querySelector('.candidate-label').textContent = `${candidate.candidate_slot} • ${humanizeProvider(candidate.provider)}${instanceId}`;
     const status = candidate.verification?.status === 'pass'
       ? `${candidate.status} / verified`
       : candidate.verification?.status === 'fail'
@@ -274,15 +297,94 @@ function renderDetail() {
     const evaluation = evaluationByCandidateId.get(candidate.candidate_id);
     node.querySelector('.candidate-status').textContent = status;
     node.querySelector('.candidate-status').className = `candidate-status ${stateClass(status)}`;
-    node.querySelector('.candidate-summary').textContent = evaluation
-      ? `${candidate.summary || 'No summary yet.'} Score ${evaluation.scorecard.total}/100.`
-      : (candidate.summary || 'No summary yet.');
+    node.querySelector('.candidate-summary').textContent = evaluation?.summary
+      || candidate.summary
+      || 'No candidate summary yet.';
+    node.querySelector('.candidate-score').textContent = evaluation
+      ? `Deterministic score ${evaluation.scorecard.total}/100 • ${evaluation.eligible ? 'eligible' : 'not eligible'}`
+      : 'Deterministic evaluation has not run yet.';
     node.querySelector('.candidate-verification').textContent = candidate.verification
       ? candidate.verification.checks.map((check) => `${check.status.toUpperCase()}: ${check.command}`).join(' | ')
       : 'Verification not run yet.';
     candidateCards.appendChild(node);
   }
+
   openLatestRunButton.disabled = !state.taskDetail.run_dir;
+}
+
+function renderTaskBrief(task) {
+  taskBrief.innerHTML = '';
+  const validation = state.previewValidation || { ok: true, warnings: [], errors: [] };
+
+  appendInfoBlock(taskBrief, 'Objective', task.context || task.title || 'No task title available.');
+  appendListBlock(taskBrief, 'Requirements', task.requirements || [], 'No explicit requirements.');
+  appendListBlock(taskBrief, 'Constraints', task.constraints || [], 'No explicit constraints.');
+  appendListBlock(taskBrief, 'Acceptance Checks', task.acceptance_checks || [], 'No acceptance checks declared.');
+  appendListBlock(taskBrief, 'Operator Notes', task.human_notes || [], 'No operator notes.');
+
+  const routing = document.createElement('div');
+  routing.className = 'info-block';
+  const title = document.createElement('h4');
+  title.textContent = 'Routing';
+  const value = document.createElement('p');
+  value.textContent = [
+    `Mode ${task.mode || 'unknown'}`,
+    `Judge ${humanizeProvider(task.judge)}`,
+    `Review ${task.human_review_policy || 'standard'}`,
+    `Publish ${task.publish_policy || 'manual'}`
+  ].join(' • ');
+  routing.append(title, value);
+  taskBrief.appendChild(routing);
+
+  const validationBlock = document.createElement('div');
+  validationBlock.className = 'info-block';
+  const validationTitle = document.createElement('h4');
+  validationTitle.textContent = 'Validation';
+  const validationText = document.createElement('p');
+  const messages = [];
+  messages.push(validation.ok ? 'Parsed cleanly.' : 'Parse issues detected.');
+  if (validation.warnings?.length) {
+    messages.push(`Warnings: ${validation.warnings.join(' | ')}`);
+  }
+  if (validation.errors?.length) {
+    messages.push(`Errors: ${validation.errors.join(' | ')}`);
+  }
+  validationText.textContent = messages.join(' ');
+  validationBlock.append(validationTitle, validationText);
+  taskBrief.appendChild(validationBlock);
+}
+
+function renderEvaluationCall(overview, evaluation) {
+  evaluationCall.innerHTML = '';
+
+  appendInfoBlock(
+    evaluationCall,
+    'Current Read',
+    overview?.decision_summary || 'No evaluator decision is available yet.'
+  );
+  appendInfoBlock(
+    evaluationCall,
+    'Execution Status',
+    overview?.execution_summary || 'No run execution summary is available.'
+  );
+  appendInfoBlock(
+    evaluationCall,
+    'Provider Plan',
+    overview?.provider_plan || 'No provider plan is available.'
+  );
+  appendInfoBlock(
+    evaluationCall,
+    'Acceptance',
+    overview?.acceptance_summary || 'No acceptance summary is available.'
+  );
+
+  const finalists = evaluation?.decision?.finalists || overview?.finalists || [];
+  appendListBlock(
+    evaluationCall,
+    'Finalists',
+    finalists.map((finalist) => `${finalist.label} • ${finalist.score}/100`),
+    'No finalists yet.'
+  );
 }
 
 function renderSessions() {
@@ -302,7 +404,7 @@ function renderSessions() {
 
   for (const session of sessions.slice(0, 6)) {
     const node = sessionTemplate.content.firstElementChild.cloneNode(true);
-    node.querySelector('.session-label').textContent = `${session.provider} • ${session.kind}`;
+    node.querySelector('.session-label').textContent = `${humanizeProvider(session.provider)} • ${session.kind}`;
     const statusEl = node.querySelector('.session-status');
     statusEl.textContent = session.status;
     statusEl.className = `candidate-status ${stateClass(session.status)}`;
@@ -313,6 +415,68 @@ function renderSessions() {
       session.error || 'no error'
     ].join(' • ');
     sessionList.appendChild(node);
+  }
+}
+
+function appendInfoBlock(root, heading, body) {
+  const block = document.createElement('div');
+  block.className = 'info-block';
+  const title = document.createElement('h4');
+  title.textContent = heading;
+  const paragraph = document.createElement('p');
+  paragraph.textContent = body;
+  block.append(title, paragraph);
+  root.appendChild(block);
+}
+
+function appendListBlock(root, heading, items, emptyText) {
+  const block = document.createElement('div');
+  block.className = 'info-block';
+  const title = document.createElement('h4');
+  title.textContent = heading;
+  block.appendChild(title);
+
+  if (!items.length) {
+    const paragraph = document.createElement('p');
+    paragraph.textContent = emptyText;
+    block.appendChild(paragraph);
+  } else {
+    const list = document.createElement('ul');
+    list.className = 'info-list';
+    for (const item of items) {
+      const li = document.createElement('li');
+      li.textContent = item;
+      list.appendChild(li);
+    }
+    block.appendChild(list);
+  }
+
+  root.appendChild(block);
+}
+
+function summarizeTaskDecision(task) {
+  if (task.latest_run?.evaluation?.decision?.winner?.label) {
+    return `Winner ${task.latest_run.evaluation.decision.winner.label}`;
+  }
+  if (task.latest_run?.evaluation?.decision?.mode === 'synthesize') {
+    return 'Synthesis recommended';
+  }
+  if (task.latest_run?.status === 'dry-run') {
+    return 'Dry run only';
+  }
+  return task.state;
+}
+
+function humanizeProvider(provider) {
+  switch (provider) {
+    case 'claude-code':
+      return 'Claude Code';
+    case 'gemini':
+      return 'Gemini CLI';
+    case 'codex':
+      return 'Codex';
+    default:
+      return provider || 'unknown';
   }
 }
 
@@ -329,7 +493,7 @@ function stateClass(value) {
   if (normalized.includes('ready') || normalized.includes('pass') || normalized.includes('valid') || normalized.includes('published') || normalized.includes('completed')) {
     return 'state-success';
   }
-  if (normalized.includes('unknown') || normalized.includes('prepared') || normalized.includes('running') || normalized.includes('judging') || normalized.includes('external')) {
+  if (normalized.includes('unknown') || normalized.includes('prepared') || normalized.includes('running') || normalized.includes('judging') || normalized.includes('external') || normalized.includes('synthesis')) {
     return 'state-warn';
   }
   if (normalized.includes('fail') || normalized.includes('invalid') || normalized.includes('not_installed')) {

@@ -14,7 +14,7 @@ Purpose: Define the first wireframe-level GUI for Alloy, focused on task composi
 
 ## 2. Primary Screens
 
-1. Symphony Manager Board
+1. Alloy Control Panel
 2. Task Composer / Card Detail
 3. Live Run Dashboard
 4. Candidate Compare View
@@ -22,7 +22,7 @@ Purpose: Define the first wireframe-level GUI for Alloy, focused on task composi
 6. Final PR Review View
 7. Metrics View
 
-## 3. Symphony Manager Board
+## 3. Alloy Control Panel
 
 Purpose:
 - make task cards the main entry point for the demo
@@ -32,7 +32,7 @@ Wireframe:
 
 ```text
 +--------------------------------------------------------------------------------+
-| Alloy | Symphony Manager Board                              [New Task] [Filter] |
+| Alloy | Control Panel                                       [New Task] [Filter] |
 +--------------------------------------------------------------------------------+
 | Columns: Draft | Ready | Running | Awaiting Approval | PR Ready | Published    |
 +--------------------------------------------------------------------------------+
@@ -305,7 +305,7 @@ Recommended default rules for MVP:
 
 ## 12. MVP Build Order
 
-1. Symphony Manager Board
+1. Alloy Control Panel
 2. Task Composer / Card Detail
 3. Live Run Dashboard
 4. Candidate Compare View
