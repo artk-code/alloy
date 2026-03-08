@@ -199,3 +199,40 @@ node scripts/check-demo-state.mjs
 - Keep operator workflow detail in the in-app docs and [OPERATOR_GUIDE.md](/Users/codex/stack-judge/docs/OPERATOR_GUIDE.md).
 - Keep `docs/COMPETITIVE_ANALYSIS.md` out of commits unless explicitly requested.
 - Preserve the conservative synthesis strategy: winner-only first, file-level composition second, deeper merge units later.
+
+## Appended Priority Ladder
+
+Use this order unless a blocking regression is found:
+
+1. Publication flow
+   - Alloy already knows how to evaluate, synthesize, and shape a stack.
+   - The next highest-value gap is telling the operator exactly what is publishable and what still blocks publication.
+   - Deliverables:
+     - publication panel in `Compare Diffs`
+     - `publish_status`
+     - `publish_blockers`
+     - explicit human approval capture
+     - local publish preview
+
+2. Blind judge/composer
+   - After publication readiness, the next differentiator is better close-call synthesis.
+   - Keep deterministic checks as the hard gate and layer blind judge/composer output on top.
+   - Deliverables:
+     - anonymized candidate presentation
+     - structured judge output artifact
+     - composer path for close-call synthesis only
+
+3. Local testing workflow
+   - Operators need a direct path from the UI to a chosen candidate or synthesis workspace.
+   - This improves trust faster than more analytics or more visual work.
+   - Deliverables:
+     - one-click or one-command open path
+     - explicit local validation commands beside the chosen workspace
+
+4. Broader eval coverage
+   - Add a smoke task and a compact algorithm task so Alloy is easier to demo and regress-test quickly.
+   - Keep the current richer cards for synthesis credibility.
+
+5. Repo-local browser smoke harness
+   - Useful, but only after the core publish/judge/test loop is stronger.
+   - Make it reproducible from this repo rather than dependent on machine-specific tooling.

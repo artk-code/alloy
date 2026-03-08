@@ -367,3 +367,29 @@ The direct path to Alloy's core value is:
 5. keep provenance obvious
 
 That is how Alloy can combine the strongest code contributions in a readable, reviewable, and reliable way.
+
+## Appended Priority Ladder
+
+This is the practical build order from the current shipped state:
+
+1. Publication flow
+   - Highest leverage because Alloy can already produce reviewable syntheses but cannot yet turn them into an explicit publish decision.
+   - Build:
+     - publish preview
+     - approval gate
+     - blocker model
+     - branch/bookmark target metadata
+
+2. Blind judge/composer
+   - Highest product differentiation after publication readiness.
+   - Keep deterministic evaluation as the gatekeeper; use judge/composer only for close-call synthesis decisions.
+
+3. Local testing workflow
+   - Make candidate and synthesis workspaces easy to open and validate locally.
+   - This improves operator confidence and shortens debugging loops.
+
+4. Broader eval coverage
+   - Add smoke and compact algorithm tasks so Alloy can be demonstrated quickly and regression-tested cheaply.
+
+5. SQLite later
+   - Add only when run history and multi-project querying outgrow raw artifact scanning.

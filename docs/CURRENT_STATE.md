@@ -142,6 +142,23 @@ That is enough to prove the orchestration, verification, artifact, and conservat
 4. Add broader smoke/algorithm cards so the board covers fast runner checks as well as richer synthesis demos.
 5. Add a repo-local browser smoke harness once it is reproducible from this repo rather than dependent on ambient machine state.
 
+## Appended Execution Order
+
+For the next build slice, use this order:
+
+1. Publication flow
+2. Blind judge/composer
+3. Local candidate/synthesis testing
+4. Broader eval cards
+5. Repo-local browser smoke harness
+
+Reason:
+- publication flow turns the current synthesis output into an actionable operator decision
+- judge/composer is the next biggest capability gain after that
+- local testing improves trust quickly
+- broader evals improve demo speed and regression coverage
+- browser automation is useful, but lower leverage than the four items above
+
 ## Validation Commands
 
 Repo root:
