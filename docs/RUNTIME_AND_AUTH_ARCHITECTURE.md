@@ -6,9 +6,12 @@ Current implementation note:
 - `SessionManager` is now implemented in `src/session-manager.mjs`
 - candidate sessions persist records, logs, and event streams
 - login launches are recorded as external session events
+- manual auth-test launches are also recorded as external session events
 - `pipe` is the default candidate transport
 - `pty` currently uses the system `script` utility rather than a separate PTY dependency
 - `jj` and deterministic evaluation now sit downstream of session completion
+- Codex and Claude Code auth use official CLI status probes
+- Gemini auth remains a manual operator check in the current build
 
 ## Decision Summary
 
@@ -194,6 +197,7 @@ sequenceDiagram
 Current implemented API/UI surfaces:
 - `GET /api/providers`
 - `POST /api/providers/:id/open-login`
+- `POST /api/providers/:id/open-test`
 - `GET /api/tasks`
 - `GET /api/tasks/:id`
 - `GET /api/sessions`
@@ -247,6 +251,7 @@ Recommended states:
 
 - `missing_binary`
 - `installed_unknown`
+- `manual_check`
 - `login_required`
 - `ready`
 - `expired`
@@ -255,6 +260,7 @@ Recommended states:
 Rules:
 
 - `installed_unknown` means the CLI exists, but Alloy has not proven a usable login yet
+- `manual_check` means the CLI is installed but must be verified by a human inside the CLI session
 - `ready` means a provider-specific auth/status check succeeded or a recent real run succeeded
 - `expired` means a previously working profile failed with an auth-like error
 
@@ -290,7 +296,7 @@ The GUI should expose:
 
 - current provider state
 - install command if missing
-- login command if auth is unknown or invalid
+- login command if auth is unknown, manual, or invalid
 - last successful run time
 - most recent auth-related failure
 

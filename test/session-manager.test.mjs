@@ -12,7 +12,7 @@ import { SessionManager } from '../src/session-manager.mjs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..');
-const mockProviderScript = path.join(projectRoot, 'fixtures/mock-provider.mjs');
+const sessionEmitterScript = path.join(projectRoot, 'fixtures/session-emitter.mjs');
 
 test('SessionManager persists a pipe-backed session record for a real subprocess', async () => {
   const stateRoot = await mkdtemp(path.join(os.tmpdir(), 'alloy-sessions-'));
@@ -26,7 +26,7 @@ test('SessionManager persists a pipe-backed session record for a real subprocess
     candidateId: 'cand_a',
     command: {
       binary: process.execPath,
-      args: [mockProviderScript, 'codex', 'demo prompt', 'noop']
+      args: [sessionEmitterScript, 'codex', 'noop', 'codex complete']
     },
     cwd: projectRoot
   });
@@ -55,7 +55,7 @@ test('SessionManager can execute a PTY-backed subprocess when script is availabl
     candidateId: 'cand_b',
     command: {
       binary: process.execPath,
-      args: [mockProviderScript, 'claude-code', 'demo prompt', 'noop']
+      args: [sessionEmitterScript, 'claude-code', 'noop', 'claude complete']
     },
     cwd: projectRoot
   });

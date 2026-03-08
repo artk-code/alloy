@@ -14,6 +14,7 @@ Working today:
 - primary demo card: tic-tac-toe perfect-play repair
 - Markdown task brief parsing into canonical task JSON
 - human-readable parsed task and evaluator summaries in the operator UI
+- compare and synthesis guidance panels backed by evaluator and `jj` artifact data
 - operator-controlled `run_config` with:
   - provider enable/disable
   - agent counts per provider
@@ -24,10 +25,12 @@ Working today:
 - `jj` workspace bootstrap with per-candidate patch capture
 - deterministic evaluation with winner vs synthesize recommendation output
 - real verification commands against real demo repos
-- dry-run orchestration for `codex`, `gemini`, and `claude-code`
+- fixture-backed replay integration tests that mutate a real workspace, capture a real `jj` patch, and pass the real verifier
+- dry-run and live-run launch paths for `codex`, `gemini`, and `claude-code` from the web UI
+- provider auth probes where the CLI exposes a reliable status command
+- manual `Test Auth` launch flow for providers that still need operator confirmation
 
 Not implemented yet:
-- live provider execution through the real installed CLIs from the web UI
 - blind judging and synthesis
 - `jj`-backed change shaping and final PR publishing
 
@@ -46,6 +49,7 @@ This repository currently contains:
 
 Core planning docs:
 - `IMPLEMENTATION_PLAN.md`
+- `docs/CURRENT_STATE.md`
 - `docs/DEMO_AND_OPERATOR_EXPERIENCE.md`
 - `docs/RUNTIME_AND_AUTH_ARCHITECTURE.md`
 - `docs/JJ_AND_EVALUATION.md`
@@ -56,7 +60,7 @@ Core planning docs:
 ## Quick Start
 
 Requirements:
-- Node.js 20+
+- Node.js 24 LTS
 
 Install and inspect provider readiness:
 
@@ -96,6 +100,12 @@ Its acceptance checks are real:
 
 Before any fix, the repo fails both human-readable unit tests and the exhaustive perfect-play evaluator.
 
+Current automated proof level:
+- the seeded demo repo is genuinely broken at baseline
+- the integration test replays a stored perfect-play fix artifact into a real candidate workspace
+- Alloy then runs the real acceptance checks, captures the real `jj` diff, and scores the result deterministically
+- automated tests do not yet prove live Codex, Gemini, or Claude Code authoring end to end
+
 ## Current Scaffold Outputs
 
 For a given task brief, the scaffold generates:
@@ -113,7 +123,8 @@ For a given task brief, the scaffold generates:
 Alloy is CLI-first and subscription-login-first.
 
 - `doctor` reports install state, transport capability, and login guidance
-- login status is currently treated conservatively as `unknown` unless a provider exposes a reliable machine-checkable signal
+- Codex and Claude Code use official CLI status commands for auth probing
+- Gemini is always treated as manual verification through the `Test Auth` button
 - `login <provider>` launches the provider's interactive login entrypoint for human repair
 
 ## Runtime Note

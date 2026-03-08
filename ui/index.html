@@ -7,69 +7,41 @@
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
+    <div id="toast-stack" class="toast-stack" aria-live="polite" aria-atomic="false"></div>
     <div class="app-shell">
-      <aside class="sidebar">
-        <div class="hero panel">
+      <header class="hero panel">
+        <div>
           <p class="eyebrow">Alloy</p>
           <h1>Control Panel</h1>
           <p class="lede">Multi-agent task routing, provider readiness, deterministic evaluation, and synthesis planning in one operator surface.</p>
-          <div class="hero-chips">
-            <span class="chip">CLI-first</span>
-            <span class="chip">jj capture</span>
-            <span class="chip">dry-run honest</span>
-          </div>
         </div>
+      </header>
 
-        <section class="panel" id="provider-panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">Providers</p>
-              <h2>Readiness</h2>
+      <main class="workspace-grid">
+        <aside class="column provider-column">
+          <section class="panel" id="provider-panel">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Providers</p>
+                <h2>Readiness</h2>
+              </div>
+              <button id="refresh-providers" class="ghost-button">Refresh</button>
             </div>
-            <button id="refresh-providers" class="ghost-button">Refresh</button>
-          </div>
-          <div id="providers" class="stack"></div>
-        </section>
+            <div id="providers" class="stack"></div>
+          </section>
 
-        <section class="panel" id="run-config-panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">Routing</p>
-              <h2>Run Config</h2>
-              <p id="run-config-summary" class="hint">Select a task to configure providers.</p>
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Runtime</p>
+                <h2>Session Monitor</h2>
+              </div>
             </div>
-          </div>
-          <div id="run-config" class="stack"></div>
-        </section>
+            <div id="session-list" class="stack compact"></div>
+          </section>
+        </aside>
 
-        <section class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">Actions</p>
-              <h2>Run Controls</h2>
-            </div>
-          </div>
-          <div class="stack compact">
-            <button id="prepare-task" class="ghost-button" disabled>Prepare Run</button>
-            <button id="run-task" disabled>Preview Commands</button>
-            <button id="open-latest-run" class="ghost-button" disabled>Copy Run Path</button>
-          </div>
-          <p class="hint">The current web flow prepares dry runs and operator review. Live provider execution is not wired from the UI yet.</p>
-        </section>
-
-        <section class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">Runtime</p>
-              <h2>Session Monitor</h2>
-            </div>
-          </div>
-          <div id="session-list" class="stack compact"></div>
-        </section>
-      </aside>
-
-      <main class="main-grid">
-        <section class="board panel">
+        <section class="board panel board-column">
           <div class="panel-header">
             <div>
               <p class="eyebrow">Queue</p>
@@ -80,7 +52,36 @@
           <div id="task-board" class="board-grid"></div>
         </section>
 
-        <section class="detail panel">
+        <aside class="column routing-column">
+          <section class="panel" id="run-config-panel">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Routing</p>
+                <h2>Run Config</h2>
+                <p id="run-config-summary" class="hint">Select a task to configure providers.</p>
+              </div>
+            </div>
+            <div id="run-config" class="stack"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Actions</p>
+                <h2>Run Controls</h2>
+              </div>
+            </div>
+            <div class="stack compact">
+              <button id="prepare-task" class="ghost-button" disabled>Prepare Run</button>
+              <button id="run-task" disabled>Preview Commands</button>
+              <button id="run-task-live" disabled>Run Live</button>
+              <button id="open-latest-run" class="ghost-button" disabled>Copy Run Path</button>
+            </div>
+            <p class="hint">Preview keeps costs at zero. Live run launches the enabled provider CLIs and waits for verification and deterministic evaluation.</p>
+          </section>
+        </aside>
+
+        <section class="detail panel detail-column">
           <div class="panel-header">
             <div>
               <p class="eyebrow">Operator View</p>
@@ -104,6 +105,11 @@
               <div class="subpanel">
                 <h3>Evaluation Call</h3>
                 <div id="evaluation-call" class="info-stack"></div>
+              </div>
+
+              <div class="subpanel">
+                <h3>Compare + Synthesize</h3>
+                <div id="comparison-view" class="info-stack"></div>
               </div>
 
               <div class="subpanel">
@@ -156,6 +162,7 @@
         </div>
         <div class="provider-actions">
           <span class="provider-state"></span>
+          <button class="ghost-button provider-test-auth">Test Auth</button>
           <button class="ghost-button provider-login">Open Login</button>
         </div>
       </article>

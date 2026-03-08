@@ -20,12 +20,12 @@ The first demo should prove these things at once:
 2. Each provider works from the same base revision in an isolated workspace.
 3. Alloy can collect, verify, and score each candidate.
 4. A human can configure provider participation before launch.
-5. A human can monitor candidate progress, verification, and session state from a Symphony-style task card.
+5. A human can monitor candidate progress, verification, and session state from a card-based Alloy Control Panel view.
 6. The task is simple enough that correctness is obvious to a non-expert observer.
 
 ## 2.1 Demo Shell Requirement
 
-The first demo should use a Symphony-style manager surface as the primary entry point.
+The first demo should use a card-based Alloy Control Panel surface as the primary entry point.
 
 That means:
 - the task exists as a card
@@ -87,6 +87,12 @@ The seeded demo repo intentionally fails before any candidate fix:
 - `node scripts/eval-perfect-play.mjs` fails across many reachable states
 
 That broken baseline is important because it proves the evaluator is real, not a canned success path.
+
+Current proof boundary:
+- the seeded repo is intentionally broken and fails real checks
+- the automated integration path currently replays a stored working fix artifact into a real Alloy candidate workspace
+- Alloy then runs the real verifier and captures the real `jj` diff from that workspace
+- live provider authoring is still a manual/operator path, not something the automated tests currently certify
 
 ## 5. Human Task Input Model
 

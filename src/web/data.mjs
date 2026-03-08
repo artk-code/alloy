@@ -20,6 +20,7 @@ export async function listTaskCards(projectRoot) {
     cards.push({
       task_id: parsed.task.task_id,
       source_system: parsed.task.source_system,
+      source_label: formatSourceLabel(parsed.task),
       source_task_id: parsed.task.source_task_id || null,
       title: parsed.task.title,
       objective: parsed.task.context || parsed.task.title,
@@ -55,6 +56,7 @@ export async function getTaskDetail(projectRoot, taskId) {
     }
 
     const latestRun = await findLatestRun(projectRoot, taskId);
+    const candidates = latestRun ? await readCandidateManifests(latestRun.runDir) : [];
     return {
       task_id: parsed.task.task_id,
       markdown_path: taskFile,
@@ -64,10 +66,11 @@ export async function getTaskDetail(projectRoot, taskId) {
       run_config: latestRun?.summary?.run_config || buildDefaultRunConfig(parsed.task),
       evaluation: latestRun?.summary?.evaluation || null,
       latest_run_overview: buildLatestRunOverview(parsed.task, latestRun?.summary || null),
+      comparison_view: buildComparisonView(latestRun?.summary?.evaluation || null, candidates),
       warnings: parsed.warnings,
       latest_run: latestRun?.summary || null,
       run_dir: latestRun?.runDir || null,
-      candidates: latestRun ? await readCandidateManifests(latestRun.runDir) : [],
+      candidates,
       sessions: latestRun ? await readSessionRecordsForCandidates(latestRun.runDir) : []
     };
   }
@@ -184,9 +187,7 @@ function buildCardSummary(task, summary) {
 
 function buildTaskBrief(task) {
   return {
-    source_label: task.source_task_id
-      ? `${task.source_system} task ${task.source_task_id}`
-      : `${task.source_system} task`,
+    source_label: formatSourceLabel(task),
     repo_label: `${task.repo} on ${task.base_ref}`,
     objective: task.context || task.title,
     requirements: task.requirements || [],
@@ -200,6 +201,18 @@ function buildTaskBrief(task) {
       review_policy: task.human_review_policy
     }
   };
+}
+
+function formatSourceLabel(task) {
+  if (task.source_system === 'symphony') {
+    return task.source_task_id ? `Imported card ${task.source_task_id}` : 'Imported card';
+  }
+  if (task.source_system === 'manual') {
+    return task.source_task_id ? `Manual task ${task.source_task_id}` : 'Manual task';
+  }
+  return task.source_task_id
+    ? `${task.source_system} ${task.source_task_id}`
+    : task.source_system;
 }
 
 function buildLatestRunOverview(task, summary) {
@@ -259,4 +272,89 @@ function summarizeAcceptanceChecks(commands = []) {
 
 function formatProviderLabels(providers = []) {
   return providers.map((provider) => PROVIDER_LABELS[provider] || provider);
+}
+
+function buildComparisonView(evaluation, candidates) {
+  const byCandidateId = new Map((evaluation?.candidates || []).map((candidate) => [candidate.candidate_id, candidate]));
+  const rows = candidates.map((candidate) => {
+    const evalCandidate = byCandidateId.get(candidate.candidate_id);
+    const patchStats = evalCandidate?.metrics?.patch_stats
+      || candidate.jj?.patch_stats
+      || { file_count: candidate.changed_files?.length || 0, total_changed_lines: 0 };
+
+    return {
+      candidate_id: candidate.candidate_id,
+      label: `${candidate.candidate_slot} / ${PROVIDER_LABELS[candidate.provider] || candidate.provider}`,
+      provider: candidate.provider,
+      provider_label: PROVIDER_LABELS[candidate.provider] || candidate.provider,
+      candidate_slot: candidate.candidate_slot,
+      status: candidate.status,
+      verification_status: candidate.verification?.status || 'not_run',
+      score: evalCandidate?.scorecard?.total ?? null,
+      eligible: evalCandidate?.eligible ?? false,
+      summary: evalCandidate?.summary || candidate.summary || 'No candidate summary yet.',
+      changed_files: candidate.changed_files || [],
+      changed_file_count: patchStats.file_count ?? candidate.changed_files?.length ?? 0,
+      total_changed_lines: patchStats.total_changed_lines ?? 0,
+      jj_change_id: candidate.jj?.candidate_revision?.change_id || candidate.jj?.working_revision?.change_id || null,
+      jj_commit_id: candidate.jj?.candidate_revision?.commit_id || candidate.jj?.working_revision?.commit_id || null
+    };
+  });
+
+  const contributionMap = evaluation?.contribution_map || {};
+  const decision = evaluation?.decision
+    ? {
+        ...evaluation.decision,
+        synthesis_summary: buildSynthesisSummary(evaluation.decision, contributionMap, rows)
+      }
+    : {
+        mode: 'pending',
+        summary: 'No evaluator decision is available yet.',
+        card_summary: 'Evaluator has not run yet.',
+        finalists: [],
+        winner: null,
+        synthesis_summary: 'Run live candidates and deterministic evaluation to populate compare and synthesis guidance.'
+      };
+
+  return {
+    decision,
+    contribution_map: materializeContributionMap(contributionMap, rows),
+    rows
+  };
+}
+
+function buildSynthesisSummary(decision, contributionMap, rows) {
+  const byCandidateId = new Map(rows.map((row) => [row.candidate_id, row]));
+  if (decision.mode === 'winner' && decision.winner_candidate_id) {
+    const winner = byCandidateId.get(decision.winner_candidate_id);
+    return winner
+      ? `Start from ${winner.label} as the base candidate. Preserve its passing implementation unless later synthesis work finds a clearly stronger complementary patch.`
+      : decision.rationale;
+  }
+
+  if (decision.mode === 'synthesize') {
+    const finalists = (decision.finalist_candidate_ids || [])
+      .map((candidateId) => byCandidateId.get(candidateId))
+      .filter(Boolean)
+      .map((candidate) => candidate.label)
+      .join(', ');
+    const strongest = contributionMap.top_score ? byCandidateId.get(contributionMap.top_score)?.label : null;
+    return finalists
+      ? `Synthesize across ${finalists}. ${strongest ? `Use ${strongest} as the likely base patch, then review the other finalists for better tests, tighter scope, or smaller diffs.` : 'Review finalist strengths before composing the merged change.'}`
+      : decision.rationale;
+  }
+
+  if (decision.mode === 'no_winner') {
+    return 'No candidate passed deterministic gates. Fix verification or authentication issues before attempting synthesis.';
+  }
+
+  return 'Comparison data is waiting on a completed evaluated run.';
+}
+
+function materializeContributionMap(contributionMap, rows) {
+  const byCandidateId = new Map(rows.map((row) => [row.candidate_id, row]));
+  return Object.fromEntries(Object.entries(contributionMap).map(([key, candidateId]) => {
+    const row = candidateId ? byCandidateId.get(candidateId) : null;
+    return [key, row ? row.label : null];
+  }));
 }

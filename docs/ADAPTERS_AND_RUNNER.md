@@ -69,13 +69,13 @@ What they do now:
 - capture stdout and stderr to files
 - normalize line events into JSONL
 - update candidate manifests and final run summary
+- run real verification commands after candidate completion
+- capture real `jj` diffs from candidate workspaces
 
 What they do not do yet:
-- authenticate providers
 - inspect provider-specific semantic event payloads deeply
-- collect changed file diffs automatically
-- run verification commands after coding completes
-- manage `jj` workspaces yet
+- create a synthesized final workspace from multiple candidates
+- publish a final merged stack or PR automatically
 
 ## 5. Event Model
 
@@ -124,9 +124,22 @@ If provided:
 - Alloy seeds each candidate workspace by copying the source repo contents into that workspace before launch
 
 If omitted:
-- Alloy still creates workspaces, but they are empty placeholders suitable only for dry runs or mocked providers
+- Alloy still creates workspaces, but they are empty placeholders suitable only for dry runs or fixture-backed replay helpers
 
-## 8. Why This Matters For The GUI
+## 8. Demo Validity
+
+The current demo and test story is intentionally split into two layers:
+
+- broken baseline:
+  - `samples/repos/tic-tac-toe` fails its own unit tests and exhaustive evaluator before any fix
+- replayed fix:
+  - the integration test copies a stored perfect-play strategy artifact into a real candidate workspace
+  - Alloy then runs the real verifier, captures a real `jj` patch, and produces a deterministic evaluation result
+
+This is not the same as proving live provider authoring in CI.
+It is still useful because it validates the workspace, session, verification, and `jj` layers honestly.
+
+## 9. Why This Matters For The GUI
 
 The GUI specs now have a real backend event shape to consume.
 
@@ -135,14 +148,14 @@ Specifically:
 - live dashboard cards can stream from candidate event JSONL
 - judge/synthesis views can later consume the same artifact tree structure
 
-## 9. Recommended Next Step After This Slice
+## 10. Recommended Next Step After This Slice
 
 The next engineering step should be:
 - add verification command execution after provider completion
 - capture git or `jj` diffs from candidate workspaces
 - promote the event stream into a UI-friendly API or file watcher service
 
-## 10. Source Notes
+## 11. Source Notes
 
 These defaults were chosen using current official documentation for:
 - Codex CLI unattended execution

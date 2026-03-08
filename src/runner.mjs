@@ -3,7 +3,7 @@ import path from 'node:path';
 
 import { evaluateRun } from './evaluation.mjs';
 import { JjAdapter } from './jj.mjs';
-import { buildProviderCommand, DEFAULT_PROVIDER_SPECS } from './providers.mjs';
+import { buildProviderCommand, buildProviderEnv, DEFAULT_PROVIDER_SPECS } from './providers.mjs';
 import { SessionManager } from './session-manager.mjs';
 import { runAcceptanceChecks } from './verify.mjs';
 
@@ -177,7 +177,7 @@ async function runOneCandidate({ runDir, runEventsPath, task, packet, manifestEn
       candidateId: manifest.candidate_id,
       command,
       cwd: manifest.workspace_path,
-      env: process.env,
+      env: buildProviderEnv(process.env),
       metadata: {
         candidate_slot: packet.candidateSlot,
         provider_instance_id: packet.providerInstanceId

@@ -4,10 +4,10 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { buildTerminalLoginLaunch } from '../auth-launch.mjs';
+import { buildTerminalCommandLaunch, buildTerminalLoginLaunch } from '../auth-launch.mjs';
 import { prepareTaskFromFile, prepareTaskFromMarkdown, runTaskFromPrepared } from '../orchestrator.mjs';
 import { parseTaskBrief } from '../parser.mjs';
-import { doctorProviders, getProviderLoginCommand } from '../providers.mjs';
+import { buildProviderEnv, doctorProviders, getProviderLoginCommand, getProviderTestCommand } from '../providers.mjs';
 import { SessionManager } from '../session-manager.mjs';
 import { getTaskDetail, listTaskCards } from './data.mjs';
 
@@ -42,6 +42,11 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, await openLogin(provider));
     }
 
+    if (req.method === 'POST' && url.pathname.startsWith('/api/providers/') && url.pathname.endsWith('/open-test')) {
+      const provider = url.pathname.split('/')[3];
+      return sendJson(res, 200, await openAuthTest(provider));
+    }
+
     if (req.method === 'GET' && url.pathname === '/api/tasks') {
       return sendJson(res, 200, { tasks: await listTaskCards(projectRoot) });
     }
@@ -52,6 +57,7 @@ const server = http.createServer(async (req, res) => {
       if (!detail) {
         return sendJson(res, 404, { error: 'task_not_found' });
       }
+      detail.current_sessions = await sessionManager.listSessions({ taskId, limit: 20 });
       return sendJson(res, 200, detail);
     }
 
@@ -107,7 +113,7 @@ async function runTask(taskId, body, searchParams) {
     throw new Error(`Unknown task: ${taskId}`);
   }
 
-  const dryRun = searchParams.get('dryRun') !== 'false';
+  const dryRun = body?.dry_run ?? (searchParams.get('dryRun') !== 'false');
   let preparedTask;
   if (body?.markdown) {
     preparedTask = await prepareTaskFromMarkdown({
@@ -165,7 +171,7 @@ async function openLogin(provider) {
   const launchResult = await new Promise((resolve, reject) => {
     const child = spawn(launcher.launcher, launcher.args, {
       cwd: projectRoot,
-      env: process.env,
+      env: buildProviderEnv(process.env),
       stdio: 'ignore',
       detached: false
     });
@@ -183,6 +189,60 @@ async function openLogin(provider) {
     launched: launchResult.launched,
     provider,
     login,
+    launcher,
+    session,
+    error: launchResult.error || null
+  };
+}
+
+async function openAuthTest(provider) {
+  const test = getProviderTestCommand(provider);
+  const launcher = buildTerminalCommandLaunch({
+    command: test.command.map(shellQuote).join(' ')
+  });
+  const session = await sessionManager.recordExternalLaunch({
+    kind: 'auth-test-launch',
+    provider,
+    profileId: 'default',
+    transport: launcher.supported ? 'pty' : 'external',
+    metadata: {
+      launcher: launcher.launcher,
+      human_command: launcher.human_command
+    }
+  });
+
+  if (!launcher.supported) {
+    return {
+      launched: false,
+      provider,
+      test,
+      launcher,
+      session,
+      message: 'Terminal auto-launch is not supported on this platform. Run the command manually.'
+    };
+  }
+
+  const launchResult = await new Promise((resolve, reject) => {
+    const child = spawn(launcher.launcher, launcher.args, {
+      cwd: projectRoot,
+      env: buildProviderEnv(process.env),
+      stdio: 'ignore',
+      detached: false
+    });
+    child.once('error', reject);
+    child.once('exit', (code) => {
+      if (code === 0) {
+        resolve({ launched: true });
+      } else {
+        reject(new Error(`test launcher exited with code ${code}`));
+      }
+    });
+  }).catch((error) => ({ launched: false, error: error.message || String(error) }));
+
+  return {
+    launched: launchResult.launched,
+    provider,
+    test,
     launcher,
     session,
     error: launchResult.error || null
@@ -218,4 +278,8 @@ async function readJsonBody(req) {
 function sendJson(res, statusCode, value) {
   res.writeHead(statusCode, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify(value, null, 2));
+}
+
+function shellQuote(value) {
+  return `'${String(value).replace(/'/g, `'"'"'`)}'`;
 }

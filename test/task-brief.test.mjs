@@ -19,8 +19,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..');
 const ticTacToeTaskPath = path.join(projectRoot, 'samples/tasks/tic-tac-toe-perfect-play.task.md');
-const mockProviderScript = path.join(projectRoot, 'fixtures/mock-provider.mjs');
 const ticTacToeRepoPath = path.join(projectRoot, 'samples/repos/tic-tac-toe');
+const replayFileScript = path.join(projectRoot, 'fixtures/replay-file.mjs');
+const ticTacToePerfectStrategyPath = path.join(projectRoot, 'fixtures/tic-tac-toe/strategy.perfect.js');
 
 test('parseTaskBriefFile normalizes the primary tic-tac-toe demo task', async () => {
   const parsed = await parseTaskBriefFile(ticTacToeTaskPath);
@@ -88,14 +89,14 @@ test('materializeRunArtifacts writes unique manifests for repeated providers', a
 });
 
 test('provider doctor output exposes login and transport metadata for GUI repair flows', async () => {
-  const mockSpecs = {
+  const testSpecs = {
     codex: {
       provider: 'codex',
       displayName: 'Codex',
       binary: process.execPath,
       versionArgs: ['--version'],
       eventFormat: 'jsonl',
-      docs: 'https://example.test/mock-provider',
+      docs: 'https://example.test/test-provider',
       runtime: {
         loginTransport: 'pty',
         runTransport: 'pipe',
@@ -117,8 +118,8 @@ test('provider doctor output exposes login and transport metadata for GUI repair
     }
   };
 
-  const report = await doctorProviders({ specs: mockSpecs });
-  const login = getProviderLoginCommand('codex', mockSpecs);
+  const report = await doctorProviders({ specs: testSpecs });
+  const login = getProviderLoginCommand('codex', testSpecs);
 
   assert.equal(report.providers[0].installed, true);
   assert.equal(report.providers[0].auth_status, 'unknown');
@@ -129,7 +130,7 @@ test('provider doctor output exposes login and transport metadata for GUI repair
   assert.match(login.instructions[0], /browser sign-in/i);
 });
 
-test('runPreparedCandidates uses session records and real tic-tac-toe verification to validate a fix', async () => {
+test('runPreparedCandidates replays a real fixture change and validates it with real tic-tac-toe checks', async () => {
   const parsed = await parseTaskBriefFile(ticTacToeTaskPath);
   const runConfig = normalizeRunConfig(parsed.task, {
     mode: 'race',
@@ -148,14 +149,14 @@ test('runPreparedCandidates uses session records and real tic-tac-toe verificati
     stateDir: path.join(prepared.runDir, 'session-state')
   });
 
-  const mockSpecs = {
+  const testSpecs = {
     codex: {
       provider: 'codex',
       displayName: 'Codex',
       binary: process.execPath,
       versionArgs: ['--version'],
       eventFormat: 'jsonl',
-      docs: 'https://example.test/mock-provider',
+      docs: 'https://example.test/test-provider',
       runtime: {
         loginTransport: 'pty',
         runTransport: 'pipe',
@@ -166,7 +167,13 @@ test('runPreparedCandidates uses session records and real tic-tac-toe verificati
         profiles: [{ id: 'default', label: 'Default' }]
       },
       buildArgs({ prompt }) {
-        return [mockProviderScript, 'codex', prompt, 'apply-tic-tac-toe-fix'];
+        return [
+          replayFileScript,
+          'codex',
+          ticTacToePerfectStrategyPath,
+          'src/strategy.js',
+          `codex replay complete (${prompt.length} chars of prompt input)`
+        ];
       }
     }
   };
@@ -176,7 +183,7 @@ test('runPreparedCandidates uses session records and real tic-tac-toe verificati
     task,
     packets,
     manifests: prepared.manifests,
-    specs: mockSpecs,
+    specs: testSpecs,
     sessionManager
   });
 

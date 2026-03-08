@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { prepareTaskFromFile, runTaskFromPrepared } from './orchestrator.mjs';
-import { doctorProviders, getProviderLoginCommand, listSupportedProviders } from './providers.mjs';
+import { buildProviderEnv, doctorProviders, getProviderLoginCommand, listSupportedProviders } from './providers.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -130,7 +130,7 @@ async function launchLogin(provider) {
   await new Promise((resolve, reject) => {
     const child = spawn(binary, args, {
       cwd: process.cwd(),
-      env: process.env,
+      env: buildProviderEnv(process.env),
       stdio: 'inherit'
     });
 

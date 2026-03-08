@@ -2,6 +2,10 @@ import os from 'node:os';
 
 export function buildTerminalLoginLaunch({ projectRoot, provider }) {
   const loginCommand = `cd ${shellQuote(projectRoot)} && node src/cli.mjs login ${shellQuote(provider)}`;
+  return buildTerminalCommandLaunch({ command: loginCommand });
+}
+
+export function buildTerminalCommandLaunch({ command }) {
   const platform = os.platform();
 
   if (platform === 'darwin') {
@@ -11,11 +15,11 @@ export function buildTerminalLoginLaunch({ projectRoot, provider }) {
       launcher: 'osascript',
       args: [
         '-e',
-        `tell application "Terminal" to do script ${appleScriptString(loginCommand)}`,
+        `tell application "Terminal" to do script ${appleScriptString(command)}`,
         '-e',
         'tell application "Terminal" to activate'
       ],
-      human_command: loginCommand
+      human_command: command
     };
   }
 
@@ -24,8 +28,8 @@ export function buildTerminalLoginLaunch({ projectRoot, provider }) {
       platform,
       supported: true,
       launcher: 'sh',
-      args: ['-lc', `x-terminal-emulator -e ${shellQuote(loginCommand)}`],
-      human_command: loginCommand
+      args: ['-lc', `x-terminal-emulator -e ${shellQuote(command)}`],
+      human_command: command
     };
   }
 
@@ -34,7 +38,7 @@ export function buildTerminalLoginLaunch({ projectRoot, provider }) {
     supported: false,
     launcher: null,
     args: [],
-    human_command: loginCommand
+    human_command: command
   };
 }
 

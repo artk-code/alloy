@@ -158,6 +158,7 @@ export class SessionManager {
   }
 
   async recordExternalLaunch({
+    kind = 'login-launch',
     provider,
     profileId = 'default',
     transport = 'pty',
@@ -165,7 +166,7 @@ export class SessionManager {
     metadata = {}
   }) {
     const record = await this.createSessionRecord({
-      kind: 'login-launch',
+      kind,
       provider,
       profileId,
       transport,
