@@ -171,6 +171,30 @@ Expected baseline:
 - unit tests fail
 - exhaustive perfect-play evaluator fails
 
+### FizzBuzz CLI
+
+```bash
+cd samples/repos/fizzbuzz-cli
+npm test
+node scripts/eval-fizzbuzz-output.mjs
+```
+
+Expected baseline:
+- tests fail on `FizzBuzz`
+- exact CLI output evaluator fails on combined multiples like `15`
+
+### Roman Numerals
+
+```bash
+cd samples/repos/roman-numerals
+npm test
+node scripts/eval-roundtrip.mjs
+```
+
+Expected baseline:
+- subtractive numeral tests fail
+- round-trip evaluator fails on canonical cases like `IV`, `IX`, and `CMXLIV`
+
 ### SQL Injection Security Demo
 
 ```bash

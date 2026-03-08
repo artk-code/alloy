@@ -34,9 +34,12 @@ The current pushed repo already includes:
 - task cards now focus the selected task directly instead of relying on a separate `Open Card` button
 - the Queue now stays compact while Tasks holds the heavy task-detail workflow
 - persistent light/dark mode across all top-level pages via local storage
+- fast demo tasks added:
+  - `FizzBuzz CLI`
+  - `Roman Numerals`
 
 Tests last verified locally:
-- `41/41` passing
+- `45/45` passing
 
 Important local files added or heavily changed:
 - [schemas/merge-plan.schema.json](/Users/codex/stack-judge/schemas/merge-plan.schema.json)
@@ -97,6 +100,7 @@ Start by validating the current pushed build:
    - pick a demo from `Quick Start`
    - `Load Demo Into Setup`
    - `Open Demo`
+   - confirm `FizzBuzz CLI` and `Roman Numerals` appear in the demo list
 6. verify guided task creation on `Tasks`
    - choose a template
    - `Generate Task Source`
@@ -126,15 +130,10 @@ If the next agent wants browser automation, they should add a repo-local Playwri
    - Make saved-task editing clearer.
    - Keep raw markdown for advanced use only.
 
-3. Add two fast tasks:
-   - `FizzBuzz CLI`
-   - `Roman Numerals`
-   These should run fast and validate the pipeline without the heavier demo repos.
-
-4. Add PR creation from a pushed synthesis ref.
+3. Add PR creation from a pushed synthesis ref.
    - Only allow this after approval and successful push.
 
-5. Add repo-local browser smoke tests later.
+4. Add repo-local browser smoke tests later.
    - Only with repo-local tooling.
 
 ## Publication Flow Status

@@ -41,10 +41,10 @@ The current implementation priorities should be:
      - keep raw markdown as an advanced path only
 
 4. Broader evaluation coverage
-   - add two fast tasks first:
+   - fast tasks are now in place:
      - `FizzBuzz CLI`
      - `Roman Numerals`
-   - keep the current bugfix and security demos for heavier review and synthesis testing
+   - use them as the first regression and demo checks before the heavier bugfix and security tasks
 
 5. PR creation from the pushed synthesis ref
    - publish preview, approval, and push are already implemented
@@ -443,7 +443,8 @@ This is the practical build order from the current shipped state:
    - Keep markdown as the source of truth, but keep it behind the guided setup flow.
 
 4. Broader eval coverage
-   - Add `FizzBuzz CLI` and `Roman Numerals` so Alloy can be regression-tested quickly.
+   - `FizzBuzz CLI` and `Roman Numerals` are already in place.
+   - Use them first when validating queue -> run -> verify -> diff capture.
 
 5. PR creation from the pushed synthesis ref
    - Build this only on top of the explicit push state and human approval flow.

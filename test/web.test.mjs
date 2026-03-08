@@ -93,11 +93,23 @@ test('getTaskLocalTesting exposes concrete workspace targets and validation comm
 test('listTaskCatalog includes queued and non-queue metadata for task setup', async () => {
   const catalog = await listTaskCatalog(projectRoot);
   const ticTacToe = catalog.find((task) => task.task_id === 'task_20260308_tic_tac_toe_perfect_play');
+  const fizzBuzz = catalog.find((task) => task.task_id === 'task_20260308_fizzbuzz_cli');
+  const roman = catalog.find((task) => task.task_id === 'task_20260308_roman_numerals');
 
   assert.ok(ticTacToe);
   assert.equal(ticTacToe.queued, true);
   assert.equal(ticTacToe.queue_status, 'queued');
   assert.match(ticTacToe.markdown_path, /tic-tac-toe-perfect-play\.task\.md$/);
+  assert.ok(fizzBuzz);
+  assert.equal(fizzBuzz.is_demo, true);
+  assert.equal(fizzBuzz.queued, false);
+  assert.equal(fizzBuzz.project_id, 'smoke-lab');
+  assert.match(fizzBuzz.markdown_path, /fizzbuzz-cli\.task\.md$/);
+  assert.ok(roman);
+  assert.equal(roman.is_demo, true);
+  assert.equal(roman.queued, false);
+  assert.equal(roman.project_id, 'algo-lab');
+  assert.match(roman.markdown_path, /roman-numerals\.task\.md$/);
 });
 
 test('buildTerminalLoginLaunch always exposes a human command', () => {
@@ -151,6 +163,8 @@ test('web UI avoids blocking browser modal APIs for provider and run actions', a
   assert.match(docsSource, /initThemeToggle/);
   assert.match(themeSource, /alloy-theme/);
   assert.match(indexHtml, /hero-open-operator/);
+  assert.match(indexHtml, /href=\"\/tasks\.html\"/);
+  assert.match(indexHtml, /href=\"\/review\.html\"/);
   assert.match(indexHtml, />Queue</);
   assert.match(indexHtml, /hero-open-docs/);
   assert.match(indexHtml, /theme-toggle/);

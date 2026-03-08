@@ -123,10 +123,10 @@ Done when:
 ## Milestone K: Fast Regression Tasks
 
 Checklist:
-- [ ] `FizzBuzz CLI` task exists
-- [ ] `Roman Numerals` task exists
-- [ ] both tasks have acceptance commands
-- [ ] both tasks appear clearly as fast regression/demo tasks in `Tasks`
+- [x] `FizzBuzz CLI` task exists
+- [x] `Roman Numerals` task exists
+- [x] both tasks have acceptance commands
+- [x] both tasks appear clearly as fast regression/demo tasks in `Tasks`
 
 Done when:
 - Alloy can validate queue -> run -> verify -> diff capture quickly without requiring a heavy demo repo every time

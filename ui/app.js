@@ -52,17 +52,9 @@ const sessionTemplate = document.querySelector('#session-template');
 
 initThemeToggle();
 
-heroOpenOperatorButton.addEventListener('click', () => {
-  window.location.href = buildOperatorUrl(state.selectedTaskId);
-});
 document.querySelector('#refresh-providers').addEventListener('click', async () => {
   await loadProviders();
   renderRunConfig();
-});
-heroOpenCompareButton.addEventListener('click', () => {
-  if (state.selectedTaskId) {
-    window.location.href = buildCompareUrl(state.selectedTaskId);
-  }
 });
 detailOpenCompareButton.addEventListener('click', () => {
   if (state.selectedTaskId) {
@@ -884,11 +876,10 @@ function renderDetail() {
   runSummary.textContent = JSON.stringify(state.taskDetail.latest_run || { message: 'No run yet.' }, null, 2);
 
   openCompareButton.disabled = !state.selectedTaskId;
-  heroOpenOperatorButton.disabled = false;
-  heroOpenCompareButton.disabled = !state.selectedTaskId;
+  heroOpenOperatorButton.href = buildOperatorUrl(state.selectedTaskId);
+  heroOpenCompareButton.href = buildCompareUrl(state.selectedTaskId);
   detailOpenOperatorButton.disabled = !state.selectedTaskId;
   detailOpenCompareButton.disabled = !state.selectedTaskId;
-  heroOpenOperatorButton.textContent = state.selectedTaskId ? 'Tasks' : 'Create Task';
   heroOpenDocsLink.href = buildDocsUrl(state.selectedTaskId);
   openLatestRunButton.disabled = !state.taskDetail.run_dir;
 }
@@ -963,11 +954,15 @@ function appendListBlock(root, heading, items, emptyText) {
 }
 
 function buildCompareUrl(taskId, candidateId = null) {
-  const params = new URLSearchParams({ task: taskId });
+  const params = new URLSearchParams();
+  if (taskId) {
+    params.set('task', taskId);
+  }
   if (candidateId) {
     params.set('candidate', candidateId);
   }
-  return `/review.html?${params.toString()}`;
+  const query = params.toString();
+  return query ? `/review.html?${query}` : '/review.html';
 }
 
 function buildOperatorUrl(taskId = null) {

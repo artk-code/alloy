@@ -26,6 +26,10 @@ const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..');
 const ticTacToeTaskPath = path.join(projectRoot, 'samples/tasks/tic-tac-toe-perfect-play.task.md');
 const ticTacToeRepoPath = path.join(projectRoot, 'samples/repos/tic-tac-toe');
+const fizzBuzzTaskPath = path.join(projectRoot, 'samples/tasks/fizzbuzz-cli.task.md');
+const fizzBuzzRepoPath = path.join(projectRoot, 'samples/repos/fizzbuzz-cli');
+const romanNumeralsTaskPath = path.join(projectRoot, 'samples/tasks/roman-numerals.task.md');
+const romanNumeralsRepoPath = path.join(projectRoot, 'samples/repos/roman-numerals');
 const securityTaskPath = path.join(projectRoot, 'samples/tasks/security-sql-injection.task.md');
 const securityRepoPath = path.join(projectRoot, 'samples/repos/security-sqli');
 const replayFileScript = path.join(projectRoot, 'fixtures/replay-file.mjs');
@@ -45,6 +49,26 @@ test('parseTaskBriefFile normalizes the primary tic-tac-toe demo task', async ()
   assert.equal(parsed.task.judge, 'claude-code');
   assert.deepEqual(parsed.task.acceptance_checks, ['npm test', 'node scripts/eval-perfect-play.mjs']);
   assert.equal(parsed.warnings.length, 0);
+});
+
+test('parseTaskBriefFile normalizes the FizzBuzz smoke demo task', async () => {
+  const parsed = await parseTaskBriefFile(fizzBuzzTaskPath);
+
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.task.task_id, 'task_20260308_fizzbuzz_cli');
+  assert.equal(parsed.task.project_id, 'smoke-lab');
+  assert.equal(parsed.task.project_label, 'Smoke Lab');
+  assert.deepEqual(parsed.task.acceptance_checks, ['npm test', 'node scripts/eval-fizzbuzz-output.mjs']);
+});
+
+test('parseTaskBriefFile normalizes the Roman numerals algo demo task', async () => {
+  const parsed = await parseTaskBriefFile(romanNumeralsTaskPath);
+
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.task.task_id, 'task_20260308_roman_numerals');
+  assert.equal(parsed.task.project_id, 'algo-lab');
+  assert.equal(parsed.task.project_label, 'Algo Lab');
+  assert.deepEqual(parsed.task.acceptance_checks, ['npm test', 'node scripts/eval-roundtrip.mjs']);
 });
 
 test('buildDefaultRunConfig includes the conservative merge mode default', async () => {
@@ -501,6 +525,66 @@ test('runAcceptanceChecks exposes the broken SQL injection demo baseline', async
   assert.equal(verification.status, 'fail');
   assert.equal(verification.checks[0].status, 'fail');
   assert.match(stdout + stderr, /SQL injection|placeholder params|raw interpolation/i);
+
+  await fs.rm(workspaceRoot, { recursive: true, force: true });
+});
+
+test('runAcceptanceChecks exposes the broken FizzBuzz smoke demo baseline', async () => {
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), 'alloy-fizzbuzz-demo-'));
+  const workspacePath = path.join(workspaceRoot, 'workspace');
+  await fs.mkdir(workspacePath, { recursive: true });
+  await fs.cp(fizzBuzzRepoPath, workspacePath, { recursive: true });
+
+  const testVerification = await runAcceptanceChecks({
+    workspacePath,
+    commands: ['npm test'],
+    outputDir: workspacePath
+  });
+  const evalVerification = await runAcceptanceChecks({
+    workspacePath,
+    commands: ['node scripts/eval-fizzbuzz-output.mjs'],
+    outputDir: workspacePath
+  });
+  const combinedOutput = [
+    await fs.readFile(testVerification.checks[0].stdout_path, 'utf8'),
+    await fs.readFile(testVerification.checks[0].stderr_path, 'utf8'),
+    await fs.readFile(evalVerification.checks[0].stdout_path, 'utf8'),
+    await fs.readFile(evalVerification.checks[0].stderr_path, 'utf8')
+  ].join('\n');
+
+  assert.equal(testVerification.status, 'fail');
+  assert.equal(evalVerification.status, 'fail');
+  assert.match(combinedOutput, /FizzBuzz|line 15|canonical/i);
+
+  await fs.rm(workspaceRoot, { recursive: true, force: true });
+});
+
+test('runAcceptanceChecks exposes the broken Roman numerals demo baseline', async () => {
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), 'alloy-roman-demo-'));
+  const workspacePath = path.join(workspaceRoot, 'workspace');
+  await fs.mkdir(workspacePath, { recursive: true });
+  await fs.cp(romanNumeralsRepoPath, workspacePath, { recursive: true });
+
+  const testVerification = await runAcceptanceChecks({
+    workspacePath,
+    commands: ['npm test'],
+    outputDir: workspacePath
+  });
+  const evalVerification = await runAcceptanceChecks({
+    workspacePath,
+    commands: ['node scripts/eval-roundtrip.mjs'],
+    outputDir: workspacePath
+  });
+  const combinedOutput = [
+    await fs.readFile(testVerification.checks[0].stdout_path, 'utf8'),
+    await fs.readFile(testVerification.checks[0].stderr_path, 'utf8'),
+    await fs.readFile(evalVerification.checks[0].stdout_path, 'utf8'),
+    await fs.readFile(evalVerification.checks[0].stderr_path, 'utf8')
+  ].join('\n');
+
+  assert.equal(testVerification.status, 'fail');
+  assert.equal(evalVerification.status, 'fail');
+  assert.match(combinedOutput, /Roman numeral|IV|subtractive|roundtrip/i);
 
   await fs.rm(workspaceRoot, { recursive: true, force: true });
 });

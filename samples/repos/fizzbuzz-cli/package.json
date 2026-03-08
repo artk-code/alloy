@@ -1,0 +1,12 @@
+{
+  "name": "alloy-demo-fizzbuzz-cli",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "eval": "node scripts/eval-fizzbuzz-output.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

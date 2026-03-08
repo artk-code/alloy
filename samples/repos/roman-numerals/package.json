@@ -1,0 +1,12 @@
+{
+  "name": "alloy-demo-roman-numerals",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "eval": "node scripts/eval-roundtrip.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

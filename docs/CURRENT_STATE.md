@@ -31,6 +31,8 @@ run work   import     blind review / approve / push
   - task creation from pasted markdown or imported markdown files
   - tabbed/collapsible operator detail sections to reduce clutter
 - The default demo task is the tic-tac-toe perfect-play repair card at `samples/tasks/tic-tac-toe-perfect-play.task.md`.
+- There is now a fast smoke-lab card at `samples/tasks/fizzbuzz-cli.task.md`.
+- There is now a fast algo-lab card at `samples/tasks/roman-numerals.task.md`.
 - There is also a runnable security-lab card at `samples/tasks/security-sql-injection.task.md`.
 - There is also a runnable bugfix-lab card at `samples/tasks/cache-invalidation.task.md`.
 - The seeded tic-tac-toe demo repo is intentionally broken and fails real acceptance checks before any fix.
@@ -192,16 +194,11 @@ That is enough to prove the orchestration, verification, artifact, and conservat
    - Make it easy to edit an existing saved task without manually touching raw markdown.
    - Keep source import behind explicit warnings and validation.
 
-3. Add two fast regression cards.
-   - `FizzBuzz CLI`
-   - `Roman Numerals`
-   These are not headline demos. They exist to prove queue -> run -> verify -> diff capture quickly.
-
-4. Add PR creation only after push succeeds.
+3. Add PR creation only after push succeeds.
    - Use the pushed synthesis ref as the only source for PR creation.
    - Keep PR creation behind explicit human approval.
 
-5. Add repo-local browser smoke tests later.
+4. Add repo-local browser smoke tests later.
    - Only do this with a reproducible repo-local runner.
    - Do not rely on ambient browser tooling.
 
@@ -211,14 +208,13 @@ Build in this order:
 
 1. Blind-review decision consumption
 2. `Tasks` editing and validation cleanup
-3. Add `FizzBuzz CLI` and `Roman Numerals` cards
-4. PR creation from a pushed synthesis ref
-5. Repo-local browser smoke tests
+3. PR creation from a pushed synthesis ref
+4. Repo-local browser smoke tests
 
 Why this order:
 - blind review is now consumed at publication time, so the next value is to move that judgment earlier into merge guidance
 - the `Tasks` page is now usable but still needs cleanup around save/edit flow
-- fast cards improve regression speed once the flow above is solid
+- fast cards now exist and should be used as the first regression demos
 - PR creation should stay behind push and approval
 - browser smoke tests are useful, but not a product bottleneck
 

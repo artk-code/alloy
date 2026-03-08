@@ -23,6 +23,8 @@ Working today:
 - dedicated `Tasks` for structured task setup, source generation/import, parsed task review, and candidate detail
 - dedicated `Review` view for candidate review, synthesis, blind review, and publication
 - primary demo card: tic-tac-toe perfect-play repair
+- fast smoke demo card: FizzBuzz CLI
+- fast algo demo card: Roman Numerals
 - additional runnable security demo card: SQL injection remediation + writeup
 - board project filter and grouping controls
 - board pagination and cards-per-page controls
