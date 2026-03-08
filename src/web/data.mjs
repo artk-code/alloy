@@ -57,6 +57,7 @@ export async function getTaskDetail(projectRoot, taskId) {
 
     const latestRun = await findLatestRun(projectRoot, taskId);
     const candidates = latestRun ? await readCandidateManifests(latestRun.runDir) : [];
+    const synthesis = latestRun ? await readLatestSynthesisManifest(latestRun.summary) : null;
     return {
       task_id: parsed.task.task_id,
       markdown_path: taskFile,
@@ -67,15 +68,67 @@ export async function getTaskDetail(projectRoot, taskId) {
       evaluation: latestRun?.summary?.evaluation || null,
       latest_run_overview: buildLatestRunOverview(parsed.task, latestRun?.summary || null),
       comparison_view: buildComparisonView(latestRun?.summary?.evaluation || null, candidates),
+      merge_view: buildMergeView(latestRun?.summary || null, candidates, synthesis),
       warnings: parsed.warnings,
       latest_run: latestRun?.summary || null,
       run_dir: latestRun?.runDir || null,
       candidates,
-      sessions: latestRun ? await readSessionRecordsForCandidates(latestRun.runDir) : []
+      sessions: latestRun ? await readSessionRecordsForCandidates(latestRun.runDir) : [],
+      synthesis
     };
   }
 
   return null;
+}
+
+export async function getCandidateDiff(projectRoot, taskId, candidateId) {
+  const latestRun = await findLatestRun(projectRoot, taskId);
+  if (!latestRun) {
+    return null;
+  }
+
+  const manifest = await readCandidateManifest(latestRun.runDir, candidateId);
+  if (!manifest) {
+    return null;
+  }
+
+  const patchText = await fs.readFile(manifest.artifact_paths.patch_path, 'utf8').catch(() => '');
+  const diffSummary = await fs.readFile(manifest.artifact_paths.diff_summary_path, 'utf8').catch(() => '');
+  const filePatches = splitPatchByFile(patchText, manifest.changed_files || []);
+
+  return {
+    task_id: taskId,
+    run_dir: latestRun.runDir,
+    candidate_id: manifest.candidate_id,
+    candidate_slot: manifest.candidate_slot,
+    provider: manifest.provider,
+    provider_label: PROVIDER_LABELS[manifest.provider] || manifest.provider,
+    label: `${manifest.candidate_slot} / ${PROVIDER_LABELS[manifest.provider] || manifest.provider}`,
+    changed_files: manifest.changed_files || [],
+    diff_summary: diffSummary.trim(),
+    patch: patchText,
+    files: filePatches,
+    verification: manifest.verification || null,
+    jj: manifest.jj || null
+  };
+}
+
+export async function getCandidateJj(projectRoot, taskId, candidateId) {
+  const latestRun = await findLatestRun(projectRoot, taskId);
+  if (!latestRun) {
+    return null;
+  }
+  const manifest = await readCandidateManifest(latestRun.runDir, candidateId);
+  if (!manifest) {
+    return null;
+  }
+  return {
+    task_id: taskId,
+    candidate_id: manifest.candidate_id,
+    candidate_slot: manifest.candidate_slot,
+    provider: manifest.provider,
+    jj: manifest.jj || null
+  };
 }
 
 async function readSessionRecordsForCandidates(runDir) {
@@ -145,6 +198,18 @@ async function readCandidateManifests(runDir) {
   return manifests.sort((left, right) => left.candidate_slot.localeCompare(right.candidate_slot));
 }
 
+async function readCandidateManifest(runDir, candidateId) {
+  const manifests = await readCandidateManifests(runDir);
+  return manifests.find((manifest) => manifest.candidate_id === candidateId) || null;
+}
+
+async function readLatestSynthesisManifest(summary) {
+  if (!summary?.synthesis?.manifest_path) {
+    return null;
+  }
+  return JSON.parse(await fs.readFile(summary.synthesis.manifest_path, 'utf8').catch(() => 'null'));
+}
+
 function mapRunState(status) {
   switch (status) {
     case 'prepared':
@@ -198,7 +263,8 @@ function buildTaskBrief(task) {
       mode: task.mode,
       judge: PROVIDER_LABELS[task.judge] || task.judge,
       synthesis_policy: task.synthesis_policy,
-      review_policy: task.human_review_policy
+      review_policy: task.human_review_policy,
+      merge_mode: task.run_config?.merge_mode || 'hybrid'
     }
   };
 }
@@ -233,7 +299,8 @@ function buildLatestRunOverview(task, summary) {
     provider_plan: providerPlan,
     acceptance_summary: summarizeAcceptanceChecks(task.acceptance_checks),
     finalists: summary?.evaluation?.decision?.finalists || [],
-    winner: summary?.evaluation?.decision?.winner || null
+    winner: summary?.evaluation?.decision?.winner || null,
+    merge_mode: summary?.run_config?.merge_mode || task.run_config?.merge_mode || 'hybrid'
   };
 }
 
@@ -323,6 +390,56 @@ function buildComparisonView(evaluation, candidates) {
   };
 }
 
+function buildMergeView(summary, candidates, synthesis) {
+  const candidateLabels = new Map(candidates.map((candidate) => [
+    candidate.candidate_id,
+    `${candidate.candidate_slot} / ${PROVIDER_LABELS[candidate.provider] || candidate.provider}`
+  ]));
+  const byPath = new Map();
+
+  for (const candidate of candidates) {
+    for (const changedFile of candidate.changed_files || []) {
+      if (!byPath.has(changedFile)) {
+        byPath.set(changedFile, []);
+      }
+      byPath.get(changedFile).push({
+        candidate_id: candidate.candidate_id,
+        label: candidateLabels.get(candidate.candidate_id),
+        candidate_slot: candidate.candidate_slot,
+        provider: candidate.provider
+      });
+    }
+  }
+
+  return {
+    merge_mode: summary?.run_config?.merge_mode || 'hybrid',
+    winner_candidate_id: summary?.evaluation?.decision?.winner_candidate_id || null,
+    files: [...byPath.entries()]
+      .map(([filePath, owners]) => ({
+        path: filePath,
+        owners
+      }))
+      .sort((left, right) => left.path.localeCompare(right.path)),
+    synthesis: synthesis
+      ? {
+          synthesis_id: synthesis.synthesis_id,
+          strategy: synthesis.strategy,
+          status: synthesis.status,
+          selected_by: synthesis.selected_by,
+          verification: synthesis.verification,
+          changed_files: synthesis.changed_files || synthesis.selected_files?.map((selection) => selection.path) || [],
+          selected_candidates: (synthesis.selected_candidates || []).map((candidateId) => ({
+            candidate_id: candidateId,
+            label: candidateLabels.get(candidateId) || candidateId
+          })),
+          jj_change_id: synthesis.jj?.candidate_revision?.change_id || synthesis.jj?.working_revision?.change_id || null,
+          patch_path: synthesis.artifact_paths?.patch_path || null,
+          workspace_path: synthesis.workspace_path
+        }
+      : null
+  };
+}
+
 function buildSynthesisSummary(decision, contributionMap, rows) {
   const byCandidateId = new Map(rows.map((row) => [row.candidate_id, row]));
   if (decision.mode === 'winner' && decision.winner_candidate_id) {
@@ -357,4 +474,53 @@ function materializeContributionMap(contributionMap, rows) {
     const row = candidateId ? byCandidateId.get(candidateId) : null;
     return [key, row ? row.label : null];
   }));
+}
+
+function splitPatchByFile(patchText, changedFiles) {
+  if (!patchText.trim()) {
+    return changedFiles.map((filePath) => ({ path: filePath, patch: '' }));
+  }
+
+  const lines = patchText.split('\n');
+  const sections = [];
+  let current = null;
+
+  for (const line of lines) {
+    if (line.startsWith('diff --git ')) {
+      if (current) {
+        sections.push(current);
+      }
+      current = {
+        path: extractPatchPath(line),
+        patchLines: [line]
+      };
+      continue;
+    }
+
+    if (!current) {
+      continue;
+    }
+    current.patchLines.push(line);
+  }
+
+  if (current) {
+    sections.push(current);
+  }
+
+  if (sections.length === 0) {
+    return changedFiles.map((filePath) => ({ path: filePath, patch: patchText }));
+  }
+
+  return sections.map((section) => ({
+    path: section.path,
+    patch: section.patchLines.join('\n').trimEnd()
+  }));
+}
+
+function extractPatchPath(diffHeader) {
+  const match = /^diff --git a\/(.+?) b\/(.+)$/.exec(diffHeader.trim());
+  if (!match) {
+    return 'unknown';
+  }
+  return match[2];
 }

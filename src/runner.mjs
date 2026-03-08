@@ -5,6 +5,7 @@ import { evaluateRun } from './evaluation.mjs';
 import { JjAdapter } from './jj.mjs';
 import { buildProviderCommand, buildProviderEnv, DEFAULT_PROVIDER_SPECS } from './providers.mjs';
 import { SessionManager } from './session-manager.mjs';
+import { synthesizeRun } from './synthesis.mjs';
 import { runAcceptanceChecks } from './verify.mjs';
 
 export async function runPreparedCandidates({
@@ -95,6 +96,39 @@ export async function runPreparedCandidates({
     });
   }
 
+  let synthesis = null;
+  if (!dryRun && evaluation && task.run_config?.merge_mode === 'auto' && evaluation.decision?.mode === 'winner') {
+    try {
+      synthesis = await synthesizeRun({
+        runDir,
+        task,
+        strategy: 'winner_only',
+        winnerCandidateId: evaluation.decision.winner_candidate_id,
+        selectedBy: 'alloy-auto'
+      });
+      await appendJsonl(runEventsPath, {
+        ts: new Date().toISOString(),
+        kind: 'synthesis.completed',
+        task_id: task.task_id,
+        strategy: 'winner_only',
+        synthesis_id: synthesis.synthesis_id,
+        status: synthesis.status
+      });
+    } catch (error) {
+      synthesis = {
+        status: 'failed',
+        error: error.message || String(error)
+      };
+      await appendJsonl(runEventsPath, {
+        ts: new Date().toISOString(),
+        kind: 'synthesis.failed',
+        task_id: task.task_id,
+        strategy: 'winner_only',
+        error: synthesis.error
+      });
+    }
+  }
+
   const summary = {
     task_id: task.task_id,
     source_system: task.source_system,
@@ -107,7 +141,20 @@ export async function runPreparedCandidates({
     run_config: task.run_config || null,
     status: finalStatus,
     candidate_results: candidateResults,
-    evaluation
+    evaluation,
+    synthesis: synthesis
+      ? {
+          synthesis_id: synthesis.synthesis_id,
+          strategy: synthesis.strategy || 'winner_only',
+          status: synthesis.status,
+          selected_by: synthesis.selected_by || 'alloy-auto',
+          workspace_path: synthesis.workspace_path || null,
+          manifest_path: synthesis.artifact_paths?.manifest_path || null,
+          verification: synthesis.verification || null,
+          jj: synthesis.jj || null,
+          selected_candidates: synthesis.selected_candidates || []
+        }
+      : null
   };
 
   await fs.writeFile(path.join(runDir, 'run-summary.json'), JSON.stringify(summary, null, 2) + '\n', 'utf8');

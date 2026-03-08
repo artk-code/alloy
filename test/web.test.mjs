@@ -33,11 +33,14 @@ test('getTaskDetail returns markdown, parsed task data, and default run config',
   assert.equal(detail.run_config.providers.length, 3);
   assert.equal(detail.run_config.providers[0].provider, 'codex');
   assert.ok(detail.run_config.providers[0].agents >= 1);
+  assert.equal(detail.run_config.merge_mode, 'hybrid');
   assert.equal(detail.task_brief.repo_label, 'demo/tic-tac-toe on main');
   assert.equal(detail.task_brief.source_label, 'Imported card demo_card_tic_tac_toe_perfect_play');
   assert.match(detail.latest_run_overview.execution_summary, /candidate/i);
+  assert.equal(detail.latest_run_overview.merge_mode, detail.run_config.merge_mode);
   assert.equal(detail.comparison_view.decision.mode, 'pending');
   assert.ok(Array.isArray(detail.comparison_view.rows));
+  assert.ok(Array.isArray(detail.merge_view.files));
   assert.ok(Array.isArray(detail.candidates));
   assert.ok(Array.isArray(detail.sessions));
 });

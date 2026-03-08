@@ -15,15 +15,20 @@ Working today:
 - Markdown task brief parsing into canonical task JSON
 - human-readable parsed task and evaluator summaries in the operator UI
 - compare and synthesis guidance panels backed by evaluator and `jj` artifact data
+- real per-candidate diff viewing in the operator UI from captured `jj` patches
 - operator-controlled `run_config` with:
   - provider enable/disable
   - agent counts per provider
   - profile IDs
   - run transport selection (`pipe` vs `pty` where supported)
+  - merge mode selection (`auto`, `hybrid`, `manual`)
 - per-candidate workspace seeding and prompt packet generation
 - persistent `SessionManager` records for candidate runs and login launches
 - `jj` workspace bootstrap with per-candidate patch capture
 - deterministic evaluation with winner vs synthesize recommendation output
+- conservative synthesis workspace creation:
+  - winner-only finalization
+  - human file-select merge
 - real verification commands against real demo repos
 - fixture-backed replay integration tests that mutate a real workspace, capture a real `jj` patch, and pass the real verifier
 - dry-run and live-run launch paths for `codex`, `gemini`, and `claude-code` from the web UI
@@ -31,8 +36,9 @@ Working today:
 - manual `Test Auth` launch flow for providers that still need operator confirmation
 
 Not implemented yet:
-- blind judging and synthesis
-- `jj`-backed change shaping and final PR publishing
+- blind judge/composer layers
+- `jj` cross-candidate rebase/split/squash shaping for the final stack
+- final PR publishing
 
 ## Repository Contents
 
@@ -115,6 +121,7 @@ For a given task brief, the scaffold generates:
 - `prompt-packets/*.md`
 - `candidates/*/manifest.json`
 - `events/run-events.jsonl`
+- `synthesis/*/manifest.json`
 - per-candidate workspaces, logs, and artifact directories
 - persistent session records under `runtime/sessions` or a run-scoped session root
 

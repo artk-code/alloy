@@ -345,6 +345,8 @@ button:disabled {
 
 .provider-config-controls input,
 .provider-config-controls select,
+ .info-block input,
+ .info-block select,
 textarea {
   width: 100%;
   border: 1px solid var(--border-strong);
@@ -389,6 +391,7 @@ pre {
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
+  max-height: 28rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: #e7f0f4;

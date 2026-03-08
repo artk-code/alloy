@@ -13,6 +13,7 @@ import { doctorProviders, getProviderLoginCommand } from '../src/providers.mjs';
 import { buildDefaultRunConfig, normalizeRunConfig } from '../src/run-config.mjs';
 import { runPreparedCandidates } from '../src/runner.mjs';
 import { SessionManager } from '../src/session-manager.mjs';
+import { synthesizeRun } from '../src/synthesis.mjs';
 import { runAcceptanceChecks } from '../src/verify.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -37,11 +38,20 @@ test('parseTaskBriefFile normalizes the primary tic-tac-toe demo task', async ()
   assert.equal(parsed.warnings.length, 0);
 });
 
+test('buildDefaultRunConfig includes the conservative merge mode default', async () => {
+  const parsed = await parseTaskBriefFile(ticTacToeTaskPath);
+  const runConfig = buildDefaultRunConfig(parsed.task);
+
+  assert.equal(runConfig.merge_mode, 'hybrid');
+  assert.equal(runConfig.providers.length, 3);
+});
+
 test('buildPromptPackets expands run config into deterministic candidate slots', async () => {
   const parsed = await parseTaskBriefFile(ticTacToeTaskPath);
   const runConfig = normalizeRunConfig(parsed.task, {
     mode: 'race',
     judge: 'claude-code',
+    merge_mode: 'manual',
     providers: [
       { provider: 'codex', enabled: true, agents: 2, profile_id: 'default', transport: 'pipe' },
       { provider: 'gemini', enabled: false, agents: 0, profile_id: 'default', transport: 'pipe' },
@@ -135,6 +145,7 @@ test('runPreparedCandidates replays a real fixture change and validates it with 
   const runConfig = normalizeRunConfig(parsed.task, {
     mode: 'race',
     judge: 'claude-code',
+    merge_mode: 'manual',
     providers: [
       { provider: 'codex', enabled: true, agents: 1, profile_id: 'default', transport: 'pipe' },
       { provider: 'gemini', enabled: false, agents: 0, profile_id: 'default', transport: 'pipe' },
@@ -214,12 +225,110 @@ test('runPreparedCandidates replays a real fixture change and validates it with 
   assert.ok(scorecard.scorecard.total >= 90);
   assert.equal(result.summary.evaluation.decision.mode, 'winner');
   assert.equal(result.summary.evaluation.decision.winner_candidate_id, manifest.candidate_id);
+  assert.equal(result.summary.synthesis, null);
   assert.match(evalStdout, /Perfect-play eval passed on/);
   assert.match(runEvents, /session.started/);
   assert.match(runEvents, /candidate.stream/);
   assert.match(runEvents, /verification.completed/);
   assert.match(runEvents, /jj\.capture\.completed/);
   assert.match(runEvents, /evaluation\.completed/);
+
+  await fs.rm(prepared.runDir, { recursive: true, force: true });
+});
+
+test('synthesizeRun creates verified winner-only and file-select workspaces from captured candidate diffs', async () => {
+  const parsed = await parseTaskBriefFile(ticTacToeTaskPath);
+  const runConfig = normalizeRunConfig(parsed.task, {
+    mode: 'race',
+    judge: 'claude-code',
+    merge_mode: 'manual',
+    providers: [
+      { provider: 'codex', enabled: true, agents: 1, profile_id: 'default', transport: 'pipe' },
+      { provider: 'gemini', enabled: false, agents: 0, profile_id: 'default', transport: 'pipe' },
+      { provider: 'claude-code', enabled: false, agents: 0, profile_id: 'default', transport: 'pipe' }
+    ]
+  });
+  const task = { ...parsed.task, run_config: runConfig };
+  const packets = buildPromptPackets(task, { runConfig });
+  const prepared = await materializeRunArtifacts({ projectRoot, parsed: { ...parsed, task }, packets, runConfig });
+  const sessionManager = new SessionManager({
+    projectRoot,
+    stateDir: path.join(prepared.runDir, 'session-state')
+  });
+
+  const testSpecs = {
+    codex: {
+      provider: 'codex',
+      displayName: 'Codex',
+      binary: process.execPath,
+      versionArgs: ['--version'],
+      eventFormat: 'jsonl',
+      docs: 'https://example.test/test-provider',
+      runtime: {
+        loginTransport: 'pty',
+        runTransport: 'pipe',
+        supportedRunTransports: ['pipe', 'pty'],
+        supportsJsonStream: true,
+        supportsNonInteractive: true,
+        authObservable: false,
+        profiles: [{ id: 'default', label: 'Default' }]
+      },
+      buildArgs({ prompt }) {
+        return [
+          replayFileScript,
+          'codex',
+          ticTacToePerfectStrategyPath,
+          'src/strategy.js',
+          `codex replay complete (${prompt.length} chars of prompt input)`
+        ];
+      }
+    }
+  };
+
+  await runPreparedCandidates({
+    runDir: prepared.runDir,
+    task,
+    packets,
+    manifests: prepared.manifests,
+    specs: testSpecs,
+    sessionManager
+  });
+
+  const winnerManifest = JSON.parse(await fs.readFile(path.join(prepared.runDir, 'candidates', 'a-codex-1', 'manifest.json'), 'utf8'));
+
+  const winnerOnly = await synthesizeRun({
+    runDir: prepared.runDir,
+    task,
+    strategy: 'winner_only',
+    winnerCandidateId: winnerManifest.candidate_id,
+    selectedBy: 'test-suite'
+  });
+  const fileSelect = await synthesizeRun({
+    runDir: prepared.runDir,
+    task,
+    strategy: 'file_select',
+    fileSelections: {
+      'src/strategy.js': winnerManifest.candidate_id
+    },
+    selectedBy: 'test-suite'
+  });
+
+  const updatedSummary = JSON.parse(await fs.readFile(path.join(prepared.runDir, 'run-summary.json'), 'utf8'));
+  const winnerPatch = await fs.readFile(winnerOnly.artifact_paths.patch_path, 'utf8');
+  const fileSelectPatch = await fs.readFile(fileSelect.artifact_paths.patch_path, 'utf8');
+
+  assert.equal(winnerOnly.status, 'completed');
+  assert.equal(winnerOnly.verification.status, 'pass');
+  assert.equal(winnerOnly.selected_files[0].path, 'src/strategy.js');
+  assert.match(winnerPatch, /diff --git a\/src\/strategy\.js b\/src\/strategy\.js/);
+
+  assert.equal(fileSelect.status, 'completed');
+  assert.equal(fileSelect.verification.status, 'pass');
+  assert.equal(fileSelect.selected_files[0].candidate_id, winnerManifest.candidate_id);
+  assert.match(fileSelectPatch, /diff --git a\/src\/strategy\.js b\/src\/strategy\.js/);
+
+  assert.equal(updatedSummary.synthesis.strategy, 'file_select');
+  assert.equal(updatedSummary.synthesis.status, 'completed');
 
   await fs.rm(prepared.runDir, { recursive: true, force: true });
 });

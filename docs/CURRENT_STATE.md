@@ -12,6 +12,8 @@ Purpose: Capture the honest current Alloy proof boundary so future work starts f
   - session monitor
   - parsed task brief view
   - evaluation summary and candidate cards
+  - per-candidate diff viewer
+  - merge builder for winner-only and manual file selection
 - The default demo task is the tic-tac-toe perfect-play repair card at `samples/tasks/tic-tac-toe-perfect-play.task.md`.
 - The seeded tic-tac-toe demo repo is intentionally broken and fails real acceptance checks before any fix.
 - Candidate runs use real workspaces, persistent session records, and real verifier commands.
@@ -21,6 +23,9 @@ Purpose: Capture the honest current Alloy proof boundary so future work starts f
   - ranking
   - pairwise comparisons
   - winner vs synthesize recommendation
+- Alloy can create a fresh synthesis workspace from:
+  - the winning candidate
+  - human-selected files from candidate diffs
 - Root automated tests pass.
 
 ## What Is Real Versus Simulated
@@ -30,15 +35,18 @@ Real today:
 - session records and event logs
 - provider readiness probing where the CLI exposes a safe status command
 - `jj` workspace bootstrap and patch capture
+- `jj` diff/file APIs for the UI
 - verifier command execution
 - deterministic scoring
+- conservative synthesis workspace creation and re-verification
 - local API and browser UI
 
 Still limited:
 - automated tests do not certify live Codex, Gemini, or Claude Code authoring end to end
 - the automated integration path currently replays a stored working tic-tac-toe fix artifact into a real candidate workspace
 - Gemini auth is intentionally treated as manual operator verification in the current build
-- final synthesis and final PR publication are not implemented yet
+- blind judge/composer logic is not implemented yet
+- final `jj` stack shaping and PR publication are not implemented yet
 
 ## Demo Proof Boundary
 
@@ -48,8 +56,9 @@ Current demo proof:
 3. Alloy can apply a stored replay artifact to a candidate workspace in tests.
 4. Alloy runs the real acceptance commands.
 5. Alloy captures the resulting `jj` patch and scores the candidate.
+6. Alloy can materialize a new synthesis workspace from those captured candidate diffs and rerun the real verifier.
 
-That is enough to prove the orchestration, verification, and artifact path. It is not yet enough to claim full live multi-provider synthesis.
+That is enough to prove the orchestration, verification, artifact, and conservative merge path. It is not yet enough to claim full live multi-provider synthesis with autonomous composition.
 
 ## UI State
 
@@ -63,11 +72,16 @@ That is enough to prove the orchestration, verification, and artifact path. It i
 
 ## Highest-Value Next Steps
 
-1. Expose real candidate diffs and changed files in the UI.
-2. Add merge-mode controls: `auto`, `hybrid`, `manual`.
-3. Implement winner-only synthesis workspace creation.
-4. Implement human file-selection synthesis.
-5. Only after that, add blind judge/composer and final `jj` stack shaping.
+1. Add richer compare controls on top of the new diff viewer:
+   - per-file provenance
+   - patch stats
+   - synthesis result diff inspection
+2. Add a blind judge/composer layer on top of deterministic evaluation.
+3. Add `jj` stack shaping for the synthesized result:
+   - split
+   - squash
+   - rebase
+4. Add final publication flow from the synthesized stack.
 
 ## Validation Commands
 

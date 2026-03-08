@@ -7,6 +7,10 @@ const state = {
   parsedPreview: null,
   previewValidation: null,
   liveSessions: [],
+  diffCandidateId: null,
+  diffFilePath: null,
+  diffPayload: null,
+  mergeSelections: {},
   runPollTimer: null,
   runInFlight: false
 };
@@ -14,6 +18,7 @@ const state = {
 const board = document.querySelector('#task-board');
 const providers = document.querySelector('#providers');
 const runConfigRoot = document.querySelector('#run-config');
+const runPolicyRoot = document.querySelector('#run-policy');
 const runConfigSummary = document.querySelector('#run-config-summary');
 const sessionList = document.querySelector('#session-list');
 const boardSummary = document.querySelector('#board-summary');
@@ -23,6 +28,8 @@ const taskMarkdown = document.querySelector('#task-markdown');
 const taskBrief = document.querySelector('#task-brief');
 const evaluationCall = document.querySelector('#evaluation-call');
 const comparisonView = document.querySelector('#comparison-view');
+const diffView = document.querySelector('#diff-view');
+const mergeView = document.querySelector('#merge-view');
 const taskJson = document.querySelector('#task-json');
 const runSummary = document.querySelector('#run-summary');
 const candidateCards = document.querySelector('#candidate-cards');
@@ -102,7 +109,7 @@ async function selectTask(taskId) {
   state.selectedTaskId = taskId;
   const response = await fetch(`/api/tasks/${encodeURIComponent(taskId)}`);
   state.taskDetail = await response.json();
-  state.runConfig = deepClone(state.taskDetail.run_config || { providers: [] });
+  state.runConfig = ensureRunConfigDefaults(deepClone(state.taskDetail.run_config || { providers: [] }));
   state.parsedPreview = state.taskDetail.task;
   state.previewValidation = {
     ok: true,
@@ -110,7 +117,12 @@ async function selectTask(taskId) {
     warnings: state.taskDetail.warnings || []
   };
   state.liveSessions = state.taskDetail.current_sessions || [];
+  state.mergeSelections = buildInitialMergeSelections(state.taskDetail.merge_view, state.mergeSelections);
+  state.diffCandidateId = pickDefaultDiffCandidateId(state.taskDetail, state.diffCandidateId);
+  state.diffPayload = null;
+  state.diffFilePath = null;
   taskMarkdown.value = state.taskDetail.markdown;
+  await loadSelectedCandidateDiff();
   renderDetail();
   renderRunConfig();
   renderSessions();
@@ -126,6 +138,62 @@ async function parseMarkdownPreview(markdown) {
   state.parsedPreview = payload.source_task || null;
   state.previewValidation = payload.validation || null;
   renderDetail();
+}
+
+async function loadSelectedCandidateDiff() {
+  if (!state.selectedTaskId || !state.diffCandidateId) {
+    state.diffPayload = null;
+    state.diffFilePath = null;
+    return;
+  }
+
+  const response = await fetch(
+    `/api/tasks/${encodeURIComponent(state.selectedTaskId)}/candidates/${encodeURIComponent(state.diffCandidateId)}/diff`
+  );
+  if (!response.ok) {
+    state.diffPayload = null;
+    state.diffFilePath = null;
+    return;
+  }
+
+  state.diffPayload = await response.json();
+  state.diffFilePath = state.diffPayload.files?.[0]?.path || null;
+}
+
+async function createSynthesis(payload) {
+  if (!state.selectedTaskId) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/tasks/${encodeURIComponent(state.selectedTaskId)}/synthesize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...payload,
+        selected_by: 'human-ui'
+      })
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || 'synthesis_failed');
+    }
+    showToast({
+      title: 'Synthesis created',
+      lines: [
+        `${result.synthesis.strategy} • ${result.synthesis.status}`,
+        result.synthesis.workspace_path,
+        result.synthesis.verification?.status ? `verification ${result.synthesis.verification.status}` : null
+      ].filter(Boolean)
+    });
+    await Promise.all([loadTasks(), loadProviders(), selectTask(state.selectedTaskId)]);
+  } catch (error) {
+    showToast({
+      title: 'Synthesis failed',
+      lines: [error.message || String(error)],
+      tone: 'danger'
+    });
+  }
 }
 
 async function runSelectedTask(action, { dryRun }) {
@@ -269,6 +337,7 @@ function renderProviders() {
 
 function renderRunConfig() {
   runConfigRoot.innerHTML = '';
+  runPolicyRoot.innerHTML = '';
   if (!state.taskDetail || !state.runConfig) {
     runConfigSummary.textContent = 'Select a task to configure providers.';
     setRunButtonsDisabled(true, true, true);
@@ -281,7 +350,8 @@ function renderRunConfig() {
   const enabledAgents = enabledProviders.reduce((sum, provider) => sum + Number(provider.agents || 0), 0);
   const liveRunnableProviders = enabledProviders.filter((config) => isLiveRunnable(providerMeta.get(config.provider)));
   const invalidProviders = enabledProviders.filter((config) => isLiveBlocked(providerMeta.get(config.provider)));
-  runConfigSummary.textContent = `${enabledProviders.length} providers enabled • ${enabledAgents} candidate sessions • ${liveRunnableProviders.length} runnable live • ${invalidProviders.length} need login or install • judge ${humanizeProvider(state.runConfig.judge)}`;
+  runConfigSummary.textContent = `${enabledProviders.length} providers enabled • ${enabledAgents} candidate sessions • ${liveRunnableProviders.length} runnable live • ${invalidProviders.length} need login or install • judge ${humanizeProvider(state.runConfig.judge)} • merge ${state.runConfig.merge_mode}`;
+  renderRunPolicy();
 
   for (const config of configs) {
     const provider = providerMeta.get(config.provider) || {};
@@ -344,6 +414,64 @@ function renderRunConfig() {
   setRunButtonsDisabled(disablePreview, disablePreview, disableLive);
 }
 
+function renderRunPolicy() {
+  const block = document.createElement('article');
+  block.className = 'provider-config-row';
+
+  const header = document.createElement('div');
+  header.className = 'provider-config-top';
+  const title = document.createElement('strong');
+  title.textContent = 'Evaluation + Merge';
+  const hint = document.createElement('span');
+  hint.className = 'provider-state state-warn';
+  hint.textContent = `Judge ${humanizeProvider(state.runConfig.judge)}`;
+  header.append(title, hint);
+
+  const meta = document.createElement('p');
+  meta.className = 'provider-config-meta';
+  meta.textContent = 'Choose whether Alloy should stop at scoring, propose a merge, or auto-finalize a clear deterministic winner.';
+
+  const controls = document.createElement('div');
+  controls.className = 'provider-config-controls';
+
+  const mergeLabel = document.createElement('label');
+  mergeLabel.textContent = 'Merge Mode';
+  const mergeSelect = document.createElement('select');
+  for (const mode of ['auto', 'hybrid', 'manual']) {
+    const option = document.createElement('option');
+    option.value = mode;
+    option.textContent = mode;
+    mergeSelect.appendChild(option);
+  }
+  mergeSelect.value = state.runConfig.merge_mode || 'hybrid';
+  mergeSelect.addEventListener('change', () => {
+    state.runConfig.merge_mode = mergeSelect.value;
+    renderRunConfig();
+    renderDetail();
+  });
+  mergeLabel.appendChild(mergeSelect);
+
+  const judgeLabel = document.createElement('label');
+  judgeLabel.textContent = 'Judge';
+  const judgeInput = document.createElement('input');
+  judgeInput.type = 'text';
+  judgeInput.value = humanizeProvider(state.runConfig.judge);
+  judgeInput.disabled = true;
+  judgeLabel.appendChild(judgeInput);
+
+  const modeLabel = document.createElement('label');
+  modeLabel.textContent = 'Task Mode';
+  const modeInput = document.createElement('input');
+  modeInput.type = 'text';
+  modeInput.value = state.runConfig.mode || state.taskDetail.task.mode || 'race';
+  modeInput.disabled = true;
+  modeLabel.appendChild(modeInput);
+
+  controls.append(mergeLabel, judgeLabel, modeLabel);
+  block.append(header, meta, controls);
+  runPolicyRoot.appendChild(block);
+}
+
 function renderDetail() {
   if (!state.taskDetail) {
     return;
@@ -360,12 +488,16 @@ function renderDetail() {
   renderTaskBrief(task);
   renderEvaluationCall(state.taskDetail.latest_run_overview, state.taskDetail.evaluation);
   renderComparisonView(state.taskDetail.comparison_view);
+  renderDiffView();
+  renderMergeView();
 
   taskJson.textContent = JSON.stringify({
     task,
     validation: state.previewValidation || {},
     run_config: state.runConfig || state.taskDetail.run_config,
-    sessions: state.liveSessions
+    sessions: state.liveSessions,
+    merge_view: state.taskDetail.merge_view,
+    diff_candidate_id: state.diffCandidateId
   }, null, 2);
   runSummary.textContent = JSON.stringify(state.taskDetail.latest_run || { message: 'No run yet.' }, null, 2);
 
@@ -402,6 +534,16 @@ function renderDetail() {
     node.querySelector('.candidate-verification').textContent = candidate.verification
       ? candidate.verification.checks.map((check) => `${check.status.toUpperCase()}: ${check.command}`).join(' | ')
       : 'Verification not run yet.';
+
+    const inspectButton = document.createElement('button');
+    inspectButton.className = 'ghost-button';
+    inspectButton.textContent = 'View Diff';
+    inspectButton.addEventListener('click', async () => {
+      state.diffCandidateId = candidate.candidate_id;
+      await loadSelectedCandidateDiff();
+      renderDetail();
+    });
+    node.appendChild(inspectButton);
     candidateCards.appendChild(node);
   }
 
@@ -545,10 +687,195 @@ function renderComparisonView(comparison) {
     summary.className = 'comparison-summary';
     summary.textContent = row.summary;
 
-    article.append(header, meta, files, summary);
+    const actions = document.createElement('div');
+    actions.className = 'task-chip-row';
+    const diffButton = document.createElement('button');
+    diffButton.className = 'ghost-button';
+    diffButton.textContent = 'View Diff';
+    diffButton.addEventListener('click', async () => {
+      state.diffCandidateId = row.candidate_id;
+      await loadSelectedCandidateDiff();
+      renderDetail();
+    });
+    actions.appendChild(diffButton);
+
+    article.append(header, meta, files, summary, actions);
     list.appendChild(article);
   }
   comparisonView.appendChild(list);
+}
+
+function renderDiffView() {
+  diffView.innerHTML = '';
+  const rows = state.taskDetail?.comparison_view?.rows || [];
+
+  if (rows.length === 0) {
+    appendInfoBlock(diffView, 'Diff State', 'No candidate patch is available yet.');
+    return;
+  }
+
+  const controls = document.createElement('div');
+  controls.className = 'info-block';
+  const title = document.createElement('h4');
+  title.textContent = 'Candidate Patch';
+  const selector = document.createElement('select');
+  for (const row of rows) {
+    const option = document.createElement('option');
+    option.value = row.candidate_id;
+    option.textContent = `${row.label} • ${row.changed_file_count} files`;
+    selector.appendChild(option);
+  }
+  selector.value = state.diffCandidateId || rows[0].candidate_id;
+  selector.addEventListener('change', async () => {
+    state.diffCandidateId = selector.value;
+    await loadSelectedCandidateDiff();
+    renderDetail();
+  });
+  controls.append(title, selector);
+  diffView.appendChild(controls);
+
+  if (!state.diffPayload) {
+    appendInfoBlock(diffView, 'Patch', 'Select a candidate to load its captured `jj` diff.');
+    return;
+  }
+
+  appendInfoBlock(
+    diffView,
+    'Patch Summary',
+    [
+      state.diffPayload.diff_summary || 'No diff summary captured.',
+      state.diffPayload.jj?.candidate_revision?.change_id ? `jj ${shortId(state.diffPayload.jj.candidate_revision.change_id)}` : null
+    ].filter(Boolean).join(' • ')
+  );
+
+  const fileBlock = document.createElement('div');
+  fileBlock.className = 'info-block';
+  const fileTitle = document.createElement('h4');
+  fileTitle.textContent = 'Files';
+  fileBlock.appendChild(fileTitle);
+  const fileButtons = document.createElement('div');
+  fileButtons.className = 'task-chip-row';
+  for (const file of state.diffPayload.files || []) {
+    const button = document.createElement('button');
+    button.className = state.diffFilePath === file.path ? '' : 'ghost-button';
+    button.textContent = file.path;
+    button.addEventListener('click', () => {
+      state.diffFilePath = file.path;
+      renderDiffView();
+    });
+    fileButtons.appendChild(button);
+  }
+  fileBlock.appendChild(fileButtons);
+  diffView.appendChild(fileBlock);
+
+  const selectedFile = (state.diffPayload.files || []).find((file) => file.path === state.diffFilePath)
+    || state.diffPayload.files?.[0]
+    || null;
+
+  const patchBlock = document.createElement('div');
+  patchBlock.className = 'info-block';
+  const patchTitle = document.createElement('h4');
+  patchTitle.textContent = selectedFile ? `Patch • ${selectedFile.path}` : 'Patch';
+  const patchPre = document.createElement('pre');
+  patchPre.textContent = selectedFile?.patch || state.diffPayload.patch || 'No patch text captured.';
+  patchBlock.append(patchTitle, patchPre);
+  diffView.appendChild(patchBlock);
+}
+
+function renderMergeView() {
+  mergeView.innerHTML = '';
+  const merge = state.taskDetail?.merge_view;
+
+  if (!merge) {
+    appendInfoBlock(mergeView, 'Merge State', 'No merge view is available yet.');
+    return;
+  }
+
+  appendInfoBlock(
+    mergeView,
+    'Merge Policy',
+    `Current mode: ${state.runConfig?.merge_mode || merge.merge_mode}. Auto finalization only applies to a clear deterministic winner. Hybrid/manual keep the human at the merge boundary.`
+  );
+
+  if (merge.synthesis) {
+    appendInfoBlock(
+      mergeView,
+      'Latest Synthesis',
+      [
+        `${merge.synthesis.strategy} • ${merge.synthesis.status}`,
+        merge.synthesis.jj_change_id ? `jj ${shortId(merge.synthesis.jj_change_id)}` : null,
+        merge.synthesis.verification?.status ? `verification ${merge.synthesis.verification.status}` : null
+      ].filter(Boolean).join(' • ')
+    );
+  }
+
+  if (merge.winner_candidate_id) {
+    const winnerButtonBlock = document.createElement('div');
+    winnerButtonBlock.className = 'info-block';
+    const title = document.createElement('h4');
+    title.textContent = 'Winner Finalization';
+    const button = document.createElement('button');
+    button.textContent = 'Finalize Winner';
+    button.addEventListener('click', async () => {
+      await createSynthesis({
+        strategy: 'winner_only',
+        winner_candidate_id: merge.winner_candidate_id
+      });
+    });
+    winnerButtonBlock.append(title, button);
+    mergeView.appendChild(winnerButtonBlock);
+  }
+
+  if (!merge.files?.length) {
+    appendInfoBlock(mergeView, 'Manual File Merge', 'No changed files are available for manual synthesis.');
+    return;
+  }
+
+  const block = document.createElement('div');
+  block.className = 'info-block';
+  const title = document.createElement('h4');
+  title.textContent = 'Manual File Merge';
+  block.appendChild(title);
+
+  const helper = document.createElement('p');
+  helper.textContent = 'Pick which candidate should contribute each changed file, then build a synthesis workspace and rerun verification.';
+  block.appendChild(helper);
+
+  for (const file of merge.files) {
+    const row = document.createElement('label');
+    row.className = 'field-label';
+    row.textContent = file.path;
+    const select = document.createElement('select');
+    const emptyOption = document.createElement('option');
+    emptyOption.value = '';
+    emptyOption.textContent = 'skip';
+    select.appendChild(emptyOption);
+    for (const owner of file.owners) {
+      const option = document.createElement('option');
+      option.value = owner.candidate_id;
+      option.textContent = owner.label;
+      select.appendChild(option);
+    }
+    select.value = state.mergeSelections[file.path] || '';
+    select.addEventListener('change', () => {
+      state.mergeSelections[file.path] = select.value || null;
+    });
+    row.appendChild(select);
+    block.appendChild(row);
+  }
+
+  const buildButton = document.createElement('button');
+  buildButton.textContent = 'Build File Merge';
+  buildButton.addEventListener('click', async () => {
+    await createSynthesis({
+      strategy: 'file_select',
+      file_selections: Object.fromEntries(
+        Object.entries(state.mergeSelections || {}).filter(([, value]) => value)
+      )
+    });
+  });
+  block.appendChild(buildButton);
+  mergeView.appendChild(block);
 }
 
 function renderSessions() {
@@ -789,13 +1116,51 @@ function formatStatusBadge(value, { provider = null } = {}) {
   if (provider === 'gemini' || normalized.includes('manual') || normalized.includes('unknown')) {
     return `? ${label}`;
   }
-  if (normalized.includes('ready') || normalized.includes('pass') || normalized.includes('valid') || normalized.includes('published') || normalized.includes('completed') || normalized.includes('verified')) {
-    return `✓ ${label}`;
-  }
   if (normalized.includes('fail') || normalized.includes('invalid') || normalized.includes('not installed') || normalized.includes('not_installed')) {
     return `✕ ${label}`;
   }
+  if (normalized.includes('ready') || normalized.includes('pass') || normalized.includes('valid') || normalized.includes('published') || normalized.includes('completed') || normalized.includes('verified')) {
+    return `✓ ${label}`;
+  }
   return `• ${label}`;
+}
+
+function ensureRunConfigDefaults(runConfig) {
+  return {
+    ...runConfig,
+    merge_mode: runConfig?.merge_mode || 'hybrid',
+    providers: Array.isArray(runConfig?.providers) ? runConfig.providers : []
+  };
+}
+
+function pickDefaultDiffCandidateId(detail, currentCandidateId) {
+  const candidateIds = new Set((detail?.candidates || []).map((candidate) => candidate.candidate_id));
+  if (currentCandidateId && candidateIds.has(currentCandidateId)) {
+    return currentCandidateId;
+  }
+  return detail?.merge_view?.winner_candidate_id
+    || detail?.comparison_view?.rows?.[0]?.candidate_id
+    || detail?.candidates?.[0]?.candidate_id
+    || null;
+}
+
+function buildInitialMergeSelections(mergeViewData, existingSelections = {}) {
+  const next = {};
+  const winnerCandidateId = mergeViewData?.winner_candidate_id || null;
+  for (const file of mergeViewData?.files || []) {
+    const previous = existingSelections[file.path];
+    const validOwnerIds = new Set(file.owners.map((owner) => owner.candidate_id));
+    if (previous && validOwnerIds.has(previous)) {
+      next[file.path] = previous;
+      continue;
+    }
+    if (winnerCandidateId && validOwnerIds.has(winnerCandidateId)) {
+      next[file.path] = winnerCandidateId;
+      continue;
+    }
+    next[file.path] = file.owners[0]?.candidate_id || null;
+  }
+  return next;
 }
 
 function deepClone(value) {
@@ -804,14 +1169,14 @@ function deepClone(value) {
 
 function stateClass(value) {
   const normalized = String(value).toLowerCase();
+  if (normalized.includes('fail') || normalized.includes('invalid') || normalized.includes('not_installed')) {
+    return 'state-danger';
+  }
   if (normalized.includes('ready') || normalized.includes('pass') || normalized.includes('valid') || normalized.includes('published') || normalized.includes('completed')) {
     return 'state-success';
   }
   if (normalized.includes('unknown') || normalized.includes('manual') || normalized.includes('prepared') || normalized.includes('running') || normalized.includes('judging') || normalized.includes('external') || normalized.includes('synthesis') || normalized.includes('pending')) {
     return 'state-warn';
-  }
-  if (normalized.includes('fail') || normalized.includes('invalid') || normalized.includes('not_installed')) {
-    return 'state-danger';
   }
   return 'state-idle';
 }

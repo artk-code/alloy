@@ -9,7 +9,8 @@ import { prepareTaskFromFile, prepareTaskFromMarkdown, runTaskFromPrepared } fro
 import { parseTaskBrief } from '../parser.mjs';
 import { buildProviderEnv, doctorProviders, getProviderLoginCommand, getProviderTestCommand } from '../providers.mjs';
 import { SessionManager } from '../session-manager.mjs';
-import { getTaskDetail, listTaskCards } from './data.mjs';
+import { synthesizeRun } from '../synthesis.mjs';
+import { getCandidateDiff, getCandidateJj, getTaskDetail, listTaskCards } from './data.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -52,7 +53,34 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && url.pathname.startsWith('/api/tasks/')) {
-      const taskId = decodeURIComponent(url.pathname.split('/')[3] || '');
+      const segments = url.pathname.split('/').filter(Boolean);
+      const taskId = decodeURIComponent(segments[2] || '');
+
+      if (segments[3] === 'candidates' && segments[4] && segments[5] === 'diff') {
+        const payload = await getCandidateDiff(projectRoot, taskId, decodeURIComponent(segments[4]));
+        return payload
+          ? sendJson(res, 200, payload)
+          : sendJson(res, 404, { error: 'candidate_not_found' });
+      }
+
+      if (segments[3] === 'candidates' && segments[4] && segments[5] === 'files') {
+        const payload = await getCandidateDiff(projectRoot, taskId, decodeURIComponent(segments[4]));
+        return payload
+          ? sendJson(res, 200, {
+              task_id: payload.task_id,
+              candidate_id: payload.candidate_id,
+              files: payload.files
+            })
+          : sendJson(res, 404, { error: 'candidate_not_found' });
+      }
+
+      if (segments[3] === 'candidates' && segments[4] && segments[5] === 'jj') {
+        const payload = await getCandidateJj(projectRoot, taskId, decodeURIComponent(segments[4]));
+        return payload
+          ? sendJson(res, 200, payload)
+          : sendJson(res, 404, { error: 'candidate_not_found' });
+      }
+
       const detail = await getTaskDetail(projectRoot, taskId);
       if (!detail) {
         return sendJson(res, 404, { error: 'task_not_found' });
@@ -75,6 +103,11 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname.startsWith('/api/run/')) {
       const taskId = decodeURIComponent(url.pathname.split('/')[3] || '');
       return sendJson(res, 200, await runTask(taskId, await readJsonBody(req), url.searchParams));
+    }
+
+    if (req.method === 'POST' && url.pathname.startsWith('/api/tasks/') && url.pathname.endsWith('/synthesize')) {
+      const taskId = decodeURIComponent(url.pathname.split('/')[3] || '');
+      return sendJson(res, 200, await synthesizeTask(taskId, await readJsonBody(req)));
     }
 
     if (req.method === 'POST' && url.pathname === '/api/parse-markdown') {
@@ -192,6 +225,30 @@ async function openLogin(provider) {
     launcher,
     session,
     error: launchResult.error || null
+  };
+}
+
+async function synthesizeTask(taskId, body) {
+  const detail = await getTaskDetail(projectRoot, taskId);
+  if (!detail || !detail.run_dir) {
+    throw new Error(`No completed run is available for synthesis on task ${taskId}`);
+  }
+
+  const manifest = await synthesizeRun({
+    runDir: detail.run_dir,
+    task: {
+      ...detail.task,
+      run_config: detail.run_config
+    },
+    strategy: body?.strategy || 'winner_only',
+    winnerCandidateId: body?.winner_candidate_id || null,
+    fileSelections: body?.file_selections || {},
+    selectedBy: body?.selected_by || 'human'
+  });
+
+  return {
+    task_id: taskId,
+    synthesis: manifest
   };
 }
 

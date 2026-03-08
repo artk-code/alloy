@@ -6,12 +6,13 @@ Purpose: Describe how Alloy currently bootstraps candidate workspaces with `jj`,
 
 ## 1. Current Scope
 
-This document describes the first working implementation of:
+This document describes the current working implementation of:
 - `JjAdapter`
 - candidate patch capture
 - deterministic `EvaluationEngine`
+- conservative synthesis workspaces
 
-This is not the final synthesis system. It is the artifact and scoring layer that must exist before higher-order judge/composer behavior becomes trustworthy.
+This is still not the final judge/composer system. It is now the artifact, scoring, and conservative merge layer that must exist before higher-order model-driven synthesis becomes trustworthy.
 
 ## 2. Current Working Model
 
@@ -173,28 +174,59 @@ New run events now include:
 - `jj.capture.completed`
 - `jj.capture.failed`
 - `evaluation.completed`
+- `synthesis.completed`
+- `synthesis.failed`
 
-## 8. What This Enables Next
+If `run_config.merge_mode` is `auto` and deterministic evaluation returns a clear `winner`, Alloy now creates a winner-only synthesis workspace automatically.
+
+## 8. Current Conservative Synthesis
+
+Current module:
+- `src/synthesis.mjs`
+
+Supported synthesis strategies:
+- `winner_only`
+- `file_select`
+
+Current flow:
+1. seed a fresh synthesis workspace from the task repo baseline
+2. bootstrap `jj` so the seeded baseline becomes `@-`
+3. copy either:
+   - all changed files from the winning candidate, or
+   - only the file selections provided by the operator
+4. rerun the real acceptance checks
+5. capture the synthesized `jj` diff and manifest
+6. store synthesis metadata back into `run-summary.json`
+
+Current output:
+- `runs/<run>/synthesis/<synthesis-id>/manifest.json`
+- synthesis `candidate.patch`
+- synthesis `diff-summary.txt`
+- synthesis verification logs
+
+This is intentionally conservative. It does not do hunk-level splicing or cross-candidate `jj` history surgery yet.
+
+## 9. What This Enables Next
 
 This slice is enough to support the next stages cleanly:
-- real winner selection in the GUI
+- real winner selection and file-select merge control in the GUI
 - blind evaluator/judge overlays on top of deterministic ranking
 - synthesis planning against real patches
 - `jj`-backed final stack assembly
 
-## 9. Current Limitations
+## 10. Current Limitations
 
 Current limitations are intentional:
 - no AST-aware merge planning yet
 - no LLM judge yet
-- no final synthesis workspace yet
+- no autonomous multi-candidate composer yet
 - no `jj` cross-candidate import/rebase flow yet
 - no PR shaping/publishing through `jj` yet
 
-## 10. Recommended Next Implementation Order
+## 11. Recommended Next Implementation Order
 
-1. use deterministic evaluation results in the GUI compare view
+1. expose synthesized diff artifacts beside candidate diffs in the GUI
 2. add a structured judge output layer on top of deterministic gates
-3. create a synthesis workspace and import finalist candidate patches
+3. teach the composer to produce explicit merge plans before touching files
 4. shape the final result into a clean `jj` stack
 5. publish one PR from that stack

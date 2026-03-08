@@ -26,6 +26,7 @@ export function buildDefaultRunConfig(task, { specs = DEFAULT_PROVIDER_SPECS } =
   return {
     mode: task.mode,
     judge: task.judge,
+    merge_mode: 'hybrid',
     max_parallel_candidates: providers.reduce((count, provider) => count + provider.agents, 0),
     providers
   };
@@ -65,6 +66,7 @@ export function normalizeRunConfig(task, runConfig, { specs = DEFAULT_PROVIDER_S
   return {
     mode: cleanString(runConfig.mode) || fallback.mode,
     judge,
+    merge_mode: resolveMergeMode(runConfig.merge_mode, fallback.merge_mode),
     max_parallel_candidates: Number.isFinite(maxParallelCandidates) && maxParallelCandidates > 0
       ? maxParallelCandidates
       : enabledProviders.reduce((count, provider) => count + provider.agents, 0),
@@ -115,4 +117,12 @@ function cleanString(value) {
     return '';
   }
   return String(value).trim();
+}
+
+function resolveMergeMode(value, fallback) {
+  const normalized = cleanString(value).toLowerCase();
+  if (normalized === 'auto' || normalized === 'hybrid' || normalized === 'manual') {
+    return normalized;
+  }
+  return fallback;
 }
