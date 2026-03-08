@@ -32,7 +32,7 @@ export async function listTaskCards(projectRoot) {
       judge: parsed.task.judge,
       markdown_path: taskFile,
       demo_priority: parsed.task.demo_priority || 0,
-      state: mapRunState(latestRun?.summary?.status || null),
+      state: deriveRunDisplayState(latestRun?.summary || null),
       latest_run: latestRun?.summary || null,
       run_dir: latestRun?.runDir || null,
       acceptance_summary: summarizeAcceptanceChecks(parsed.task.acceptance_checks),
@@ -240,11 +240,11 @@ async function readLatestSynthesisManifest(summary) {
 function mapRunState(status) {
   switch (status) {
     case 'prepared':
-      return 'Ready';
-    case 'dry-run':
       return 'Prepared';
+    case 'dry-run':
+      return 'Previewed';
     case 'completed':
-      return 'PR Ready';
+      return 'Completed';
     case 'completed_with_failures':
       return 'Failed';
     default:
@@ -252,9 +252,62 @@ function mapRunState(status) {
   }
 }
 
+function deriveRunDisplayState(summary) {
+  if (!summary) {
+    return 'Draft';
+  }
+
+  if (summary.synthesis?.status === 'completed') {
+    return 'Synthesized';
+  }
+
+  if (summary.synthesis?.status === 'failed') {
+    return 'Synthesis Failed';
+  }
+
+  if (summary.status === 'prepared') {
+    return 'Prepared';
+  }
+
+  if (summary.status === 'dry-run') {
+    return 'Previewed';
+  }
+
+  if (summary.status === 'completed_with_failures') {
+    return 'Failed';
+  }
+
+  const decisionMode = summary.evaluation?.decision?.mode || null;
+  if (decisionMode === 'winner') {
+    return 'Winner Ready';
+  }
+  if (decisionMode === 'synthesize') {
+    return 'Needs Merge';
+  }
+  if (decisionMode === 'no_winner') {
+    return 'No Winner';
+  }
+
+  if (summary.status === 'completed') {
+    return 'Verified Run';
+  }
+
+  return mapRunState(summary.status || null);
+}
+
 function buildCardSummary(task, summary) {
   if (!summary) {
     return 'No run prepared yet. Open the card, confirm provider login, and stage a candidate run.';
+  }
+
+  if (summary.synthesis?.status === 'completed') {
+    const strategy = summary.synthesis.strategy || 'synthesis';
+    const verification = summary.synthesis.verification?.status === 'pass' ? 'passed verification' : 'needs review';
+    return `Latest ${strategy} workspace ${verification}. Review provenance and diff details before publishing.`;
+  }
+
+  if (summary.synthesis?.status === 'failed') {
+    return 'The latest synthesis attempt failed. Inspect file selections, verification logs, and candidate provenance before retrying.';
   }
 
   if (summary.evaluation?.decision?.card_summary) {
@@ -310,7 +363,7 @@ function formatSourceLabel(task) {
 }
 
 function buildLatestRunOverview(task, summary) {
-  const statusLabel = mapRunState(summary?.status || null);
+  const statusLabel = deriveRunDisplayState(summary || null);
   const providerPlan = formatProviderLabels(task.providers).join(', ');
   const executionSummary = summary
     ? summarizeRunExecution(summary)
@@ -423,6 +476,9 @@ function buildMergeView(summary, candidates, synthesis) {
     candidate.candidate_id,
     `${candidate.candidate_slot} / ${PROVIDER_LABELS[candidate.provider] || candidate.provider}`
   ]));
+  const candidateDetails = new Map(candidates.map((candidate) => [candidate.candidate_id, candidate]));
+  const evaluationByCandidateId = new Map((summary?.evaluation?.candidates || []).map((candidate) => [candidate.candidate_id, candidate]));
+  const synthesizedByPath = new Map((synthesis?.selected_files || []).map((selection) => [selection.path, selection.candidate_id]));
   const byPath = new Map();
 
   for (const candidate of candidates) {
@@ -430,11 +486,17 @@ function buildMergeView(summary, candidates, synthesis) {
       if (!byPath.has(changedFile)) {
         byPath.set(changedFile, []);
       }
+      const evaluation = evaluationByCandidateId.get(candidate.candidate_id);
       byPath.get(changedFile).push({
         candidate_id: candidate.candidate_id,
         label: candidateLabels.get(candidate.candidate_id),
         candidate_slot: candidate.candidate_slot,
-        provider: candidate.provider
+        provider: candidate.provider,
+        provider_label: PROVIDER_LABELS[candidate.provider] || candidate.provider,
+        verification_status: candidate.verification?.status || 'not_run',
+        score: evaluation?.scorecard?.total ?? null,
+        eligible: evaluation?.eligible ?? false,
+        jj_change_id: candidate.jj?.candidate_revision?.change_id || candidate.jj?.working_revision?.change_id || null
       });
     }
   }
@@ -445,7 +507,17 @@ function buildMergeView(summary, candidates, synthesis) {
     files: [...byPath.entries()]
       .map(([filePath, owners]) => ({
         path: filePath,
-        owners
+        owners,
+        contested: owners.length > 1,
+        synthesized_candidate_id: synthesizedByPath.get(filePath) || null,
+        selection_reasons: Object.fromEntries(owners.map((owner) => [owner.candidate_id, buildSelectionReason({
+          filePath,
+          owner,
+          owners,
+          winnerCandidateId: summary?.evaluation?.decision?.winner_candidate_id || null,
+          candidateDetails,
+          synthesizedCandidateId: synthesizedByPath.get(filePath) || null
+        })]))
       }))
       .sort((left, right) => left.path.localeCompare(right.path)),
     synthesis: synthesis
@@ -502,6 +574,26 @@ function materializeContributionMap(contributionMap, rows) {
     const row = candidateId ? byCandidateId.get(candidateId) : null;
     return [key, row ? row.label : null];
   }));
+}
+
+function buildSelectionReason({ owner, owners, winnerCandidateId, synthesizedCandidateId }) {
+  if (synthesizedCandidateId && owner.candidate_id === synthesizedCandidateId) {
+    return 'selected in latest synthesis';
+  }
+
+  if (owners.length === 1) {
+    return 'only candidate touching this file';
+  }
+
+  if (winnerCandidateId && owner.candidate_id === winnerCandidateId) {
+    return 'winner candidate';
+  }
+
+  if (owner.verification_status === 'pass' && owner.eligible) {
+    return 'passing alternate candidate';
+  }
+
+  return 'manual review required';
 }
 
 function splitPatchByFile(patchText, changedFiles) {

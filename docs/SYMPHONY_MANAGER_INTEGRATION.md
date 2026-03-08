@@ -66,7 +66,7 @@ Recommended top-level card states:
 - Judging
 - Awaiting Approval
 - Synthesizing
-- PR Ready
+- Synthesized
 - Published
 - Failed
 

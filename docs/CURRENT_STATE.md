@@ -7,6 +7,7 @@ Purpose: Capture the honest current Alloy proof boundary so future work starts f
 
 - Alloy Control Panel serves a real local web UI for:
   - project-labeled task cards
+  - board project filtering and grouping
   - provider readiness
   - per-provider run configuration
   - session monitor
@@ -14,6 +15,7 @@ Purpose: Capture the honest current Alloy proof boundary so future work starts f
   - evaluation summary and candidate cards
   - per-candidate diff viewer
   - merge builder for winner-only and manual file selection
+  - per-file provenance in the merge builder
 - The default demo task is the tic-tac-toe perfect-play repair card at `samples/tasks/tic-tac-toe-perfect-play.task.md`.
 - There is also a runnable security-lab card at `samples/tasks/security-sql-injection.task.md`.
 - The seeded tic-tac-toe demo repo is intentionally broken and fails real acceptance checks before any fix.
@@ -69,14 +71,24 @@ That is enough to prove the orchestration, verification, artifact, and conservat
   - board and operator view stacked in the center
   - routing and run controls on the right
 - Cards now carry explicit project labels so multiple labs can coexist on the same board.
+- The board can now filter by project and group by project or state.
 - Narrow screens collapse to a single-column flow.
 - The UI uses a light corporate palette at the moment because that is the current operator preference.
 - Gemini always shows manual auth verification rather than a false precision status.
+- Heavy operator sections are collapsible.
+- Card and detail states are now outcome-based:
+  - `Draft`
+  - `Prepared`
+  - `Previewed`
+  - `Winner Ready`
+  - `Needs Merge`
+  - `Synthesized`
+  - `Failed`
+  - `No Winner`
 
 ## Highest-Value Next Steps
 
 1. Add richer compare controls on top of the new diff viewer:
-   - per-file provenance
    - patch stats
    - synthesis result diff inspection
 2. Add a blind judge/composer layer on top of deterministic evaluation.
@@ -85,6 +97,7 @@ That is enough to prove the orchestration, verification, artifact, and conservat
    - squash
    - rebase
 4. Add final publication flow from the synthesized stack.
+5. Add persisted project-level dashboards and saved board preferences.
 
 ## Validation Commands
 

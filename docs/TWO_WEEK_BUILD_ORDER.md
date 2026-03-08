@@ -69,7 +69,7 @@ Acceptance:
 Deliverables:
 - connect card launch action to `prepare` and `run`
 - create run records from a Symphony-style task card
-- map card state to run state: Ready, Running, Judging, Awaiting Approval, PR Ready, Failed
+- map card state to real Alloy outcomes: Draft, Prepared, Previewed, Winner Ready, Needs Merge, Synthesized, Failed, No Winner
 
 Acceptance:
 - clicking Run from the card creates a run directory and candidate manifests

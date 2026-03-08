@@ -7,6 +7,8 @@ const state = {
   parsedPreview: null,
   previewValidation: null,
   liveSessions: [],
+  projectFilter: 'all',
+  boardGrouping: 'project',
   diffCandidateId: null,
   diffFilePath: null,
   diffPayload: null,
@@ -16,6 +18,7 @@ const state = {
 };
 
 const board = document.querySelector('#task-board');
+const boardControls = document.querySelector('#board-controls');
 const providers = document.querySelector('#providers');
 const runConfigRoot = document.querySelector('#run-config');
 const runPolicyRoot = document.querySelector('#run-policy');
@@ -82,6 +85,10 @@ async function loadTasks() {
   const response = await fetch('/api/tasks');
   const payload = await response.json();
   state.tasks = payload.tasks;
+  const projectIds = new Set(state.tasks.map((task) => task.project_id));
+  if (state.projectFilter !== 'all' && !projectIds.has(state.projectFilter)) {
+    state.projectFilter = 'all';
+  }
   renderBoard();
 }
 
@@ -257,26 +264,143 @@ async function runSelectedTask(action, { dryRun }) {
 
 function renderBoard() {
   board.innerHTML = '';
-  boardSummary.textContent = `${state.tasks.length} task card${state.tasks.length === 1 ? '' : 's'} in view`;
+  renderBoardControls();
 
-  for (const task of state.tasks) {
-    const node = taskTemplate.content.firstElementChild.cloneNode(true);
-    node.querySelector('.task-source').textContent = task.source_label || displaySourceSystem(task.source_system);
+  const filteredTasks = getVisibleTasks();
+  const visibleProjects = new Set(filteredTasks.map((task) => task.project_id));
+  boardSummary.textContent = `${filteredTasks.length} task card${filteredTasks.length === 1 ? '' : 's'} • ${visibleProjects.size} project${visibleProjects.size === 1 ? '' : 's'} • grouped by ${state.boardGrouping}`;
 
-    const stateEl = node.querySelector('.task-state');
-    stateEl.textContent = formatStatusBadge(task.state);
-    stateEl.className = `task-state ${stateClass(task.state)}`;
-
-    node.querySelector('h3').textContent = task.title;
-    node.querySelector('.task-meta').textContent = `${task.repo} • judge ${humanizeProvider(task.judge)}`;
-    node.querySelector('.task-project').textContent = task.project_label || task.project_id || 'Project';
-    node.querySelector('.task-summary').textContent = task.card_summary || task.objective;
-    node.querySelector('.task-eval').textContent = summarizeTaskDecision(task);
-    node.querySelector('.task-checks').textContent = task.acceptance_summary || 'No checks';
-    node.querySelector('.task-providers').textContent = `Candidates: ${(task.provider_labels || task.providers || []).join(', ')}`;
-    node.querySelector('.open-card').addEventListener('click', () => selectTask(task.task_id));
-    board.appendChild(node);
+  if (filteredTasks.length === 0) {
+    const empty = document.createElement('article');
+    empty.className = 'info-block';
+    const title = document.createElement('h4');
+    title.textContent = 'No matching tasks';
+    const body = document.createElement('p');
+    body.textContent = 'Change the project filter or create more demo cards to populate the board.';
+    empty.append(title, body);
+    board.appendChild(empty);
+    return;
   }
+
+  const groups = groupTasks(filteredTasks);
+  for (const group of groups) {
+    const section = document.createElement('section');
+    section.className = 'board-group';
+
+    if (state.boardGrouping !== 'none') {
+      const header = document.createElement('div');
+      header.className = 'board-group-header';
+      const title = document.createElement('h3');
+      title.textContent = group.label;
+      const meta = document.createElement('span');
+      meta.className = 'hint';
+      meta.textContent = `${group.tasks.length} card${group.tasks.length === 1 ? '' : 's'}`;
+      header.append(title, meta);
+      section.appendChild(header);
+    }
+
+    const grid = document.createElement('div');
+    grid.className = 'board-grid';
+    for (const task of group.tasks) {
+      grid.appendChild(renderTaskCard(task));
+    }
+    section.appendChild(grid);
+    board.appendChild(section);
+  }
+}
+
+function renderBoardControls() {
+  boardControls.innerHTML = '';
+
+  const projectIds = [...new Map(state.tasks.map((task) => [task.project_id, task.project_label || task.project_id])).entries()]
+    .sort((left, right) => left[1].localeCompare(right[1]));
+
+  const projectLabel = document.createElement('label');
+  projectLabel.className = 'field-label';
+  projectLabel.textContent = 'Project Filter';
+  const projectSelect = document.createElement('select');
+  const allOption = document.createElement('option');
+  allOption.value = 'all';
+  allOption.textContent = 'all projects';
+  projectSelect.appendChild(allOption);
+  for (const [projectId, label] of projectIds) {
+    const option = document.createElement('option');
+    option.value = projectId;
+    option.textContent = label;
+    projectSelect.appendChild(option);
+  }
+  projectSelect.value = state.projectFilter;
+  projectSelect.addEventListener('change', () => {
+    state.projectFilter = projectSelect.value;
+    renderBoard();
+  });
+  projectLabel.appendChild(projectSelect);
+
+  const groupLabel = document.createElement('label');
+  groupLabel.className = 'field-label';
+  groupLabel.textContent = 'Group By';
+  const groupSelect = document.createElement('select');
+  for (const value of ['project', 'state', 'none']) {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = value;
+    groupSelect.appendChild(option);
+  }
+  groupSelect.value = state.boardGrouping;
+  groupSelect.addEventListener('change', () => {
+    state.boardGrouping = groupSelect.value;
+    renderBoard();
+  });
+  groupLabel.appendChild(groupSelect);
+
+  boardControls.append(projectLabel, groupLabel);
+}
+
+function getVisibleTasks() {
+  return state.tasks.filter((task) => state.projectFilter === 'all' || task.project_id === state.projectFilter);
+}
+
+function groupTasks(tasks) {
+  if (state.boardGrouping === 'none') {
+    return [{ label: 'All Tasks', tasks }];
+  }
+
+  const groups = new Map();
+  for (const task of tasks) {
+    const key = state.boardGrouping === 'state'
+      ? task.state
+      : (task.project_label || task.project_id || 'Project');
+    if (!groups.has(key)) {
+      groups.set(key, []);
+    }
+    groups.get(key).push(task);
+  }
+
+  return [...groups.entries()]
+    .map(([label, groupedTasks]) => ({
+      label,
+      tasks: groupedTasks.sort((left, right) => (right.demo_priority || 0) - (left.demo_priority || 0) || left.title.localeCompare(right.title))
+    }))
+    .sort((left, right) => left.label.localeCompare(right.label));
+}
+
+function renderTaskCard(task) {
+  const node = taskTemplate.content.firstElementChild.cloneNode(true);
+  node.querySelector('.task-source').textContent = task.source_label || displaySourceSystem(task.source_system);
+
+  const stateEl = node.querySelector('.task-state');
+  stateEl.textContent = formatStatusBadge(task.state);
+  stateEl.className = `task-state ${stateClass(task.state)}`;
+
+  node.querySelector('h3').textContent = task.title;
+  node.querySelector('.task-meta').textContent = `${task.repo} • judge ${humanizeProvider(task.judge)}`;
+  node.querySelector('.task-project').textContent = task.project_label || task.project_id || 'Project';
+  node.querySelector('.task-summary').textContent = task.card_summary || task.objective;
+  node.querySelector('.task-eval').textContent = summarizeTaskDecision(task);
+  node.querySelector('.task-checks').textContent = task.acceptance_summary || 'No checks';
+  node.querySelector('.task-providers').textContent = `Candidates: ${(task.provider_labels || task.providers || []).join(', ')}`;
+  node.querySelector('.open-card').addEventListener('click', () => selectTask(task.task_id));
+  return node;
 }
 
 function renderProviders() {
@@ -483,8 +607,9 @@ function renderDetail() {
   const evaluationByCandidateId = new Map((state.taskDetail.evaluation?.candidates || []).map((candidate) => [candidate.candidate_id, candidate]));
 
   detailTitle.textContent = task.title || state.taskDetail.task.title;
-  detailState.textContent = formatStatusBadge(state.taskDetail.latest_run ? mapRunState(state.taskDetail.latest_run.status) : 'Draft');
-  detailState.className = `state-pill ${stateClass(detailState.textContent)}`;
+  const detailStatus = state.taskDetail.latest_run_overview?.status_label || 'Draft';
+  detailState.textContent = formatStatusBadge(detailStatus);
+  detailState.className = `state-pill ${stateClass(detailStatus)}`;
 
   renderTaskBrief(task);
   renderEvaluationCall(state.taskDetail.latest_run_overview, state.taskDetail.evaluation);
@@ -844,9 +969,25 @@ function renderMergeView() {
   block.appendChild(helper);
 
   for (const file of merge.files) {
-    const row = document.createElement('label');
-    row.className = 'field-label';
-    row.textContent = file.path;
+    const row = document.createElement('article');
+    row.className = 'provenance-row';
+
+    const rowHeader = document.createElement('div');
+    rowHeader.className = 'candidate-header';
+    const rowTitle = document.createElement('strong');
+    rowTitle.textContent = file.path;
+    const rowBadge = document.createElement('span');
+    rowBadge.className = `candidate-status ${file.contested ? 'state-warn' : 'state-idle'}`;
+    rowBadge.textContent = file.contested ? '? contested' : '• single source';
+    rowHeader.append(rowTitle, rowBadge);
+    row.appendChild(rowHeader);
+
+    const selectedCandidateId = state.mergeSelections[file.path] || '';
+    const selectedOwner = file.owners.find((owner) => owner.candidate_id === selectedCandidateId) || null;
+
+    const selectLabel = document.createElement('label');
+    selectLabel.className = 'field-label';
+    selectLabel.textContent = 'Selected source';
     const select = document.createElement('select');
     const emptyOption = document.createElement('option');
     emptyOption.value = '';
@@ -858,11 +999,49 @@ function renderMergeView() {
       option.textContent = owner.label;
       select.appendChild(option);
     }
-    select.value = state.mergeSelections[file.path] || '';
+    select.value = selectedCandidateId;
     select.addEventListener('change', () => {
       state.mergeSelections[file.path] = select.value || null;
+      renderMergeView();
     });
-    row.appendChild(select);
+    selectLabel.appendChild(select);
+    row.appendChild(selectLabel);
+
+    const selectedSummary = document.createElement('p');
+    selectedSummary.className = 'comparison-summary';
+    if (selectedOwner) {
+      selectedSummary.textContent = [
+        `Current source ${selectedOwner.label}`,
+        selectedOwner.verification_status ? `verification ${selectedOwner.verification_status}` : null,
+        selectedOwner.jj_change_id ? `jj ${shortId(selectedOwner.jj_change_id)}` : null,
+        file.selection_reasons?.[selectedOwner.candidate_id] || null
+      ].filter(Boolean).join(' • ');
+    } else {
+      selectedSummary.textContent = 'No source selected for this file yet. Leave it skipped or pick a candidate before building the synthesis workspace.';
+    }
+    row.appendChild(selectedSummary);
+
+    const ownerList = document.createElement('div');
+    ownerList.className = 'provenance-list';
+    for (const owner of file.owners) {
+      const ownerRow = document.createElement('div');
+      ownerRow.className = 'provenance-owner';
+      const ownerLabel = document.createElement('strong');
+      ownerLabel.textContent = owner.label;
+      const ownerMeta = document.createElement('p');
+      ownerMeta.textContent = [
+        owner.provider_label,
+        owner.score != null ? `${owner.score}/100` : 'score pending',
+        owner.verification_status ? `verification ${owner.verification_status}` : null,
+        owner.jj_change_id ? `jj ${shortId(owner.jj_change_id)}` : null,
+        file.selection_reasons?.[owner.candidate_id] || null,
+        file.synthesized_candidate_id === owner.candidate_id ? 'selected in latest synthesis' : null
+      ].filter(Boolean).join(' • ');
+      ownerRow.append(ownerLabel, ownerMeta);
+      ownerList.appendChild(ownerRow);
+    }
+    row.appendChild(ownerList);
+
     block.appendChild(row);
   }
 
@@ -1052,6 +1231,9 @@ function mergeSessions(...sessionLists) {
 }
 
 function summarizeTaskDecision(task) {
+  if (task.latest_run?.synthesis?.status === 'completed') {
+    return `Synthesized ${task.latest_run.synthesis.strategy}`;
+  }
   if (task.latest_run?.evaluation?.decision?.winner?.label) {
     return `Winner ${task.latest_run.evaluation.decision.winner.label}`;
   }
@@ -1118,11 +1300,14 @@ function formatStatusBadge(value, { provider = null } = {}) {
   if (provider === 'gemini' || normalized.includes('manual') || normalized.includes('unknown')) {
     return `? ${label}`;
   }
-  if (normalized.includes('fail') || normalized.includes('invalid') || normalized.includes('not installed') || normalized.includes('not_installed')) {
+  if (normalized.includes('fail') || normalized.includes('invalid') || normalized.includes('not installed') || normalized.includes('not_installed') || normalized.includes('no winner')) {
     return `✕ ${label}`;
   }
-  if (normalized.includes('ready') || normalized.includes('pass') || normalized.includes('valid') || normalized.includes('published') || normalized.includes('completed') || normalized.includes('verified')) {
+  if (normalized.includes('ready') || normalized.includes('pass') || normalized.includes('valid') || normalized.includes('published') || normalized.includes('verified') || normalized.includes('synthesized')) {
     return `✓ ${label}`;
+  }
+  if (normalized.includes('previewed') || normalized.includes('merge')) {
+    return `• ${label}`;
   }
   return `• ${label}`;
 }
@@ -1171,32 +1356,16 @@ function deepClone(value) {
 
 function stateClass(value) {
   const normalized = String(value).toLowerCase();
-  if (normalized.includes('fail') || normalized.includes('invalid') || normalized.includes('not_installed')) {
+  if (normalized.includes('fail') || normalized.includes('invalid') || normalized.includes('not_installed') || normalized.includes('no winner')) {
     return 'state-danger';
   }
-  if (normalized.includes('ready') || normalized.includes('pass') || normalized.includes('valid') || normalized.includes('published') || normalized.includes('completed')) {
+  if (normalized.includes('ready') || normalized.includes('pass') || normalized.includes('valid') || normalized.includes('published') || normalized.includes('verified') || normalized.includes('synthesized')) {
     return 'state-success';
   }
-  if (normalized.includes('unknown') || normalized.includes('manual') || normalized.includes('prepared') || normalized.includes('running') || normalized.includes('judging') || normalized.includes('external') || normalized.includes('synthesis') || normalized.includes('pending')) {
+  if (normalized.includes('unknown') || normalized.includes('manual') || normalized.includes('prepared') || normalized.includes('previewed') || normalized.includes('running') || normalized.includes('judging') || normalized.includes('external') || normalized.includes('synthesis') || normalized.includes('pending') || normalized.includes('merge')) {
     return 'state-warn';
   }
   return 'state-idle';
-}
-
-function mapRunState(status) {
-  if (status === 'completed') {
-    return 'PR Ready';
-  }
-  if (status === 'dry-run') {
-    return 'Prepared';
-  }
-  if (status === 'prepared') {
-    return 'Ready';
-  }
-  if (status === 'completed_with_failures') {
-    return 'Failed';
-  }
-  return 'Draft';
 }
 
 function relativeTaskPath() {

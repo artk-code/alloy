@@ -220,9 +220,33 @@ button:disabled {
 .info-stack,
 .debug-stack,
 .board-grid,
+.board-stack,
 .comparison-list {
   display: grid;
   gap: 0.6rem;
+}
+
+.board-toolbar {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+}
+
+.board-stack {
+  align-content: start;
+}
+
+.board-group {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.board-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
 .board-grid {
@@ -235,6 +259,8 @@ button:disabled {
 .candidate-card,
 .session-row,
 .comparison-row,
+.provenance-row,
+.provenance-owner,
 .subpanel,
 .info-block {
   display: grid;
@@ -341,6 +367,18 @@ button:disabled {
   display: grid;
   gap: 0.35rem;
   font-size: 0.85rem;
+}
+
+.provenance-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.provenance-owner {
+  padding: 0.7rem 0.8rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  background: var(--panel-muted);
 }
 
 .provider-config-controls input,
@@ -541,6 +579,10 @@ pre {
   }
 
   .provider-config-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .board-toolbar {
     grid-template-columns: 1fr;
   }
 

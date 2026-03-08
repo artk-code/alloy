@@ -34,7 +34,7 @@ Wireframe:
 +--------------------------------------------------------------------------------+
 | Alloy | Control Panel                                       [New Task] [Filter] |
 +--------------------------------------------------------------------------------+
-| Columns: Draft | Ready | Running | Awaiting Approval | PR Ready | Published    |
+| Columns: Draft | Prepared | Running | Needs Merge | Synthesized | Published    |
 +--------------------------------------------------------------------------------+
 | [Card] Fix stale project detail cache invalidation                               |
 | Repo: demo/cache-service                                                        |
@@ -47,7 +47,7 @@ Wireframe:
 | [Card] Tighten retry test coverage                                               |
 | Repo: demo/cache-service                                                        |
 | Providers: Codex, Claude Code                                                   |
-| State: PR Ready                                                                  |
+| State: Winner Ready                                                              |
 | Judge: high confidence                                                           |
 | PR: #12                                                                          |
 | [Open Card]                                                                      |

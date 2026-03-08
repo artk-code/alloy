@@ -13,10 +13,13 @@ Working today:
 - Alloy Control Panel web shell for project-labeled task cards, provider readiness, run config, and candidate visibility
 - primary demo card: tic-tac-toe perfect-play repair
 - additional runnable security demo card: SQL injection remediation + writeup
+- board project filter and grouping controls
+- collapsible operator sections for dense task detail views
 - Markdown task brief parsing into canonical task JSON
 - human-readable parsed task and evaluator summaries in the operator UI
 - compare and synthesis guidance panels backed by evaluator and `jj` artifact data
 - real per-candidate diff viewing in the operator UI from captured `jj` patches
+- explicit per-file merge provenance in the operator UI
 - operator-controlled `run_config` with:
   - provider enable/disable
   - agent counts per provider
@@ -35,11 +38,13 @@ Working today:
 - dry-run and live-run launch paths for `codex`, `gemini`, and `claude-code` from the web UI
 - provider auth probes where the CLI exposes a reliable status command
 - manual `Test Auth` launch flow for providers that still need operator confirmation
+- honest board/detail outcome states instead of generic completion labels
 
 Not implemented yet:
 - blind judge/composer layers
 - `jj` cross-candidate rebase/split/squash shaping for the final stack
 - final PR publishing
+- persisted project-level dashboards and saved board preferences
 
 ## Repository Contents
 
