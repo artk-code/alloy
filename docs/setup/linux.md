@@ -1,31 +1,30 @@
-# Linux Setup Guide
+# Ubuntu And Linux Setup Guide
 
-Status: Draft
+Status: Active reference
 Audience: Engineers and future agents preparing a local development machine or runner host for Alloy.
 
-This guide reflects the current architecture plan: Alloy orchestrates external tools rather than bundling provider CLIs into the product itself.
+This guide reflects the current Alloy implementation: the product orchestrates external CLIs rather than bundling provider tools into the repo.
 
 ## 1. Scope
 
-This guide prepares a Linux machine to run:
+This guide prepares an Ubuntu-first Linux machine to run:
 - Git
-- Node.js and npm
+- Node.js LTS
+- `corepack`
+- `pnpm`
 - `jj`
 - `codex`
-- `claude` for Claude Code
+- `claude`
 - `gemini`
 
-It does not yet install Alloy itself because the application bootstrap is still in planning.
+Ubuntu or Debian-like systems are the first documented Linux target.
 
-## 2. Recommended Baseline
+## 2. Baseline
 
-- a current Linux distribution with security updates applied
-- build tools and `curl` installed
-- Node.js 20 or newer
-- Git available on `PATH`
+Recommended baseline:
+- current Ubuntu or Debian-like distribution with security updates applied
+- `curl`, `git`, and build tools installed
 - one active web-authenticated account for each provider CLI you intend to use
-
-Ubuntu or Debian-like systems are a reasonable first target for documented support.
 
 ## 3. Install Core Tooling
 
@@ -35,7 +34,7 @@ Example for Ubuntu/Debian:
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y curl git ca-certificates build-essential
+sudo apt-get install -y curl git ca-certificates build-essential xz-utils
 ```
 
 Validation:
@@ -45,20 +44,61 @@ git --version
 curl --version
 ```
 
-### 3.2 Node.js
+### 3.2 Recommended Node.js LTS Install For Ubuntu
 
-Use an officially supported Node distribution path for your distro. Alloy should standardize on Node 20 or newer because provider CLIs commonly depend on modern Node runtimes.
+Do not rely on Ubuntu's default `apt` Node package if you want the current LTS line.
+
+As of March 8, 2026, the Node.js LTS line is `24.x`. The cleanest way to get the exact current LTS on Ubuntu is the official Node.js Linux binary tarball.
+
+Example for `x64` Linux:
+
+```bash
+cd /tmp
+curl -fsSLO https://nodejs.org/dist/latest-v24.x/node-v24.13.1-linux-x64.tar.xz
+sudo mkdir -p /opt/node-v24.13.1
+sudo tar -xJf node-v24.13.1-linux-x64.tar.xz -C /opt/node-v24.13.1 --strip-components=1
+echo 'export PATH="/opt/node-v24.13.1/bin:$PATH"' >> ~/.profile
+source ~/.profile
+```
+
+If you are on `arm64`, use the matching `linux-arm64` tarball from the Node.js download page instead.
+
+Then enable `corepack` and activate `pnpm`:
+
+```bash
+node --version
+corepack enable
+corepack prepare pnpm@latest --activate
+pnpm setup
+```
+
+After `pnpm setup`, reload your shell so `PNPM_HOME` is on `PATH`.
 
 Validation:
 
 ```bash
 node --version
-npm --version
+corepack --version
+pnpm --version
 ```
 
-### 3.3 Jujutsu
+### 3.3 Alternative Ubuntu Path: NodeSource Repo
 
-Install `jj` using the official project instructions, Homebrew on Linux, or a supported package path for the target distro.
+If you prefer repo-managed updates instead of the official tarball, use the current NodeSource major-line repo for the active LTS major. That is still better than Ubuntu's default `apt` package for current LTS work.
+
+Example pattern for Node 24:
+
+```bash
+curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
+sudo apt-get install -y nodejs
+node --version
+```
+
+Use this only if you are comfortable trusting the NodeSource repository for system package management.
+
+### 3.4 Jujutsu
+
+Install `jj` using the official project instructions, Homebrew on Linux, or another supported package path for the target distro.
 
 Validation:
 
@@ -70,54 +110,42 @@ jj --version
 
 Alloy should invoke provider CLIs as external tools. Do not bundle them into the product.
 
+Preferred Linux pattern:
+- install Node correctly first
+- enable `corepack`
+- use `pnpm add -g ...` for provider CLIs
+- avoid `sudo`
+
 ### 4.1 Codex CLI
 
-Preferred options:
-- official package manager install
-- official binary install
-
-Common npm-based install:
-
 ```bash
-npm install -g @openai/codex
+pnpm add -g @openai/codex
 codex --version
 ```
 
 ### 4.2 Claude Code
 
-Claude Code is a proprietary external tool. It must not be vendored or redistributed by Alloy.
-
-Common install paths in official docs include:
-- npm global install
-- official installer script
-
-Example npm-based install:
+Claude Code is a proprietary external tool. It must remain an external dependency.
 
 ```bash
-npm install -g @anthropic-ai/claude-code
+pnpm add -g @anthropic-ai/claude-code
 claude --version
 ```
 
+If Anthropic changes the official package path, follow the upstream docs but keep `claude` external to Alloy.
+
 ### 4.3 Gemini CLI
 
-Common install paths in official docs include:
-- npm global install
-- Homebrew on Linux
-
-Example npm-based install:
-
 ```bash
-npm install -g @google/gemini-cli
+pnpm add -g @google/gemini-cli
 gemini --version
 ```
 
 ## 5. Authenticate CLIs
 
-Current project scope expects these CLIs to authenticate through interactive web-account flows rather than API-key billing. Future API-backed adapters may be added later, but they are not part of MVP or the first demo.
+Current project scope expects these CLIs to authenticate through interactive web-account flows rather than API-key billing.
 
 ### 5.1 Codex
-
-Run:
 
 ```bash
 codex
@@ -127,17 +155,13 @@ Then complete the ChatGPT login flow in the browser.
 
 ### 5.2 Claude Code
 
-Run:
-
 ```bash
 claude
 ```
 
-Then complete the Claude login flow using the appropriate subscription or organizational account.
+Then complete the Claude login flow using the correct subscription or organizational account.
 
 ### 5.3 Gemini CLI
-
-Run:
 
 ```bash
 gemini
@@ -152,32 +176,37 @@ Run these commands and confirm they succeed:
 ```bash
 git --version
 node --version
-npm --version
+corepack --version
+pnpm --version
 jj --version
 codex --version
 claude --version
 gemini --version
 ```
 
-Then confirm each provider can enter an authenticated session.
+Then run Alloy's current preflight:
+
+```bash
+npm run doctor
+```
 
 ## 7. Alloy Runner Preflight Requirements
 
-A future `alloy doctor` or bootstrap script should verify:
+A healthy local runner should have:
 - Git available
-- Node available
+- Node LTS available
+- `corepack` enabled
+- `pnpm` available on `PATH`
 - `jj` available
 - provider CLIs available
-- writable workspace root configured
-- provider login sessions valid
-- GitHub credentials available if PR publishing is enabled
+- provider login sessions repaired before live runs
 
 ## 8. Recommended Linux Conventions
 
-- use a dedicated runner user for unattended execution
-- keep provider CLIs updated conservatively and pin supported versions in project docs
+- prefer distro package management for base tools and `corepack` + `pnpm` for Node-based CLIs
 - avoid running provider CLIs as root
-- use distro-specific service management only after the core orchestrator is stable
+- avoid mixing `npm -g` and `pnpm -g` unless you are very clear about shell precedence
+- use a dedicated runner user for unattended execution
 - mount workspaces on sufficiently fast local storage, not slow network shares
 
 ## 9. Known Caveats
@@ -185,11 +214,15 @@ A future `alloy doctor` or bootstrap script should verify:
 - browser-based login may require a desktop session or device-flow equivalent depending on CLI behavior
 - provider login sessions may expire and should be checked before task execution
 - proprietary tools such as Claude Code must remain external dependencies
-- npm global installs may land in different paths depending on distro and Node installation method
+- `pnpm setup` modifies shell startup files; reload the shell before expecting global binaries to resolve
+- the exact Node tarball version will move over time; always check the Node.js download page before copying a pinned URL
 - non-interactive automation may still require PTY wrapping even when interactive login is complete
 
 ## 10. Official References
 
+- Node.js download page: https://nodejs.org/en/download
+- Node.js release index: https://nodejs.org/dist/latest-v24.x/
+- NodeSource distributions repo: https://github.com/nodesource/distributions
 - Jujutsu install docs: https://docs.jj-vcs.dev/latest/install-and-setup/
 - OpenAI Codex CLI repo: https://github.com/openai/codex
 - Claude Code quickstart: https://code.claude.com/docs/en/quickstart

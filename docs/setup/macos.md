@@ -1,29 +1,28 @@
 # macOS Setup Guide
 
-Status: Draft
+Status: Active reference
 Audience: Engineers and future agents preparing a local development machine or runner host for Alloy.
 
-This guide reflects the current architecture plan: Alloy orchestrates external tools rather than bundling provider CLIs into the product itself.
+This guide reflects the current Alloy implementation: the product orchestrates external CLIs rather than bundling provider tools into the repo.
 
 ## 1. Scope
 
 This guide prepares a macOS machine to run:
 - Git
-- Node.js and npm
+- Node.js LTS
+- `corepack`
+- `pnpm`
 - `jj`
 - `codex`
-- `claude` for Claude Code
+- `claude`
 - `gemini`
 
-It does not yet install Alloy itself because the application bootstrap is still in planning.
+## 2. Baseline
 
-## 2. Recommended Baseline
-
-- macOS with current security updates applied
+Recommended baseline:
+- current macOS with security updates applied
 - Xcode Command Line Tools installed
 - Homebrew installed
-- Node.js 20 or newer
-- Git available on `PATH`
 - one active web-authenticated account for each provider CLI you intend to use
 
 ## 3. Install Core Tooling
@@ -46,7 +45,7 @@ brew --version
 
 ### 3.3 Git
 
-macOS usually ships with Git after Xcode Command Line Tools are installed.
+macOS usually ships with Git once Xcode Command Line Tools are installed.
 
 Validation:
 
@@ -54,23 +53,54 @@ Validation:
 git --version
 ```
 
-### 3.4 Node.js
+### 3.4 Node.js LTS Through Homebrew
 
-Use Homebrew or another officially supported Node installer. Alloy should standardize on Node 20 or newer because provider CLIs commonly depend on modern Node runtimes.
+As of March 8, 2026, the Node.js LTS line is `24.x`, and Homebrew exposes it as `node@24`.
 
-Example with Homebrew:
+Install it explicitly instead of the unversioned `node` formula so the machine stays on LTS.
 
 ```bash
-brew install node
+brew install node@24
+```
+
+Because `node@24` is keg-only, add it to your shell path.
+
+Apple Silicon:
+
+```bash
+echo 'export PATH="/opt/homebrew/opt/node@24/bin:$PATH"' >> ~/.zprofile
+source ~/.zprofile
+```
+
+Intel Mac:
+
+```bash
+echo 'export PATH="/usr/local/opt/node@24/bin:$PATH"' >> ~/.zprofile
+source ~/.zprofile
+```
+
+Then enable `corepack` and activate `pnpm`:
+
+```bash
 node --version
-npm --version
+corepack enable
+corepack prepare pnpm@latest --activate
+pnpm setup
+```
+
+After `pnpm setup`, reload your shell if it modifies startup files.
+
+Validation:
+
+```bash
+node --version
+corepack --version
+pnpm --version
 ```
 
 ### 3.5 Jujutsu
 
 Install `jj` using Homebrew or the official project instructions.
-
-Example:
 
 ```bash
 brew install jj
@@ -81,56 +111,42 @@ jj --version
 
 Alloy should invoke provider CLIs as external tools. Do not bundle them into the product.
 
+Preferred pattern on macOS:
+- use Homebrew for base packages
+- use `corepack` to manage `pnpm`
+- use `pnpm add -g ...` for Node-based provider CLIs
+- avoid `sudo`
+
 ### 4.1 Codex CLI
 
-Preferred options:
-- official package manager install
-- official binary install
-
-Common npm-based install:
-
 ```bash
-npm install -g @openai/codex
+pnpm add -g @openai/codex
 codex --version
 ```
 
-Alternative Homebrew path may also exist in current upstream docs.
-
 ### 4.2 Claude Code
 
-Claude Code is a proprietary external tool. It must not be vendored or redistributed by Alloy.
-
-Common install paths in official docs include:
-- npm global install
-- official installer script
-
-Example npm-based install:
+Claude Code is a proprietary external tool. It must remain an external dependency.
 
 ```bash
-npm install -g @anthropic-ai/claude-code
+pnpm add -g @anthropic-ai/claude-code
 claude --version
 ```
 
+If Anthropic changes the official package path, follow the upstream docs and keep Alloy treating `claude` as an external binary.
+
 ### 4.3 Gemini CLI
 
-Common install paths in official docs include:
-- npm global install
-- Homebrew
-
-Example npm-based install:
-
 ```bash
-npm install -g @google/gemini-cli
+pnpm add -g @google/gemini-cli
 gemini --version
 ```
 
 ## 5. Authenticate CLIs
 
-Current project scope expects these CLIs to authenticate through interactive web-account flows rather than API-key billing. Future API-backed adapters may be added later, but they are not part of MVP or the first demo.
+Current project scope expects these CLIs to authenticate through interactive web-account flows rather than API-key billing.
 
 ### 5.1 Codex
-
-Run:
 
 ```bash
 codex
@@ -140,17 +156,13 @@ Then complete the ChatGPT login flow in the browser.
 
 ### 5.2 Claude Code
 
-Run:
-
 ```bash
 claude
 ```
 
-Then complete the Claude login flow using the appropriate subscription or organizational account.
+Then complete the Claude login flow using the correct subscription or organizational account.
 
 ### 5.3 Gemini CLI
-
-Run:
 
 ```bash
 gemini
@@ -165,43 +177,52 @@ Run these commands and confirm they succeed:
 ```bash
 git --version
 node --version
-npm --version
+corepack --version
+pnpm --version
 jj --version
 codex --version
 claude --version
 gemini --version
 ```
 
-Then confirm each provider can enter an authenticated session.
+Then run Alloy's current preflight:
+
+```bash
+npm run doctor
+```
 
 ## 7. Alloy Runner Preflight Requirements
 
-A future `alloy doctor` or bootstrap script should verify:
+A healthy local runner should have:
 - Git available
-- Node available
+- Node LTS available
+- `corepack` enabled
+- `pnpm` available on `PATH`
 - `jj` available
 - provider CLIs available
-- writable workspace root configured
-- provider login sessions valid
-- GitHub credentials available if PR publishing is enabled
+- provider login sessions repaired before live runs
 
 ## 8. Recommended macOS Conventions
 
-- use Homebrew-managed installs where possible
+- prefer Homebrew for base packages and `corepack` + `pnpm` for Node-based CLIs
 - avoid `sudo npm install -g`
+- avoid mixing `npm -g` and `pnpm -g` on the same machine unless you are very clear about precedence on `PATH`
 - keep provider CLIs updated conservatively and pin supported versions in project docs
-- separate personal shell customizations from runner automation accounts
 - use a dedicated runner user for unattended execution if this moves beyond local experimentation
 
 ## 9. Known Caveats
 
 - provider login sessions may expire and should be checked before task execution
 - proprietary tools such as Claude Code must remain external dependencies
-- Homebrew paths differ between Apple Silicon and Intel Macs; ensure `PATH` is correct
+- Homebrew paths differ between Apple Silicon and Intel Macs; ensure your shell exports the correct `PATH`
+- `pnpm setup` modifies shell startup files; reload the shell before expecting global binaries to resolve
 - non-interactive automation may still require PTY wrapping even when interactive login is complete
 
 ## 10. Official References
 
+- Homebrew install docs: https://brew.sh/
+- Homebrew `node@24` formula: https://formulae.brew.sh/formula/node@24
+- Node.js download page: https://nodejs.org/en/download
 - Jujutsu install docs: https://docs.jj-vcs.dev/latest/install-and-setup/
 - OpenAI Codex CLI repo: https://github.com/openai/codex
 - Claude Code quickstart: https://code.claude.com/docs/en/quickstart
