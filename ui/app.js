@@ -1,3 +1,5 @@
+import { DETAIL_SECTIONS, normalizeDetailSection, paginateItems } from './view-state.mjs';
+
 const state = {
   tasks: [],
   selectedTaskId: null,
@@ -9,6 +11,9 @@ const state = {
   liveSessions: [],
   projectFilter: 'all',
   boardGrouping: 'project',
+  boardPage: 1,
+  boardPageSize: 6,
+  detailSection: 'overview',
   diffCandidateId: null,
   diffFilePath: null,
   diffPayload: null,
@@ -27,6 +32,7 @@ const sessionList = document.querySelector('#session-list');
 const boardSummary = document.querySelector('#board-summary');
 const detailTitle = document.querySelector('#detail-title');
 const detailState = document.querySelector('#detail-state');
+const detailNav = document.querySelector('#detail-nav');
 const taskMarkdown = document.querySelector('#task-markdown');
 const taskBrief = document.querySelector('#task-brief');
 const evaluationCall = document.querySelector('#evaluation-call');
@@ -89,6 +95,8 @@ async function loadTasks() {
   if (state.projectFilter !== 'all' && !projectIds.has(state.projectFilter)) {
     state.projectFilter = 'all';
   }
+  const pageModel = paginateItems(getVisibleTasks(), state.boardPage, state.boardPageSize);
+  state.boardPage = pageModel.page;
   renderBoard();
 }
 
@@ -126,6 +134,7 @@ async function selectTask(taskId) {
   state.liveSessions = state.taskDetail.current_sessions || [];
   state.mergeSelections = buildInitialMergeSelections(state.taskDetail.merge_view, state.mergeSelections);
   state.diffCandidateId = pickDefaultDiffCandidateId(state.taskDetail, state.diffCandidateId);
+  state.detailSection = normalizeDetailSection(state.detailSection);
   state.diffPayload = null;
   state.diffFilePath = null;
   taskMarkdown.value = state.taskDetail.markdown;
@@ -264,11 +273,18 @@ async function runSelectedTask(action, { dryRun }) {
 
 function renderBoard() {
   board.innerHTML = '';
-  renderBoardControls();
-
   const filteredTasks = getVisibleTasks();
+  const pageModel = paginateItems(filteredTasks, state.boardPage, state.boardPageSize);
+  state.boardPage = pageModel.page;
+  renderBoardControls(pageModel);
+
   const visibleProjects = new Set(filteredTasks.map((task) => task.project_id));
-  boardSummary.textContent = `${filteredTasks.length} task card${filteredTasks.length === 1 ? '' : 's'} • ${visibleProjects.size} project${visibleProjects.size === 1 ? '' : 's'} • grouped by ${state.boardGrouping}`;
+  boardSummary.textContent = [
+    `${filteredTasks.length} task card${filteredTasks.length === 1 ? '' : 's'}`,
+    `${visibleProjects.size} project${visibleProjects.size === 1 ? '' : 's'}`,
+    `grouped by ${state.boardGrouping}`,
+    `page ${pageModel.page}/${pageModel.totalPages}`
+  ].join(' • ');
 
   if (filteredTasks.length === 0) {
     const empty = document.createElement('article');
@@ -282,7 +298,7 @@ function renderBoard() {
     return;
   }
 
-  const groups = groupTasks(filteredTasks);
+  const groups = groupTasks(pageModel.items);
   for (const group of groups) {
     const section = document.createElement('section');
     section.className = 'board-group';
@@ -309,7 +325,7 @@ function renderBoard() {
   }
 }
 
-function renderBoardControls() {
+function renderBoardControls(pageModel) {
   boardControls.innerHTML = '';
 
   const projectIds = [...new Map(state.tasks.map((task) => [task.project_id, task.project_label || task.project_id])).entries()]
@@ -332,6 +348,7 @@ function renderBoardControls() {
   projectSelect.value = state.projectFilter;
   projectSelect.addEventListener('change', () => {
     state.projectFilter = projectSelect.value;
+    state.boardPage = 1;
     renderBoard();
   });
   projectLabel.appendChild(projectSelect);
@@ -349,11 +366,54 @@ function renderBoardControls() {
   groupSelect.value = state.boardGrouping;
   groupSelect.addEventListener('change', () => {
     state.boardGrouping = groupSelect.value;
+    state.boardPage = 1;
     renderBoard();
   });
   groupLabel.appendChild(groupSelect);
 
-  boardControls.append(projectLabel, groupLabel);
+  const pageSizeLabel = document.createElement('label');
+  pageSizeLabel.className = 'field-label';
+  pageSizeLabel.textContent = 'Cards Per Page';
+  const pageSizeSelect = document.createElement('select');
+  for (const value of [4, 6, 8, 12]) {
+    const option = document.createElement('option');
+    option.value = String(value);
+    option.textContent = String(value);
+    pageSizeSelect.appendChild(option);
+  }
+  pageSizeSelect.value = String(state.boardPageSize);
+  pageSizeSelect.addEventListener('change', () => {
+    state.boardPageSize = Number.parseInt(pageSizeSelect.value, 10) || 6;
+    state.boardPage = 1;
+    renderBoard();
+  });
+  pageSizeLabel.appendChild(pageSizeSelect);
+
+  const pager = document.createElement('div');
+  pager.className = 'pager';
+  const prevButton = document.createElement('button');
+  prevButton.className = 'ghost-button';
+  prevButton.textContent = 'Prev';
+  prevButton.disabled = pageModel.page <= 1;
+  prevButton.addEventListener('click', () => {
+    state.boardPage = Math.max(1, state.boardPage - 1);
+    renderBoard();
+  });
+  const pageReadout = document.createElement('span');
+  pageReadout.className = 'hint';
+  const start = pageModel.totalItems === 0 ? 0 : pageModel.startIndex + 1;
+  pageReadout.textContent = `${start}-${pageModel.endIndex} of ${pageModel.totalItems}`;
+  const nextButton = document.createElement('button');
+  nextButton.className = 'ghost-button';
+  nextButton.textContent = 'Next';
+  nextButton.disabled = pageModel.page >= pageModel.totalPages;
+  nextButton.addEventListener('click', () => {
+    state.boardPage = Math.min(pageModel.totalPages, state.boardPage + 1);
+    renderBoard();
+  });
+  pager.append(prevButton, pageReadout, nextButton);
+
+  boardControls.append(projectLabel, groupLabel, pageSizeLabel, pager);
 }
 
 function getVisibleTasks() {
@@ -614,11 +674,13 @@ function renderDetail() {
   detailState.textContent = formatStatusBadge(detailStatus);
   detailState.className = `state-pill ${stateClass(detailStatus)}`;
 
+  renderDetailNav();
   renderTaskBrief(task);
   renderEvaluationCall(state.taskDetail.latest_run_overview, state.taskDetail.evaluation);
   renderComparisonView(state.taskDetail.comparison_view);
   renderDiffView();
   renderMergeView();
+  applyDetailSectionVisibility();
 
   taskJson.textContent = JSON.stringify({
     task,
@@ -677,6 +739,48 @@ function renderDetail() {
   }
 
   openLatestRunButton.disabled = !state.taskDetail.run_dir;
+}
+
+function renderDetailNav() {
+  detailNav.innerHTML = '';
+  const labels = buildDetailSectionLabels();
+  for (const section of DETAIL_SECTIONS) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = state.detailSection === section.id ? 'detail-tab is-active' : 'detail-tab ghost-button';
+    button.textContent = labels.get(section.id) || section.label;
+    button.addEventListener('click', () => {
+      state.detailSection = section.id;
+      applyDetailSectionVisibility();
+      renderDetailNav();
+    });
+    detailNav.appendChild(button);
+  }
+}
+
+function applyDetailSectionVisibility() {
+  const panels = document.querySelectorAll('[data-detail-section]');
+  for (const panel of panels) {
+    panel.hidden = panel.getAttribute('data-detail-section') !== state.detailSection;
+  }
+}
+
+function buildDetailSectionLabels() {
+  const mergeFileCount = state.taskDetail?.merge_view?.files?.length || 0;
+  const compareCount = state.taskDetail?.comparison_view?.rows?.length || 0;
+  const candidateCount = state.taskDetail?.candidates?.length || 0;
+  const diffCount = state.diffPayload?.files?.length
+    || state.taskDetail?.comparison_view?.rows?.find((row) => row.candidate_id === state.diffCandidateId)?.changed_file_count
+    || 0;
+
+  return new Map([
+    ['overview', 'Overview'],
+    ['compare', compareCount > 0 ? `Compare (${compareCount})` : 'Compare'],
+    ['diff', diffCount > 0 ? `Diff (${diffCount})` : 'Diff'],
+    ['merge', mergeFileCount > 0 ? `Merge (${mergeFileCount})` : 'Merge'],
+    ['candidates', candidateCount > 0 ? `Candidates (${candidateCount})` : 'Candidates'],
+    ['debug', 'Debug']
+  ]);
 }
 
 function renderTaskBrief(task) {

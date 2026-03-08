@@ -92,6 +92,8 @@
             <span id="detail-state" class="state-pill state-idle">Draft</span>
           </div>
 
+          <div id="detail-nav" class="detail-nav"></div>
+
           <div class="detail-layout">
             <div class="editor-column">
               <label class="field-label" for="task-markdown">Markdown Task Brief</label>
@@ -99,37 +101,33 @@
             </div>
 
             <div class="preview-column">
-              <details class="subpanel collapsible" open>
-                <summary><h3>Parsed Brief</h3></summary>
+              <details class="subpanel collapsible" data-detail-section="overview" open>
+                <summary><h3>Overview</h3></summary>
                 <div id="task-brief" class="info-stack"></div>
-              </details>
-
-              <details class="subpanel collapsible" open>
-                <summary><h3>Evaluation Call</h3></summary>
                 <div id="evaluation-call" class="info-stack"></div>
               </details>
 
-              <details class="subpanel collapsible" open>
+              <details class="subpanel collapsible" data-detail-section="compare" open>
                 <summary><h3>Compare + Synthesize</h3></summary>
                 <div id="comparison-view" class="info-stack"></div>
               </details>
 
-              <details class="subpanel collapsible" open>
+              <details class="subpanel collapsible" data-detail-section="diff" open>
                 <summary><h3>Diff Viewer</h3></summary>
                 <div id="diff-view" class="info-stack"></div>
               </details>
 
-              <details class="subpanel collapsible" open>
+              <details class="subpanel collapsible" data-detail-section="merge" open>
                 <summary><h3>Merge Builder</h3></summary>
                 <div id="merge-view" class="info-stack"></div>
               </details>
 
-              <details class="subpanel collapsible" open>
+              <details class="subpanel collapsible" data-detail-section="candidates" open>
                 <summary><h3>Candidate Cards</h3></summary>
                 <div id="candidate-cards" class="stack"></div>
               </details>
 
-              <details class="subpanel debug-panel">
+              <details class="subpanel debug-panel" data-detail-section="debug">
                 <summary>Operator Debug JSON</summary>
                 <div class="debug-stack">
                   <div>

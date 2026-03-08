@@ -228,9 +228,17 @@ button:disabled {
 
 .board-toolbar {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.75rem;
   margin-bottom: 0.9rem;
+}
+
+.pager {
+  display: flex;
+  align-items: end;
+  justify-content: flex-end;
+  gap: 0.55rem;
+  flex-wrap: wrap;
 }
 
 .board-stack {
@@ -410,6 +418,25 @@ textarea {
   gap: 1rem;
   grid-template-columns: minmax(28rem, 1.2fr) minmax(22rem, 1fr);
   align-items: start;
+}
+
+.detail-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.detail-tab {
+  padding: 0.58rem 0.8rem;
+  border-radius: 999px;
+}
+
+.detail-tab.is-active {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: #10212b;
 }
 
 .editor-column,
