@@ -1,7 +1,7 @@
 # Next Session
 
 Status date: March 8, 2026
-Purpose: Give the next compact-session agent an accurate starting point after the merge-plan, compare-page, in-app docs, judge-rationale, synthesis-review, and stack-shaping slice landed locally.
+Purpose: Give the next compact-session agent an accurate starting point from the current pushed state after merge-plan, compare/docs, judge-rationale, synthesis-review, stack-shaping, and dark-mode work landed on `main`.
 
 ## Read First
 
@@ -10,9 +10,9 @@ Purpose: Give the next compact-session agent an accurate starting point after th
 3. [OPERATOR_GUIDE.md](/Users/codex/stack-judge/docs/OPERATOR_GUIDE.md)
 4. [README.md](/Users/codex/stack-judge/README.md)
 
-## Current Local Baseline
+## Current Pushed Baseline
 
-The working tree now includes a major local slice that is not reflected in the last pushed handoff docs:
+The current pushed repo already includes:
 
 - merge-plan schema added
 - deterministic evaluation now emits `merge_plan`
@@ -27,9 +27,10 @@ The working tree now includes a major local slice that is not reflected in the l
 - task-aware top-nav links added across Control Panel, Compare Diffs, and Docs
 - task cards now focus the selected task directly instead of relying on a separate `Open Card` button
 - the Control Panel desktop layout now keeps Task Board and Operator View side by side, with routing controls below them
+- persistent light/dark mode across all top-level pages via local storage
 
 Tests last verified locally:
-- `27/27` passing
+- `28/28` passing
 
 Important local files added or heavily changed:
 - [schemas/merge-plan.schema.json](/Users/codex/stack-judge/schemas/merge-plan.schema.json)
@@ -56,7 +57,7 @@ Important local files added or heavily changed:
 
 Do not begin by re-implementing the merge-plan slice.
 
-Start by validating the local work:
+Start by validating the current pushed build:
 
 1. confirm the running web server is serving the current tree
 2. manually verify these routes and pages:
@@ -69,40 +70,37 @@ Start by validating the local work:
 3. verify task-aware nav links:
    - Control Panel -> Compare Diffs -> Docs
    - Docs -> Control Panel / Compare Diffs
-4. verify the task markdown source/render toggle
-5. only after that, clean up any remaining UI/data inconsistencies and commit
+4. verify theme persistence across page navigation and refresh
+5. verify the task markdown source/render toggle
+6. only after that, clean up any remaining UI/data inconsistencies before adding new product features
 
 ## Current Limitation On Browser Smoke Tests
 
-A browser-automation smoke pass was attempted, but the local environment does not currently expose a usable Playwright package or CLI from this repo:
-
-- `import 'playwright'` failed with `ERR_MODULE_NOT_FOUND`
-- `playwright --version` failed because the CLI is not in `PATH`
-- Safari WebDriver is present, but session creation failed because `Allow remote automation` is disabled in Safari settings
+There is still no repo-local browser smoke harness.
 
 This means:
 - syntax checks passed
 - unit/integration tests passed
-- server cwd on `127.0.0.1:4173` was confirmed as `/Users/codex/stack-judge`
-- `curl` against `/` showed the updated Control Panel HTML and nav
-- but a full scripted browser sanity pass was not completed in this session
+- manual live browsing has been used successfully
+- but there is no reproducible repo-local browser automation path yet
 
-If the next agent wants browser automation, they should add a repo-local Playwright dependency or use another available browser driver path instead of assuming a global install.
+If the next agent wants browser automation, they should add a repo-local Playwright dependency or another reproducible driver path instead of assuming ambient machine state.
 
 ## New Priority List
 
-After manual verification of the current local slice, the next priorities should be:
+After manual verification of the current pushed build, the next priorities should be:
 
-1. Commit and push the current merge-plan + compare/docs + markdown-viewer work
-   - only after validating the live UI routes above
-
-2. Add final publication flow from the shaped synthesis stack
+1. Add final publication flow from the shaped synthesis stack
    - stay honest about review vs publish readiness
    - keep PR publication behind explicit human approval
 
-3. Add a blind judge/composer layer on top of deterministic evaluation
+2. Add a blind judge/composer layer on top of deterministic evaluation
    - deterministic evaluation remains the gatekeeper
    - judge/composer should improve close-call synthesis, not replace hard gates
+
+3. Add a local candidate/synthesis testing workflow
+   - one-click or one-command path from the UI/docs into the selected workspace
+   - make local validation easy once a candidate or synthesis is chosen
 
 4. Add broader eval cards
    - smoke
@@ -187,6 +185,12 @@ node scripts/eval-perfect-play.mjs
 cd ../security-sqli
 npm test
 node scripts/eval-security-fix.mjs
+
+cd ../cache-service
+npm test
+npm run lint
+npm run typecheck
+node scripts/check-demo-state.mjs
 ```
 
 ## Notes

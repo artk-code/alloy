@@ -22,6 +22,7 @@ Purpose: Capture the honest current Alloy proof boundary so future work starts f
   - tabbed operator detail sections to reduce clutter
 - The default demo task is the tic-tac-toe perfect-play repair card at `samples/tasks/tic-tac-toe-perfect-play.task.md`.
 - There is also a runnable security-lab card at `samples/tasks/security-sql-injection.task.md`.
+- There is also a runnable bugfix-lab card at `samples/tasks/cache-invalidation.task.md`.
 - The seeded tic-tac-toe demo repo is intentionally broken and fails real acceptance checks before any fix.
 - Candidate runs use real workspaces, persistent session records, and real verifier commands.
 - Each prepared candidate workspace is bootstrapped as a `jj` repo and produces a real captured patch.
@@ -66,6 +67,7 @@ Real today:
 - persisted publication-readiness metadata for synthesized results
 - local API and browser UI
 - persisted `judge-rationale.json` artifact per evaluated run
+- a shared dark-mode toggle persisted across Control Panel, Compare Diffs, and Docs
 
 Still limited:
 - automated tests do not certify live Codex, Gemini, or Claude Code authoring end to end
@@ -73,10 +75,8 @@ Still limited:
 - some historical run artifacts under `runs/` were created with older mock/replay helpers and still exist for audit purposes
 - Gemini auth is intentionally treated as manual operator verification in the current build
 - blind judge/composer logic is not implemented yet
-- final `jj` stack shaping and PR publication are not implemented yet
-- a full scripted browser smoke test was not completed in this session because:
-  - no repo-local Playwright package/CLI was available
-  - Safari WebDriver session creation was blocked by disabled remote automation
+- final remote publication and PR creation are not implemented yet
+- no repo-local browser smoke harness exists yet, so browser validation is still mostly manual
 
 ## Demo Proof Boundary
 
@@ -112,7 +112,7 @@ That is enough to prove the orchestration, verification, artifact, and conservat
 - The board can now filter by project and group by project or state.
 - Task cards are directly selectable and sync the focused task into the URL and Operator View.
 - Narrow screens collapse to a single-column flow.
-- The UI uses a light corporate palette at the moment because that is the current operator preference.
+- The UI now supports persistent light/dark theme switching across all top-level pages.
 - Gemini always shows manual auth verification rather than a false precision status.
 - Heavy operator sections are collapsible and the operator view is tabbed so only one dense pane is visible at a time.
 - Control Panel, Compare Diffs, and Docs now share top-level navigation.
@@ -132,11 +132,15 @@ That is enough to prove the orchestration, verification, artifact, and conservat
 
 ## Highest-Value Next Steps
 
-1. Manually verify the current local Compare Diffs and Docs routes, then check in the merge-plan/docs slice.
-2. Add a blind judge/composer layer on top of deterministic evaluation.
-3. Add final publication flow from the synthesized stack.
+1. Add a real publication flow from the shaped synthesis stack:
+   - publish preview
+   - explicit human approval
+   - branch/bookmark push
+   - later PR creation
+2. Add a blind judge/composer layer on top of deterministic evaluation for close-call synthesis decisions.
+3. Add a local candidate/synthesis testing flow so operators can open or run a chosen workspace without hunting through artifacts.
 4. Add broader smoke/algorithm cards so the board covers fast runner checks as well as richer synthesis demos.
-5. Add persisted project-level dashboards and saved board preferences only after the merge/publish loop is more complete.
+5. Add a repo-local browser smoke harness once it is reproducible from this repo rather than dependent on ambient machine state.
 
 ## Validation Commands
 
@@ -162,4 +166,14 @@ Security repo baseline:
 cd samples/repos/security-sqli
 npm test
 node scripts/eval-security-fix.mjs
+```
+
+Bugfix repo baseline:
+
+```bash
+cd samples/repos/cache-service
+npm test
+npm run lint
+npm run typecheck
+node scripts/check-demo-state.mjs
 ```

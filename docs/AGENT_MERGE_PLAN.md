@@ -16,38 +16,37 @@ Alloy should not merely pick a single winner. It should:
 
 ## Execution Priorities
 
-The next implementation priorities should be:
+The current implementation priorities should be:
 
-1. Compare surface
-   - side-by-side candidate and final diff review
-   - clear contested-file workflow
-   - strong provenance visibility
+1. Publication flow from the shaped synthesis stack
+   - publish preview
+   - explicit human approval
+   - branch or bookmark push
+   - later PR creation
 
-2. Structured merge-plan schema
-   - machine-readable merge decisions
-   - explicit file-level rationale
-   - shared contract between evaluator, UI, and synthesis engine
+2. Blind judge/composer on top of deterministic gates
+   - deterministic evaluation stays the gatekeeper
+   - judge/composer improves close-call synthesis decisions
 
-3. Reliable synthesis execution
-   - conservative file-level composition first
-   - full re-verification after synthesis
-   - new `jj` change for the synthesized result
-
-4. Local candidate and synthesis testing
+3. Local candidate and synthesis testing
    - one-click operator flow to open and test a candidate or synthesis workspace locally
 
-5. `jj` operation mining later
-   - useful for optimization and learning
-   - not required for the first reliable synthesis loop
+4. Broader evaluation coverage
+   - smoke tasks
+   - compact algorithm tasks
+   - realistic bugfix and security tasks
+
+5. SQLite metadata layer later
+   - useful once project count and run history outgrow raw artifact scanning
 
 Focus now:
-- compare surface
-- structured merge plan
-- reliable synthesis execution
+- publication readiness
+- human-reviewable synthesis decisions
+- reliable local validation
 
 Do not focus first on:
 - operation mining
-- analytics
+- broad analytics
 - additional orchestration layers
 
 ## Current State
@@ -69,6 +68,8 @@ Current landed review features:
 - manual-override and contested-file cues
 - review-oriented `jj` stack shaping metadata
 - publication-readiness blockers for synthesized results
+
+These foundations are already in place, so the next work should build on them rather than recreate them.
 
 ## Merge Strategy
 
@@ -141,7 +142,7 @@ Alloy needs a structured merge-plan schema to make that practical.
 
 ## Merge-Plan Schema
 
-Alloy should add a machine-readable merge-plan object that becomes the contract between:
+Alloy now uses a machine-readable merge-plan object as the contract between:
 - evaluator
 - UI
 - synthesis engine
@@ -285,41 +286,30 @@ Code remains on disk and in version control:
 
 ## Near-Term Milestones
 
-### Milestone 1: Merge-Plan Contract
+### Milestone 1: Publication Preview And Approval
 
 Deliver:
-- merge-plan schema
-- evaluator output shape
-- UI types for file decisions and unresolved conflicts
+- publication panel in `Compare Diffs`
+- explicit publication blockers
+- human approval capture
+- local publish preview for the shaped synthesis stack
 
 Acceptance:
-- deterministic evaluation can emit a valid merge-plan object
-- UI can render that object even before live model judging exists
+- operator can tell whether a synthesis is only reviewable or truly publishable
+- operator can see what exact stack/diff would be published next
 
-### Milestone 2: Better Compare And Synthesis UI
+### Milestone 2: Blind Judge And Composer
 
 Deliver:
-- candidate vs base diff
-- final synthesis vs base diff
-- explicit contested-file list
-- explicit per-file provenance
+- anonymized candidate presentation for judging
+- structured judge output layered on top of deterministic gates
+- composer path for close-call synthesis decisions
 
 Acceptance:
-- operator can understand why the final synthesis includes each file
-- operator can see contested files immediately
+- deterministic checks still gate eligibility
+- judge/composer improves close-call synthesis without replacing hard gates
 
-### Milestone 3: Reliable File-Level Synthesis
-
-Deliver:
-- synthesis workspace built from merge-plan file decisions
-- full re-verification after synthesis
-- synthesized `jj` change capture
-
-Acceptance:
-- operator can build a file-level synthesis from finalists
-- Alloy records selected-file provenance and verification results
-
-### Milestone 4: Local Testing Workflow
+### Milestone 3: Local Testing Workflow
 
 Deliver:
 - one-click path/open flow for candidate and synthesis workspaces
@@ -327,6 +317,16 @@ Deliver:
 
 Acceptance:
 - operator can open a candidate or synthesis workspace locally and run checks without hunting for paths
+
+### Milestone 4: Broader Eval Coverage
+
+Deliver:
+- smoke task(s)
+- compact algorithm task(s)
+- continued realistic bugfix/security tasks
+
+Acceptance:
+- Alloy can be demoed quickly on small tasks and credibly on richer synthesis tasks
 
 ### Milestone 5: SQLite Metadata Layer
 
@@ -342,12 +342,12 @@ Acceptance:
 
 Build the synthesis engine conservatively.
 
-Preferred sequence:
+Preferred sequence from the current state:
 
-1. merge-plan schema
-2. compare and final-diff UI
-3. file-level synthesis hardening
-4. local testing workflow
+1. publication preview and approval flow
+2. blind judge/composer on top of deterministic gates
+3. local testing workflow
+4. broader eval coverage
 5. SQLite control-plane metadata
 6. symbol-level synthesis for selected languages
 
