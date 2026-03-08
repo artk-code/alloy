@@ -83,6 +83,9 @@ test('buildTerminalLoginLaunch always exposes a human command', () => {
 
 test('web UI avoids blocking browser modal APIs for provider and run actions', async () => {
   const appSource = await fs.readFile(path.join(projectRoot, 'ui', 'app.js'), 'utf8');
+  const compareSource = await fs.readFile(path.join(projectRoot, 'ui', 'compare.js'), 'utf8');
+  const docsSource = await fs.readFile(path.join(projectRoot, 'ui', 'docs.js'), 'utf8');
+  const themeSource = await fs.readFile(path.join(projectRoot, 'ui', 'theme.mjs'), 'utf8');
   const indexHtml = await fs.readFile(path.join(projectRoot, 'ui', 'index.html'), 'utf8');
   const compareHtml = await fs.readFile(path.join(projectRoot, 'ui', 'compare.html'), 'utf8');
   const docsHtml = await fs.readFile(path.join(projectRoot, 'ui', 'docs.html'), 'utf8');
@@ -90,8 +93,18 @@ test('web UI avoids blocking browser modal APIs for provider and run actions', a
   assert.doesNotMatch(appSource, /window\.alert\s*\(/);
   assert.doesNotMatch(appSource, /window\.confirm\s*\(/);
   assert.doesNotMatch(appSource, /window\.prompt\s*\(/);
+  assert.match(appSource, /initThemeToggle/);
+  assert.match(compareSource, /initThemeToggle/);
+  assert.match(docsSource, /initThemeToggle/);
+  assert.match(themeSource, /alloy-theme/);
   assert.match(indexHtml, /hero-open-docs/);
+  assert.match(indexHtml, /theme-toggle/);
+  assert.match(indexHtml, /alloy-theme/);
   assert.match(indexHtml, /task-markdown-preview-tab/);
   assert.match(compareHtml, /compare-docs-link/);
+  assert.match(compareHtml, /theme-toggle/);
+  assert.match(compareHtml, /alloy-theme/);
   assert.match(docsHtml, /docs-content/);
+  assert.match(docsHtml, /theme-toggle/);
+  assert.match(docsHtml, /alloy-theme/);
 });

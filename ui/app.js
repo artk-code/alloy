@@ -1,5 +1,6 @@
 import { renderMarkdownInto } from './markdown-viewer.mjs';
 import { DETAIL_SECTIONS, normalizeDetailSection, paginateItems } from './view-state.mjs';
+import { initThemeToggle } from './theme.mjs';
 
 const searchParams = new URLSearchParams(window.location.search);
 
@@ -58,6 +59,8 @@ const runConfigTemplate = document.querySelector('#run-config-template');
 const candidateTemplate = document.querySelector('#candidate-template');
 const taskTemplate = document.querySelector('#task-card-template');
 const sessionTemplate = document.querySelector('#session-template');
+
+initThemeToggle();
 
 document.querySelector('#refresh-providers').addEventListener('click', async () => {
   await loadProviders();

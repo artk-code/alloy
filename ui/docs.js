@@ -1,4 +1,5 @@
 import { renderMarkdownInto } from './markdown-viewer.mjs';
+import { initThemeToggle } from './theme.mjs';
 
 const state = {
   docId: new URLSearchParams(window.location.search).get('doc') || 'operator-guide',
@@ -16,6 +17,8 @@ const docsCrumbRoot = document.querySelector('#docs-crumb');
 const docsHomeLink = document.querySelector('#docs-home-link');
 const docsCompareLink = document.querySelector('#docs-compare-link');
 const toastStack = document.querySelector('#toast-stack');
+
+initThemeToggle();
 
 document.querySelector('#refresh-docs').addEventListener('click', () => boot());
 

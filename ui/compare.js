@@ -1,3 +1,5 @@
+import { initThemeToggle } from './theme.mjs';
+
 const state = {
   taskId: new URLSearchParams(window.location.search).get('task') || null,
   focusCandidateId: new URLSearchParams(window.location.search).get('candidate') || null,
@@ -20,6 +22,8 @@ const subtitleRoot = document.querySelector('#compare-subtitle');
 const taskCrumbRoot = document.querySelector('#compare-task-crumb');
 const compareDocsLink = document.querySelector('#compare-docs-link');
 const toastStack = document.querySelector('#toast-stack');
+
+initThemeToggle();
 
 document.querySelector('#refresh-compare').addEventListener('click', () => boot());
 

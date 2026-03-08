@@ -4,6 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Alloy Compare Diffs</title>
+    <script>
+      try {
+        const theme = localStorage.getItem('alloy-theme');
+        if (theme === 'dark' || theme === 'light') {
+          document.documentElement.dataset.theme = theme;
+        }
+      } catch {}
+    </script>
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
@@ -15,6 +23,7 @@
             <a class="nav-link" href="/">Control Panel</a>
             <a class="nav-link is-active" href="">Compare Diffs</a>
             <a id="compare-docs-link" class="nav-link" href="/docs.html">Docs</a>
+            <button id="theme-toggle" class="ghost-button" type="button">Dark Mode</button>
           </nav>
           <nav class="breadcrumbs" aria-label="Breadcrumb">
             <a href="/">Alloy Control Panel</a>
