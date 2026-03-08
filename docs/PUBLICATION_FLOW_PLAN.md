@@ -11,9 +11,9 @@ Make publication a first-class, reviewable workflow:
 2. The operator can see the exact blockers.
 3. The operator can approve publication explicitly.
 4. Alloy can generate a local publish preview.
-5. Alloy can later push a named branch or bookmark from the shaped `jj` stack.
+5. Alloy can push a named branch or bookmark from the shaped `jj` stack.
 
-This step does not require PR automation yet.
+This plan does not require PR automation yet.
 
 ## Current Baseline
 
@@ -31,23 +31,21 @@ Current shipped slice:
 - explicit approval state is persisted
 - local publish preview is persisted
 - publish target metadata is persisted
-- publication endpoints exist for preview and approval
+- publication endpoints exist for preview, approval, and push
+- approved syntheses can push a real bookmark/branch target through `jj`
+- push success and failure are persisted for the UI and artifacts
 
 Current limitation:
 
-- branch/bookmark push is not implemented yet
 - PR automation is not implemented yet
 
 ## Scope For This Step
 
-Publication now exists in three layers:
+Publication now exists in four layers:
 
 1. publication contract
 2. publication preview
 3. publication approval
-
-Remaining layer for the next slice:
-
 4. publication push
 
 Defer:
@@ -74,7 +72,6 @@ Suggested states:
 - `blocked`
 - `review_ready`
 - `awaiting_approval`
-- `approved`
 - `push_ready`
 - `pushed`
 - `publish_failed`
@@ -129,8 +126,6 @@ Add publication-prep helpers:
 - `exportPublicationPatchRange({ workspacePath, fromRev, toRev, outputPath })`
   - optional artifact for preview/debug
 
-Next helper to implement:
-
 - `pushBookmark({ workspacePath, bookmark, remote })`
   - push an approved synthesized stack
   - persist success/failure data for the UI and artifacts
@@ -172,8 +167,6 @@ Add explicit publication endpoints:
     - `approved_by`
     - `note`
 
-Next endpoint to implement:
-
 - `POST /api/tasks/:taskId/publication/push`
 
 Still defer:
@@ -201,8 +194,6 @@ Add actions:
 - `Approve Publication`
   - calls `/publication/approve`
 
-Next action to add:
-
 - `Push Approved Ref`
 
 Still do not add:
@@ -223,7 +214,7 @@ The detailed publication workflow belongs on `Compare Diffs`.
 
 ## Data Additions
 
-Add to synthesis manifest and run summary:
+Shipped in synthesis manifest and run summary:
 
 - `publish_status`
 - `publish_blockers`
@@ -234,30 +225,44 @@ Add to synthesis manifest and run summary:
 - `publish_preview`
 - `target_remote`
 - `target_branch_or_bookmark`
+- `published_ref`
 - `pushed_at`
 - `push_result`
+- `push_error`
 
 Keep these under a single nested object when possible:
 
 ```json
 {
   "publication": {
-    "status": "awaiting_approval",
+    "status": "push_ready",
     "blockers": [],
-    "required_actions": ["Approve publication before any remote push."],
-    "human_approved_at": null,
-    "human_approved_by": null,
-    "human_approval_note": null,
+    "required_actions": ["Push the approved bookmark or branch to the configured remote."],
+    "human_approved_at": "2026-03-08T12:00:00.000Z",
+    "human_approved_by": "human-ui",
+    "human_approval_note": "Reviewed in Compare Diffs",
     "target_remote": "origin",
     "target_branch_or_bookmark": "alloy/task_20260308_tic_tac_toe_perfect_play/synth_...",
+    "published_ref": null,
     "publish_preview": {
       "stack_group_count": 3,
       "diff_summary": "3 files changed, 82 insertions, 17 deletions",
       "selected_candidates": ["cand_a", "cand_c"]
-    }
+    },
+    "pushed_at": null,
+    "push_result": null,
+    "push_error": null
   }
 }
 ```
+
+## Recommended Next Step After This Plan
+
+After publication push is stable:
+
+1. add blind judge/composer
+2. add local candidate/synthesis testing
+3. add PR automation from the pushed ref only after those two layers are solid
 
 ## UI Rules
 
@@ -298,27 +303,22 @@ Add tests for:
 - publication panel state mapping
 - blocker rendering
 - approval button visibility rules
+- push button visibility rules
 
 ## Acceptance Criteria
 
 This step is complete when:
-
-Already complete:
 
 1. `Compare Diffs` shows a dedicated publication panel.
 2. The operator can trigger a local publication preview.
 3. The operator can record explicit approval.
 4. Alloy persists approval and preview metadata in artifacts.
 5. The operator can tell the exact next publishable ref without reading raw JSON.
-
-Remaining for publication flow:
-
 6. Alloy can push the approved shaped ref and persist the result honestly.
 7. No PR automation is implied before that push contract is clear.
 
 ## Out Of Scope For This Step
 
-- automatic remote push
 - automatic PR creation
 - GitHub metadata generation
 - SQLite metadata storage
@@ -329,10 +329,11 @@ Remaining for publication flow:
 Completed:
 
 1. data model and synthesis helpers
-2. publication API endpoints for preview and approval
-3. compare-page publication panel
+2. publication API endpoints for preview, approval, and push
+3. compare-page publication panel with preview/approval/push actions
 4. operator summary panel
-5. tests
+5. push success/failure persistence
+6. tests
 
 Next:
 

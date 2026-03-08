@@ -5,6 +5,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mkdtemp } from 'node:fs/promises';
 import os from 'node:os';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 
 import { parseTaskBriefFile } from '../src/parser.mjs';
 import { buildPromptPackets } from '../src/prompt-packets.mjs';
@@ -13,9 +15,11 @@ import { doctorProviders, getProviderLoginCommand } from '../src/providers.mjs';
 import { buildDefaultRunConfig, normalizeRunConfig } from '../src/run-config.mjs';
 import { runPreparedCandidates } from '../src/runner.mjs';
 import { SessionManager } from '../src/session-manager.mjs';
-import { approvePublication, refreshPublicationState, synthesizeRun } from '../src/synthesis.mjs';
+import { approvePublication, pushPublication, refreshPublicationState, synthesizeRun } from '../src/synthesis.mjs';
 import { runAcceptanceChecks } from '../src/verify.mjs';
 import { getSynthesisDiff, getTaskDetail, getTaskPublication } from '../src/web/data.mjs';
+
+const execFileAsync = promisify(execFile);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -360,29 +364,49 @@ test('synthesizeRun creates verified winner-only and file-select workspaces from
     approvedBy: 'test-suite',
     note: 'Publication approved in integration test.'
   });
+  const failedPush = await pushPublication({
+    runDir: prepared.runDir,
+    task
+  });
+  const publishRemotePath = path.join(prepared.runDir, 'publish-remote.git');
+  await execFileAsync('git', ['init', '--bare', publishRemotePath], { cwd: prepared.runDir });
+  await execFileAsync('git', ['remote', 'add', 'origin', publishRemotePath], { cwd: fileSelect.workspace_path });
+  const pushed = await pushPublication({
+    runDir: prepared.runDir,
+    task
+  });
   const updatedSummary = JSON.parse(await fs.readFile(path.join(prepared.runDir, 'run-summary.json'), 'utf8'));
   const synthesisDiff = await getSynthesisDiff(projectRoot, task.task_id);
   const detail = await getTaskDetail(projectRoot, task.task_id);
   const publicationView = await getTaskPublication(projectRoot, task.task_id);
+  const { stdout: remoteRefs } = await execFileAsync('git', ['--git-dir', publishRemotePath, 'show-ref'], {
+    cwd: prepared.runDir
+  });
 
   assert.equal(updatedSummary.synthesis.strategy, 'file_select');
   assert.equal(updatedSummary.synthesis.status, 'completed');
   assert.equal(updatedSummary.synthesis.merge_plan.mode, 'file_select');
   assert.equal(updatedSummary.synthesis.publication_readiness.ready, true);
-  assert.equal(updatedSummary.synthesis.publication.status, 'approved');
+  assert.equal(updatedSummary.synthesis.publication.status, 'pushed');
   assert.ok(synthesisDiff);
   assert.equal(synthesisDiff.strategy, 'file_select');
   assert.equal(synthesisDiff.publication_readiness.ready, true);
-  assert.equal(synthesisDiff.publication.status, 'approved');
+  assert.equal(synthesisDiff.publication.status, 'pushed');
   assert.equal(synthesisDiff.selected_files[0].selection_origin, 'merge_plan');
   assert.match(synthesisDiff.patch, /diff --git a\/src\/strategy\.js b\/src\/strategy\.js/);
   assert.equal(preview.status, 'awaiting_approval');
-  assert.equal(approved.status, 'approved');
+  assert.equal(approved.status, 'push_ready');
   assert.equal(approved.human_approved_by, 'test-suite');
-  assert.equal(publicationView.status, 'approved');
-  assert.equal(detail.publication_view.status, 'approved');
-  assert.equal(detail.merge_view.publication.status, 'approved');
+  assert.equal(failedPush.status, 'publish_failed');
+  assert.equal(failedPush.push_result.status, 'failed');
+  assert.equal(pushed.status, 'pushed');
+  assert.equal(pushed.push_result.status, 'success');
+  assert.equal(publicationView.status, 'pushed');
+  assert.equal(detail.publication_view.status, 'pushed');
+  assert.equal(detail.merge_view.publication.status, 'pushed');
   assert.match(detail.publication_view.target_branch_or_bookmark, /alloy\/task-20260308-tic-tac-toe-perfect-play\//);
+  assert.match(String(publicationView.published_ref), /^origin\/alloy\//);
+  assert.match(remoteRefs, /refs\/heads\/alloy\/task-20260308-tic-tac-toe-perfect-play\//);
 
   await fs.rm(prepared.runDir, { recursive: true, force: true });
 });

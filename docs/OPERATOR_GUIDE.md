@@ -10,6 +10,10 @@ Core surfaces:
 - `Control Panel`: task board, provider readiness, run config, task editing
 - `Compare Diffs`: candidate patch review, merge-plan inspection, synthesis controls
 
+Current limitation:
+- custom tasks still come from `.task.md` files on disk
+- an in-app Task Composer is planned and should become the normal way to create/edit user tasks
+
 ## Before You Run Anything
 
 1. Start the web UI.
@@ -118,7 +122,8 @@ Inside `Compare Diffs`:
 8. Review the synthesized diff and per-file provenance.
 9. Use `Preview Publication` to refresh the publish target and blocker state.
 10. Use `Approve Publication` once the synthesized result is acceptable.
-11. Treat PR publication as out of scope until the push step is implemented.
+11. Use `Push Approved Ref` to publish the approved bookmark/branch target.
+12. Treat PR publication as a later step; push is the current remote publication boundary.
 
 Important rule:
 - Alloy is conservative by design
@@ -197,3 +202,4 @@ Common states:
 7. Approve winner-only or perform file-level synthesis.
 8. Review the synthesized diff before any publication step.
 9. Preview publication and record approval if the synthesis is ready.
+10. Push the approved ref once the target and blockers look correct.

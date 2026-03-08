@@ -22,6 +22,7 @@ The current pushed repo already includes:
 - synthesis diff API added
 - synthesis publication-readiness metadata added
 - publication preview and approval state added
+- publication push state and API added
 - synthesis `jj` stack shaping added
 - dedicated `Compare Diffs` page added
 - dedicated in-app `Docs` page added
@@ -32,7 +33,7 @@ The current pushed repo already includes:
 - persistent light/dark mode across all top-level pages via local storage
 
 Tests last verified locally:
-- `28/28` passing
+- `29/29` passing
 
 Important local files added or heavily changed:
 - [schemas/merge-plan.schema.json](/Users/codex/stack-judge/schemas/merge-plan.schema.json)
@@ -92,65 +93,48 @@ If the next agent wants browser automation, they should add a repo-local Playwri
 
 After manual verification of the current pushed build, the next priorities should be:
 
-1. Finish publication flow from the shaped synthesis stack
-   - preview and approval are already implemented
-   - next sub-step is branch/bookmark push from an approved synthesis
-   - keep PR publication behind explicit human approval
-
-2. Add a blind judge/composer layer on top of deterministic evaluation
+1. Add a blind judge/composer layer on top of deterministic evaluation
    - deterministic evaluation remains the gatekeeper
    - judge/composer should improve close-call synthesis, not replace hard gates
 
-3. Add a local candidate/synthesis testing workflow
+2. Add a local candidate/synthesis testing workflow
    - one-click or one-command path from the UI/docs into the selected workspace
    - make local validation easy once a candidate or synthesis is chosen
+
+3. Add an in-app Task Composer
+   - operators should be able to create and edit custom task briefs without filesystem editing
+   - keep markdown as the underlying artifact, but make the GUI the primary authoring surface
 
 4. Add broader eval cards
    - smoke
    - compact algorithms
    - realistic bugfix/security demos
 
-5. Add a proper browser smoke harness only if it is made repo-local and reproducible
+5. Add PR creation from the approved, pushed synthesis ref
+   - keep it behind explicit human approval
+   - do not let PR creation bypass the pushed-ref state
+
+6. Add a proper browser smoke harness only if it is made repo-local and reproducible
    - do not rely on vague global Playwright assumptions
 
-## Plan For Priority 2: Publication Flow
+## Publication Flow Status
 
-### Goal
-
-Finish the remaining publication sub-step after preview and approval: controlled branch/bookmark push from an approved synthesis.
+The publication push slice is now implemented.
 
 Detailed method plan:
 - [PUBLICATION_FLOW_PLAN.md](/Users/codex/stack-judge/docs/PUBLICATION_FLOW_PLAN.md)
 
-### Concrete Steps
+What now works:
+- preview publication
+- approve publication
+- push approved bookmark/branch target
+- persist success/failure result
+- show publish target and push outcome in the UI
 
-1. Keep the existing publication contract authoritative
-- final shaped stack present
-- verification passed
-- no unresolved conflicts
-- no hidden manual override without provenance
-- explicit human approval persisted
+Current next publication increment:
+- PR creation from the approved, pushed ref
 
-2. Add a controlled push-preparation action
-- use the approved publication target
-- keep the exact branch/bookmark name visible
-- persist push result and failure details
-
-3. Keep PR automation out of scope until push is stable
-- first complete branch/bookmark push
-- only then PR automation
-
-### Suggested Data Additions
-
-The next agent should consider extending publication data with:
-- `pushed_at`
-- `push_result`
-- `push_error`
-- `published_ref`
-
-### Success Criteria For Priority 2
-
-This priority is done when a human can open `Compare Diffs` and answer, without reading raw JSON:
+The publication slice is considered complete enough when a human can open `Compare Diffs` and answer, without reading raw JSON:
 
 1. Has this synthesis been approved for publication?
 2. What exact branch/bookmark will be pushed?
@@ -206,35 +190,38 @@ node scripts/check-demo-state.mjs
 
 Use this order unless a blocking regression is found:
 
-1. Finish publication flow
-   - Alloy already knows how to evaluate, synthesize, shape a stack, preview publication, and persist approval.
-   - The next highest-value gap is controlled branch/bookmark push from that approved state.
-   - Deliverables:
-     - push action and result persistence
-     - published ref visibility
-     - failure reporting
-   - detailed method plan:
-     - [PUBLICATION_FLOW_PLAN.md](/Users/codex/stack-judge/docs/PUBLICATION_FLOW_PLAN.md)
-
-2. Blind judge/composer
-   - After publication readiness, the next differentiator is better close-call synthesis.
+1. Blind judge/composer
+   - The next highest-value gap is better close-call synthesis without weakening deterministic gates.
    - Keep deterministic checks as the hard gate and layer blind judge/composer output on top.
    - Deliverables:
      - anonymized candidate presentation
      - structured judge output artifact
      - composer path for close-call synthesis only
 
-3. Local testing workflow
+2. Local testing workflow
    - Operators need a direct path from the UI to a chosen candidate or synthesis workspace.
    - This improves trust faster than more analytics or more visual work.
    - Deliverables:
-     - one-click or one-command open path
-     - explicit local validation commands beside the chosen workspace
+      - one-click or one-command open path
+      - explicit local validation commands beside the chosen workspace
+
+3. In-app Task Composer
+   - Custom tasks should not require editing markdown in the filesystem.
+   - Keep markdown as the persisted source format, but add a GUI composer/editor and save flow.
+   - Deliverables:
+     - create new task from the Control Panel
+     - edit title/frontmatter/body in the UI
+     - save back to a `.task.md` file
+     - validate and preview the parsed task before run preparation
 
 4. Broader eval coverage
    - Add a smoke task and a compact algorithm task so Alloy is easier to demo and regress-test quickly.
    - Keep the current richer cards for synthesis credibility.
 
-5. Repo-local browser smoke harness
+5. PR creation from the pushed synthesis ref
+   - Remote push is now the gating publication step.
+   - Add PR creation only on top of a successful pushed-ref state.
+
+6. Repo-local browser smoke harness
    - Useful, but only after the core publish/judge/test loop is stronger.
    - Make it reproducible from this repo rather than dependent on machine-specific tooling.

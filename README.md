@@ -29,6 +29,7 @@ Working today:
 - explicit per-file merge provenance in the operator UI
 - synthesized diff summaries with contested/manual-override cues and publication-readiness status
 - publication preview and approval state in `Compare Diffs`
+- publication push state in `Compare Diffs`
 - run provenance labeling in the UI so cards distinguish:
   - command previews
   - live CLI runs
@@ -61,7 +62,7 @@ Working today:
 
 Not implemented yet:
 - blind judge/composer layers
-- branch/bookmark push from approved synthesis
+- in-app Task Composer for custom user tasks
 - final PR publishing
 - persisted project-level dashboards and saved board preferences
 
@@ -142,6 +143,10 @@ Current automated proof level:
 Important UI honesty note:
 - older run artifacts can still exist under `runs/`
 - Alloy now flags replay-backed or legacy artifacts explicitly in the board/detail views instead of presenting them as live provider proof
+
+Current task-authoring limitation:
+- custom tasks are still stored as markdown files under `samples/tasks`
+- the Control Panel can parse and edit task markdown, but creating new user tasks in-app is still a planned feature
 
 ## Current Scaffold Outputs
 

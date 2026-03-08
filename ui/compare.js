@@ -821,6 +821,38 @@ async function approvePublicationAction() {
   }
 }
 
+async function pushPublicationAction() {
+  try {
+    const response = await fetch(`/api/tasks/${encodeURIComponent(state.taskId)}/publication/push`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || 'publication_push_failed');
+    }
+
+    showToast({
+      title: result.publication.status === 'pushed' ? 'Publication pushed' : 'Publication push recorded',
+      lines: [
+        result.publication.status,
+        result.publication.published_ref || result.publication.target_branch_or_bookmark || null,
+        result.publication.push_error || null
+      ].filter(Boolean),
+      tone: result.publication.status === 'publish_failed' ? 'danger' : 'success'
+    });
+
+    await boot();
+  } catch (error) {
+    showToast({
+      title: 'Publication push failed',
+      lines: [error.message || String(error)],
+      tone: 'danger'
+    });
+  }
+}
+
 function renderPublicationPanel(root, publication, publicationReadiness) {
   const publicationBlock = document.createElement('div');
   publicationBlock.className = 'info-block';
@@ -878,6 +910,18 @@ function renderPublicationPanel(root, publication, publicationReadiness) {
       ].join(' • ')
     );
 
+    if (publication.published_ref || publication.pushed_at || publication.push_error) {
+      appendInfoBlock(
+        publicationBlock,
+        'Push Result',
+        [
+          publication.published_ref || null,
+          publication.pushed_at ? `pushed ${publication.pushed_at}` : null,
+          publication.push_error ? `error ${publication.push_error}` : null
+        ].filter(Boolean).join(' • ')
+      );
+    }
+
     if (publication.publish_preview) {
       appendInfoBlock(
         publicationBlock,
@@ -915,6 +959,16 @@ function renderPublicationPanel(root, publication, publicationReadiness) {
       await approvePublicationAction();
     });
     actions.appendChild(approveButton);
+  }
+
+  if ((publication && (!publication.approval_required || publication.human_approved_at))
+    && ['approved', 'push_ready', 'publish_failed'].includes(publication.status)) {
+    const pushButton = document.createElement('button');
+    pushButton.textContent = publication.status === 'publish_failed' ? 'Retry Push' : 'Push Approved Ref';
+    pushButton.addEventListener('click', async () => {
+      await pushPublicationAction();
+    });
+    actions.appendChild(pushButton);
   }
 
   publicationBlock.appendChild(actions);

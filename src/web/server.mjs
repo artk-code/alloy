@@ -9,7 +9,7 @@ import { prepareTaskFromFile, prepareTaskFromMarkdown, runTaskFromPrepared } fro
 import { parseTaskBrief } from '../parser.mjs';
 import { buildProviderEnv, doctorProviders, getProviderLoginCommand, getProviderTestCommand } from '../providers.mjs';
 import { SessionManager } from '../session-manager.mjs';
-import { approvePublication, refreshPublicationState, synthesizeRun } from '../synthesis.mjs';
+import { approvePublication, pushPublication, refreshPublicationState, synthesizeRun } from '../synthesis.mjs';
 import { listGuideDocs, readGuideDoc } from './docs-data.mjs';
 import { getCandidateDiff, getCandidateJj, getSynthesisDiff, getTaskDetail, getTaskPublication, listTaskCards } from './data.mjs';
 
@@ -146,6 +146,11 @@ export function createServer() {
       if (req.method === 'POST' && url.pathname.startsWith('/api/tasks/') && url.pathname.endsWith('/publication/approve')) {
         const taskId = decodeURIComponent(url.pathname.split('/')[3] || '');
         return sendJson(res, 200, await approveTaskPublication(taskId, await readJsonBody(req)));
+      }
+
+      if (req.method === 'POST' && url.pathname.startsWith('/api/tasks/') && url.pathname.endsWith('/publication/push')) {
+        const taskId = decodeURIComponent(url.pathname.split('/')[3] || '');
+        return sendJson(res, 200, await pushTaskPublication(taskId, await readJsonBody(req)));
       }
 
       if (req.method === 'POST' && url.pathname === '/api/parse-markdown') {
@@ -334,6 +339,31 @@ async function approveTaskPublication(taskId, body) {
     approvedBy: body?.approved_by || 'human-ui',
     approvedAt: body?.approved_at || new Date().toISOString(),
     note: body?.note || null
+  });
+
+  return {
+    task_id: taskId,
+    publication
+  };
+}
+
+async function pushTaskPublication(taskId, body) {
+  const detail = await getTaskDetail(projectRoot, taskId);
+  if (!detail || !detail.run_dir) {
+    throw new Error(`No completed run is available for publication push on task ${taskId}`);
+  }
+  if (!detail.synthesis) {
+    throw new Error(`No synthesized result is available for publication push on task ${taskId}`);
+  }
+
+  const publication = await pushPublication({
+    runDir: detail.run_dir,
+    task: {
+      ...detail.task,
+      run_config: detail.run_config
+    },
+    remote: body?.remote || null,
+    bookmark: body?.target_branch_or_bookmark || null
   });
 
   return {

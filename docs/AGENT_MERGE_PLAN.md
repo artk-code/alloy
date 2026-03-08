@@ -18,32 +18,36 @@ Alloy should not merely pick a single winner. It should:
 
 The current implementation priorities should be:
 
-1. Publication flow from the shaped synthesis stack
-   - publish preview and approval are already implemented
-   - next sub-step is branch or bookmark push
-   - later PR creation
-   - detailed method plan:
-     - [PUBLICATION_FLOW_PLAN.md](/Users/codex/stack-judge/docs/PUBLICATION_FLOW_PLAN.md)
-
-2. Blind judge/composer on top of deterministic gates
+1. Blind judge/composer on top of deterministic gates
    - deterministic evaluation stays the gatekeeper
    - judge/composer improves close-call synthesis decisions
 
-3. Local candidate and synthesis testing
+2. Local candidate and synthesis testing
    - one-click operator flow to open and test a candidate or synthesis workspace locally
+
+3. In-app Task Composer
+   - custom tasks should be authored and edited through the Control Panel
+   - markdown files should remain the persisted task format, not the primary UX
 
 4. Broader evaluation coverage
    - smoke tasks
    - compact algorithm tasks
    - realistic bugfix and security tasks
 
-5. SQLite metadata layer later
+5. PR creation from the pushed synthesis ref
+   - publish preview, approval, and push are already implemented
+   - PR automation should build on the pushed-ref state, not bypass it
+   - detailed method plan:
+     - [PUBLICATION_FLOW_PLAN.md](/Users/codex/stack-judge/docs/PUBLICATION_FLOW_PLAN.md)
+
+6. SQLite metadata layer later
    - useful once project count and run history outgrow raw artifact scanning
 
 Focus now:
-- publication readiness
+- judge/composer
 - human-reviewable synthesis decisions
 - reliable local validation
+- task authoring inside the product
 
 Do not focus first on:
 - operation mining
@@ -287,18 +291,7 @@ Code remains on disk and in version control:
 
 ## Near-Term Milestones
 
-### Milestone 1: Publication Push From Approved Synthesis
-
-Deliver:
-- branch/bookmark push from approved synthesis
-- persisted push result metadata
-- visible published ref and failure reporting
-
-Acceptance:
-- operator can tell what exact ref will be pushed
-- operator can see whether the push succeeded or failed without reading raw JSON
-
-### Milestone 2: Blind Judge And Composer
+### Milestone 1: Blind Judge And Composer
 
 Deliver:
 - anonymized candidate presentation for judging
@@ -309,7 +302,7 @@ Acceptance:
 - deterministic checks still gate eligibility
 - judge/composer improves close-call synthesis without replacing hard gates
 
-### Milestone 3: Local Testing Workflow
+### Milestone 2: Local Testing Workflow
 
 Deliver:
 - one-click path/open flow for candidate and synthesis workspaces
@@ -317,6 +310,17 @@ Deliver:
 
 Acceptance:
 - operator can open a candidate or synthesis workspace locally and run checks without hunting for paths
+
+### Milestone 3: In-App Task Composer
+
+Deliver:
+- create new custom task from the Control Panel
+- edit markdown/frontmatter/body in the UI
+- save to a `.task.md` file
+- validate and preview before run preparation
+
+Acceptance:
+- operator can create a custom task without manually creating files on disk
 
 ### Milestone 4: Broader Eval Coverage
 
@@ -328,7 +332,17 @@ Deliver:
 Acceptance:
 - Alloy can be demoed quickly on small tasks and credibly on richer synthesis tasks
 
-### Milestone 5: SQLite Metadata Layer
+### Milestone 5: PR Creation From Pushed Synthesis Ref
+
+Deliver:
+- PR creation only from a successful pushed synthesis ref
+- persisted PR URL and status
+- visible PR state in Compare Diffs and Control Panel
+
+Acceptance:
+- operator can publish a reviewed synthesis into one PR without bypassing the pushed-ref gate
+
+### Milestone 6: SQLite Metadata Layer
 
 Deliver:
 - SQLite metadata store for projects, tasks, runs, candidates, and syntheses
@@ -344,12 +358,13 @@ Build the synthesis engine conservatively.
 
 Preferred sequence from the current state:
 
-1. publication push from approved synthesis
-2. blind judge/composer on top of deterministic gates
-3. local testing workflow
+1. blind judge/composer on top of deterministic gates
+2. local testing workflow
+3. in-app Task Composer
 4. broader eval coverage
-5. SQLite control-plane metadata
-6. symbol-level synthesis for selected languages
+5. PR creation from the pushed synthesis ref
+6. SQLite control-plane metadata
+7. symbol-level synthesis for selected languages
 
 Do not jump directly to:
 - free-form hunk splicing
@@ -372,25 +387,23 @@ That is how Alloy can combine the strongest code contributions in a readable, re
 
 This is the practical build order from the current shipped state:
 
-1. Publication flow
-   - Highest leverage because Alloy can already produce reviewable syntheses, publication previews, and approval state but cannot yet push an approved result cleanly.
-   - Build:
-     - branch/bookmark push
-     - push result persistence
-     - published ref visibility
-   - see:
-     - [PUBLICATION_FLOW_PLAN.md](/Users/codex/stack-judge/docs/PUBLICATION_FLOW_PLAN.md)
-
-2. Blind judge/composer
-   - Highest product differentiation after publication readiness.
+1. Blind judge/composer
+   - Highest product differentiation after the publishable-stack groundwork is in place.
    - Keep deterministic evaluation as the gatekeeper; use judge/composer only for close-call synthesis decisions.
 
-3. Local testing workflow
+2. Local testing workflow
    - Make candidate and synthesis workspaces easy to open and validate locally.
    - This improves operator confidence and shortens debugging loops.
+
+3. In-app Task Composer
+   - Custom tasks should not require manual file creation in `samples/tasks`.
+   - Keep markdown as the source of truth, but move authoring into the product.
 
 4. Broader eval coverage
    - Add smoke and compact algorithm tasks so Alloy can be demonstrated quickly and regression-tested cheaply.
 
-5. SQLite later
+5. PR creation from the pushed synthesis ref
+   - Build this only on top of the explicit push state and human approval flow.
+
+6. SQLite later
    - Add only when run history and multi-project querying outgrow raw artifact scanning.

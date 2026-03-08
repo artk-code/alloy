@@ -4,8 +4,12 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { mkdtemp } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 
 import { JjAdapter } from '../src/jj.mjs';
+
+const execFileAsync = promisify(execFile);
 
 test('JjAdapter bootstraps a workspace and captures a real patch snapshot', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'alloy-jj-'));
@@ -130,6 +134,44 @@ test('JjAdapter exposes split, rebase, squash, and range-capture helpers for sta
   });
   assert.ok(squashResult.into_revision.commit_id);
   assert.ok(squashResult.current_revision.commit_id);
+
+  await fs.rm(root, { recursive: true, force: true });
+});
+
+test('JjAdapter can push a bookmark to a real bare Git remote', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'alloy-jj-push-'));
+  const workspacePath = path.join(root, 'workspace');
+  const remotePath = path.join(root, 'remote.git');
+  await fs.mkdir(workspacePath, { recursive: true });
+  await fs.writeFile(path.join(workspacePath, 'demo.txt'), 'alpha\n', 'utf8');
+  await execFileAsync('git', ['init', '--bare', remotePath], { cwd: root });
+
+  const adapter = new JjAdapter();
+  await adapter.bootstrapWorkspace({
+    workspacePath,
+    taskId: 'task_publish',
+    candidateId: 'cand_publish',
+    candidateSlot: 'S',
+    providerInstanceId: 'alloy-synthesis',
+    baseRef: 'main'
+  });
+
+  await fs.writeFile(path.join(workspacePath, 'demo.txt'), 'alpha\nbeta\n', 'utf8');
+  await adapter.run(['describe', '-m', 'publishable'], { cwd: workspacePath });
+  await execFileAsync('git', ['remote', 'add', 'origin', remotePath], { cwd: workspacePath });
+
+  const result = await adapter.pushBookmark({
+    workspacePath,
+    bookmark: 'alloy/task-publish/synth-1',
+    remote: 'origin'
+  });
+  const { stdout } = await execFileAsync('git', ['--git-dir', remotePath, 'show-ref'], { cwd: root });
+
+  assert.equal(result.status, 'success');
+  assert.equal(result.remote, 'origin');
+  assert.equal(result.bookmark, 'alloy/task-publish/synth-1');
+  assert.equal(result.published_ref, 'origin/alloy/task-publish/synth-1');
+  assert.match(stdout, /refs\/heads\/alloy\/task-publish\/synth-1/);
 
   await fs.rm(root, { recursive: true, force: true });
 });

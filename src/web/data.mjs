@@ -721,7 +721,9 @@ function buildPublicationView(summary, synthesis, task, candidates = []) {
     human_approval_note: publication?.human_approval_note || null,
     target_remote: publication?.target_remote || 'origin',
     target_branch_or_bookmark: publication?.target_branch_or_bookmark || preview?.target_branch_or_bookmark || null,
+    published_ref: publication?.published_ref || null,
     pushed_at: publication?.pushed_at || null,
+    push_error: publication?.push_error || publication?.push_result?.error || null,
     push_result: publication?.push_result || null,
     publish_preview: preview
       ? {

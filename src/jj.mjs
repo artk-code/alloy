@@ -179,6 +179,57 @@ export class JjAdapter {
     };
   }
 
+  async pushBookmark({
+    workspacePath,
+    bookmark,
+    remote = 'origin',
+    revision = '@'
+  }) {
+    const pushedAt = new Date().toISOString();
+    const targetRevision = await this.readRevision({ workspacePath, revset: revision });
+
+    try {
+      await this.run(['bookmark', 'set', bookmark, '--revision', revision], { cwd: workspacePath });
+      const { stdout = '', stderr = '' } = await execFileAsync(this.binary, buildArgs(this, [
+        'git',
+        'push',
+        '--remote',
+        remote,
+        '--bookmark',
+        bookmark
+      ]), {
+        cwd: workspacePath,
+        env: process.env
+      });
+
+      return {
+        status: 'success',
+        pushed_at: pushedAt,
+        remote,
+        bookmark,
+        revision,
+        published_ref: `${remote}/${bookmark}`,
+        target_revision: targetRevision,
+        stdout: stdout.trim(),
+        stderr: stderr.trim()
+      };
+    } catch (error) {
+      return {
+        status: 'failed',
+        pushed_at: null,
+        attempted_at: pushedAt,
+        remote,
+        bookmark,
+        revision,
+        published_ref: `${remote}/${bookmark}`,
+        target_revision: targetRevision,
+        stdout: error.stdout?.trim?.() || '',
+        stderr: error.stderr?.trim?.() || '',
+        error: error.message || String(error)
+      };
+    }
+  }
+
   async readRevision({ workspacePath, revset }) {
     const template = [
       'commit_id',

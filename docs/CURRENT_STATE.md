@@ -42,6 +42,7 @@ Purpose: Capture the honest current Alloy proof boundary so future work starts f
   - manual-override and contested-file cues
   - publication-readiness status
   - publication preview and approval state
+  - operator-controlled branch/bookmark push state
   - review-oriented `jj` stack shaping metadata
 - The board/detail UI now classifies run provenance so it can distinguish:
   - command previews
@@ -67,6 +68,7 @@ Real today:
 - `jj` split/rebase/squash helper support for stack shaping
 - persisted publication-readiness metadata for synthesized results
 - persisted publication preview and approval metadata for synthesized results
+- persisted publication push results for synthesized results
 - local API and browser UI
 - persisted `judge-rationale.json` artifact per evaluated run
 - a shared dark-mode toggle persisted across Control Panel, Compare Diffs, and Docs
@@ -77,7 +79,8 @@ Still limited:
 - some historical run artifacts under `runs/` were created with older mock/replay helpers and still exist for audit purposes
 - Gemini auth is intentionally treated as manual operator verification in the current build
 - blind judge/composer logic is not implemented yet
-- final remote branch/bookmark push and PR creation are not implemented yet
+- custom user tasks still start as markdown files on disk; there is no in-app Task Composer yet
+- final PR creation is not implemented yet
 - no repo-local browser smoke harness exists yet, so browser validation is still mostly manual
 
 ## Demo Proof Boundary
@@ -92,7 +95,7 @@ Current demo proof:
 7. Alloy can expose merge-plan, synthesis diff, and operator guidance surfaces through the web UI.
 8. Alloy persists and renders a separate judge rationale artifact for human review.
 9. Alloy shapes synthesized results into a reviewable `jj` stack when multiple file categories are present.
-10. Alloy computes publication-readiness blockers, publication previews, and explicit human approval state without pretending remote publish/PR automation is already implemented.
+10. Alloy computes publication-readiness blockers, publication previews, explicit human approval state, and real remote push results without pretending PR automation is already implemented.
 
 That is enough to prove the orchestration, verification, artifact, and conservative merge path. It is not yet enough to claim full live multi-provider synthesis with autonomous composition.
 
@@ -108,7 +111,7 @@ That is enough to prove the orchestration, verification, artifact, and conservat
   - per-file provenance
   - merge-plan review
   - synthesis actions
-  - publication preview, approval, and stack-shape summaries
+  - publication preview, approval, push, and stack-shape summaries
 - The app now has an in-app `Docs` page backed by local markdown content.
 - Cards now carry explicit project labels so multiple labs can coexist on the same board.
 - The board can now filter by project and group by project or state.
@@ -134,33 +137,31 @@ That is enough to prove the orchestration, verification, artifact, and conservat
 
 ## Highest-Value Next Steps
 
-1. Add a real publication flow from the shaped synthesis stack:
-   - preview and approval are implemented
-   - next remaining sub-step is branch/bookmark push
-   - later PR creation
-   - detailed method plan:
-     - [PUBLICATION_FLOW_PLAN.md](/Users/codex/stack-judge/docs/PUBLICATION_FLOW_PLAN.md)
-2. Add a blind judge/composer layer on top of deterministic evaluation for close-call synthesis decisions.
-3. Add a local candidate/synthesis testing flow so operators can open or run a chosen workspace without hunting through artifacts.
+1. Add a blind judge/composer layer on top of deterministic evaluation for close-call synthesis decisions.
+2. Add a local candidate/synthesis testing flow so operators can open or run a chosen workspace without hunting through artifacts.
+3. Add an in-app Task Composer so operators can create and edit custom task briefs without dropping to the filesystem.
 4. Add broader smoke/algorithm cards so the board covers fast runner checks as well as richer synthesis demos.
-5. Add a repo-local browser smoke harness once it is reproducible from this repo rather than dependent on ambient machine state.
+5. Add PR creation from the approved, pushed synthesis ref after the judge/local-test workflow is stable.
+6. Add a repo-local browser smoke harness once it is reproducible from this repo rather than dependent on ambient machine state.
 
 ## Appended Execution Order
 
 For the next build slice, use this order:
 
-1. Finish publication flow with branch/bookmark push from approved synthesis
-2. Blind judge/composer
-3. Local candidate/synthesis testing
+1. Blind judge/composer
+2. Local candidate/synthesis testing
+3. In-app Task Composer
 4. Broader eval cards
-5. Repo-local browser smoke harness
+5. PR creation from the pushed synthesis ref
+6. Repo-local browser smoke harness
 
 Reason:
-- preview/approval now turn synthesis output into an actionable operator decision
-- branch/bookmark push is the last missing publication sub-step before PR work
-- judge/composer is the next biggest capability gain after that
+- push now turns synthesis output into a real remote publication step
+- judge/composer is the next biggest capability gain
 - local testing improves trust quickly
+- the product is still too dependent on filesystem markdown for custom work intake
 - broader evals improve demo speed and regression coverage
+- PR creation is straightforward but lower leverage than better selection and validation
 - browser automation is useful, but lower leverage than the four items above
 
 ## Validation Commands

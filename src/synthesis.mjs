@@ -279,6 +279,79 @@ export async function approvePublication({
   return manifest.publication;
 }
 
+export async function pushPublication({
+  runDir,
+  task,
+  remote = null,
+  bookmark = null
+}) {
+  const { summary, summaryPath, manifest, manifestPath } = await readSynthesisState(runDir);
+  const jj = new JjAdapter();
+  const currentPublication = manifest.publication || summary?.synthesis?.publication || null;
+  const mergePlan = manifest.merge_plan || summary?.synthesis?.merge_plan || summary?.evaluation?.merge_plan || null;
+
+  manifest.publication_readiness = buildPublicationReadiness({
+    manifest,
+    mergePlan
+  });
+  manifest.publication = await buildPublicationState({
+    manifest,
+    task,
+    summary,
+    jj
+  });
+
+  if (!manifest.publication.ready) {
+    throw new Error(`Synthesis is not publishable yet: ${manifest.publication.blockers.join(' ')}`);
+  }
+  if (manifest.publication.approval_required && !manifest.publication.human_approved_at) {
+    throw new Error('Publication requires explicit human approval before any remote push step.');
+  }
+
+  const targetRemote = remote || manifest.publication.target_remote || 'origin';
+  const targetBookmark = bookmark || manifest.publication.target_branch_or_bookmark;
+  if (!targetBookmark) {
+    throw new Error('No target branch or bookmark is available for publication push.');
+  }
+
+  const pushResult = await jj.pushBookmark({
+    workspacePath: manifest.workspace_path,
+    remote: targetRemote,
+    bookmark: targetBookmark,
+    revision: '@'
+  });
+
+  manifest.publication = await buildPublicationState({
+    manifest: {
+      ...manifest,
+      publication: {
+        ...manifest.publication,
+        target_remote: targetRemote,
+        target_branch_or_bookmark: targetBookmark,
+        published_ref: pushResult.published_ref || `${targetRemote}/${targetBookmark}`,
+        pushed_at: pushResult.pushed_at || null,
+        push_result: pushResult
+      }
+    },
+    task,
+    summary,
+    jj
+  });
+
+  summary.synthesis = {
+    ...summary.synthesis,
+    publication_readiness: manifest.publication_readiness,
+    publication: manifest.publication
+  };
+
+  await Promise.all([
+    fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8'),
+    fs.writeFile(summaryPath, JSON.stringify(summary, null, 2) + '\n', 'utf8')
+  ]);
+
+  return manifest.publication;
+}
+
 async function readCandidateManifests(runDir) {
   const candidateDir = path.join(runDir, 'candidates');
   const entries = await fs.readdir(candidateDir, { withFileTypes: true }).catch(() => []);
@@ -525,15 +598,18 @@ async function buildPublicationState({ manifest, task, summary, jj }) {
   } else if (approvalRequired && !previous.human_approved_at) {
     status = 'awaiting_approval';
   } else {
-    status = 'approved';
+    status = 'push_ready';
   }
 
   const requiredActions = [...readiness.required_actions];
   if (approvalRequired && !previous.human_approved_at && readiness.ready) {
     requiredActions.unshift('Record explicit human approval before any remote push step.');
   }
-  if (status === 'approved') {
-    requiredActions.unshift('Remote push is not automated yet. Use the publish preview to perform the next manual step.');
+  if (status === 'push_ready') {
+    requiredActions.unshift('Push the approved bookmark or branch to the configured remote.');
+  }
+  if (status === 'publish_failed') {
+    requiredActions.unshift('Inspect the recorded push failure and retry only after correcting the remote or bookmark state.');
   }
 
   return {
@@ -550,8 +626,10 @@ async function buildPublicationState({ manifest, task, summary, jj }) {
     target_remote: preview.target_remote,
     target_branch_or_bookmark: preview.target_branch_or_bookmark,
     publish_preview: preview,
+    published_ref: previous.published_ref || null,
     pushed_at: previous.pushed_at || null,
-    push_result: previous.push_result || null
+    push_result: previous.push_result || null,
+    push_error: previous.push_result?.error || null
   };
 }
 
@@ -617,8 +695,8 @@ function summarizePublicationStatus(status) {
   switch (status) {
     case 'awaiting_approval':
       return 'Ready for explicit human approval before any remote publish step.';
-    case 'approved':
-      return 'Publication has been approved. Remote push is still a separate manual step.';
+    case 'push_ready':
+      return 'Publication has been approved and is ready to push to the configured remote.';
     case 'pushed':
       return 'The shaped synthesis stack has already been pushed.';
     case 'publish_failed':

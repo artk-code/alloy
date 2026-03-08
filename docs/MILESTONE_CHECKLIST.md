@@ -20,15 +20,17 @@ Done when:
 ## Milestone B: Task Input And Validation
 
 Checklist:
+- [ ] new custom task can be created from the UI without touching the filesystem manually
 - [ ] Markdown task brief editor exists
 - [ ] YAML frontmatter is parsed
 - [ ] parsed JSON preview is visible
 - [ ] validation errors and warnings are shown
+- [ ] task can be saved back to a `.task.md` file from the UI
 - [ ] `source_system` and `source_task_id` are stored for Symphony-origin tasks
 - [ ] launch is blocked on hard validation errors
 
 Done when:
-- task input is human-friendly and system-trustworthy
+- task input is human-friendly, system-trustworthy, and no longer filesystem-only for custom task creation
 
 ## Milestone C: Provider Readiness And Login
 

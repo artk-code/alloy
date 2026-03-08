@@ -951,6 +951,16 @@ function renderComparisonView(comparison) {
         ].join(' • ')
       );
     }
+    if (publication?.published_ref || publication?.push_error) {
+      appendInfoBlock(
+        comparisonView,
+        'Push Result',
+        [
+          publication.published_ref || null,
+          publication.push_error ? `error ${publication.push_error}` : null
+        ].filter(Boolean).join(' • ')
+      );
+    }
   }
 
   if (comparison.merge_plan) {

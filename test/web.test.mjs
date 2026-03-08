@@ -98,6 +98,7 @@ test('web UI avoids blocking browser modal APIs for provider and run actions', a
   assert.match(appSource, /initThemeToggle/);
   assert.match(compareSource, /publication\/preview/);
   assert.match(compareSource, /publication\/approve/);
+  assert.match(compareSource, /publication\/push/);
   assert.match(compareSource, /initThemeToggle/);
   assert.match(docsSource, /initThemeToggle/);
   assert.match(themeSource, /alloy-theme/);
