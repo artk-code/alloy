@@ -94,6 +94,8 @@ Alloy will then show:
 - merge-plan guidance
 - judge rationale
 - any available synthesis diff
+- publication-readiness blockers
+- `jj` stack-shape summaries for synthesized results
 
 ## How To Review And Build A Synthesis
 
@@ -114,6 +116,7 @@ Inside `Compare Diffs`:
 6. If file-level review is needed, adjust the selected source per file.
 7. Build the synthesis workspace.
 8. Review the synthesized diff and per-file provenance.
+9. Check publication readiness before treating the result as ready for PR publication.
 
 Important rule:
 - Alloy is conservative by design

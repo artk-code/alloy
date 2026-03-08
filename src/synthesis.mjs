@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { JjAdapter } from './jj.mjs';
-import { buildMergePlanFromSelections, materializeSelectionsFromMergePlan, validateMergePlan } from './merge-plan.mjs';
+import { buildMergePlanFromSelections, classifyFilePath, materializeSelectionsFromMergePlan, validateMergePlan } from './merge-plan.mjs';
 import { runAcceptanceChecks } from './verify.mjs';
 
 export async function synthesizeRun({
@@ -31,7 +31,12 @@ export async function synthesizeRun({
     evaluation: summary.evaluation || null,
     candidates
   });
-  const normalizedSelections = materializeSelectionsFromMergePlan(normalizedPlan);
+  const normalizedSelections = buildSelectedFiles({
+    normalizedPlan,
+    baselinePlan: summary.evaluation?.merge_plan || null,
+    strategy: normalizedPlan.mode,
+    selectedBy
+  });
   const normalizedStrategy = normalizedPlan.mode === 'winner_only' ? 'winner_only' : 'file_select';
 
   const synthesisRoot = path.join(runDir, 'synthesis');
@@ -78,6 +83,9 @@ export async function synthesizeRun({
       candidate_slot: candidate.candidate_slot,
       provider: candidate.provider,
       provider_instance_id: candidate.provider_instance_id,
+      selection_origin: selection.selection_origin,
+      manual_override: selection.manual_override,
+      planned_candidate_id: selection.planned_candidate_id,
       decision_reason: normalizedPlan.file_decisions.find((decision) => decision.path === selection.path)?.decision_reason || null,
       confidence: normalizedPlan.file_decisions.find((decision) => decision.path === selection.path)?.confidence || null,
       risk_level: normalizedPlan.file_decisions.find((decision) => decision.path === selection.path)?.risk_level || null
@@ -105,6 +113,11 @@ export async function synthesizeRun({
     verification,
     status: verification.status === 'pass' ? 'completed' : 'failed',
     jj: jjState,
+    stack_shape: {
+      status: 'not_attempted',
+      rationale: 'Stack shaping runs only when jj capture is available.'
+    },
+    publication_readiness: null,
     artifact_paths: {
       patch_path: path.join(artifactsDir, 'synthesis.patch'),
       diff_summary_path: path.join(artifactsDir, 'diff-summary.txt'),
@@ -115,12 +128,20 @@ export async function synthesizeRun({
 
   if (jjState.status === 'ready') {
     try {
-      const snapshot = await jj.captureCandidateSnapshot({
+      await jj.run(['describe', '-m', `Alloy synthesis ${normalizedStrategy} for ${task.task_id}`], { cwd: workspacePath });
+      manifest.stack_shape = await shapeSynthesisStack({
+        jj,
         workspacePath,
-        description: `Alloy synthesis ${normalizedStrategy} for ${task.task_id}`,
+        selectedFiles: normalizedSelections
+      });
+      const snapshot = await jj.captureDiffRange({
+        workspacePath,
+        fromRev: jjState.base_revision.commit_id,
+        toRev: '@',
         patchPath: manifest.artifact_paths.patch_path,
         diffSummaryPath: manifest.artifact_paths.diff_summary_path,
-        statusPath: manifest.artifact_paths.status_path
+        statusPath: manifest.artifact_paths.status_path,
+        role: 'synthesis'
       });
       manifest.jj = {
         ...jjState,
@@ -139,6 +160,11 @@ export async function synthesizeRun({
     manifest.changed_files = normalizedSelections.map((selection) => selection.path);
   }
 
+  manifest.publication_readiness = buildPublicationReadiness({
+    manifest,
+    mergePlan: normalizedPlan
+  });
+
   await fs.writeFile(manifest.artifact_paths.manifest_path, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
 
   summary.synthesis = {
@@ -153,7 +179,9 @@ export async function synthesizeRun({
     selected_files: normalizedSelections,
     merge_plan: normalizedPlan,
     verification: manifest.verification,
-    jj: manifest.jj
+    jj: manifest.jj,
+    stack_shape: manifest.stack_shape,
+    publication_readiness: manifest.publication_readiness
   };
 
   await fs.writeFile(summaryPath, JSON.stringify(summary, null, 2) + '\n', 'utf8');
@@ -210,6 +238,178 @@ function normalizeMergePlan({ mergePlan, strategy, winnerCandidateId, fileSelect
 
   return normalized;
 }
+
+function buildSelectedFiles({ normalizedPlan, baselinePlan, strategy, selectedBy }) {
+  const baselineByPath = new Map((baselinePlan?.file_decisions || []).map((decision) => [decision.path, decision]));
+  const chosenSelections = materializeSelectionsFromMergePlan(normalizedPlan);
+
+  return chosenSelections.map((selection) => {
+    const baselineDecision = baselineByPath.get(selection.path) || null;
+    const manualOverride = strategy !== 'winner_only'
+      && Boolean(baselineDecision)
+      && baselineDecision.chosen_candidate_id !== selection.candidate_id;
+    return {
+      ...selection,
+      planned_candidate_id: baselineDecision?.chosen_candidate_id || null,
+      selection_origin: strategy === 'winner_only'
+        ? 'winner_only'
+        : manualOverride
+          ? 'manual_override'
+          : 'merge_plan',
+      manual_override: manualOverride,
+      selected_by: selectedBy,
+      file_kind: classifyFilePath(selection.path)
+    };
+  });
+}
+
+async function shapeSynthesisStack({ jj, workspacePath, selectedFiles }) {
+  const grouped = groupSelectedFiles(selectedFiles);
+  const availableGroups = STACK_GROUP_ORDER
+    .map((kind) => grouped.get(kind))
+    .filter((group) => group && group.files.length > 0);
+
+  if (availableGroups.length <= 1) {
+    return {
+      status: 'not_needed',
+      ordering: STACK_GROUP_ORDER,
+      groups: availableGroups.map((group) => ({
+        kind: group.kind,
+        label: group.label,
+        files: [...group.files]
+      })),
+      operations: [],
+      tip_revision: await jj.readRevision({ workspacePath, revset: '@' })
+    };
+  }
+
+  const operations = [];
+  const testsGroup = grouped.get('test');
+  if (testsGroup?.files.length) {
+    await jj.splitRevisionByFiles({
+      workspacePath,
+      revision: '@',
+      files: testsGroup.files,
+      message: 'Alloy synthesis: tests'
+    });
+    operations.push({
+      command: 'split',
+      kind: 'test',
+      files: [...testsGroup.files]
+    });
+  }
+
+  const docsGroup = grouped.get('doc');
+  const implementationGroup = grouped.get('code');
+  if (docsGroup?.files.length) {
+    await jj.splitRevisionByFiles({
+      workspacePath,
+      revision: '@',
+      files: docsGroup.files,
+      message: 'Alloy synthesis: docs'
+    });
+    operations.push({
+      command: 'split',
+      kind: 'doc',
+      files: [...docsGroup.files]
+    });
+
+    if (implementationGroup?.files.length) {
+      await jj.rebaseRevisionAfter({ workspacePath, revision: '@-', destination: '@' });
+      operations.push({
+        command: 'rebase',
+        kind: 'doc',
+        destination: 'after implementation'
+      });
+      await jj.editRevision({ workspacePath, revision: '@+' });
+      operations.push({
+        command: 'edit',
+        revision: '@+'
+      });
+    }
+  }
+
+  const presentKinds = availableGroups.map((group) => group.kind);
+  const stackGroups = [];
+  for (let index = 0; index < presentKinds.length; index += 1) {
+    const reverseIndex = presentKinds.length - 1 - index;
+    const kind = presentKinds[reverseIndex];
+    const revset = index === 0 ? '@' : `@${'-'.repeat(index)}`;
+    const group = grouped.get(kind);
+    stackGroups.unshift({
+      kind: group.kind,
+      label: group.label,
+      files: [...group.files],
+      revision: await jj.readRevision({ workspacePath, revset })
+    });
+  }
+
+  return {
+    status: 'shaped',
+    ordering: presentKinds,
+    operations,
+    groups: stackGroups,
+    tip_revision: await jj.readRevision({ workspacePath, revset: '@' }),
+    publication_note: 'Stack shaped for review using file-category commits.'
+  };
+}
+
+function groupSelectedFiles(selectedFiles) {
+  const groups = new Map(STACK_GROUP_ORDER.map((kind) => [kind, {
+    kind,
+    label: STACK_GROUP_LABELS[kind],
+    files: []
+  }]));
+
+  for (const selection of selectedFiles) {
+    const group = groups.get(selection.file_kind || 'code') || groups.get('code');
+    group.files.push(selection.path);
+  }
+
+  for (const group of groups.values()) {
+    group.files.sort((left, right) => left.localeCompare(right));
+  }
+
+  return groups;
+}
+
+function buildPublicationReadiness({ manifest, mergePlan }) {
+  const blockers = [];
+  if (manifest.verification?.status !== 'pass') {
+    blockers.push('Verification did not pass for the synthesized result.');
+  }
+  if ((mergePlan?.unresolved_conflicts || []).length > 0) {
+    blockers.push(`${mergePlan.unresolved_conflicts.length} unresolved merge conflict${mergePlan.unresolved_conflicts.length === 1 ? '' : 's'} remain.`);
+  }
+  if (manifest.jj?.status !== 'captured') {
+    blockers.push('The final synthesis diff is not fully captured in jj artifacts.');
+  }
+  if (manifest.stack_shape?.status === 'failed') {
+    blockers.push('The synthesis stack could not be shaped into reviewable jj commits.');
+  }
+
+  const ready = blockers.length === 0;
+  return {
+    ready,
+    status: ready ? 'review_ready' : 'blocked',
+    summary: ready
+      ? 'Verification passed, jj diff capture succeeded, and the synthesis stack is reviewable.'
+      : 'The synthesized result is not ready for publication yet.',
+    blockers,
+    checklist: [
+      'Review the synthesized diff against base.',
+      'Review per-file provenance and manual overrides.',
+      'Confirm jj stack shape is understandable before publishing.'
+    ]
+  };
+}
+
+const STACK_GROUP_ORDER = ['test', 'code', 'doc'];
+const STACK_GROUP_LABELS = {
+  test: 'Tests',
+  code: 'Implementation',
+  doc: 'Docs'
+};
 
 async function seedWorkspace(sourcePath, destinationPath) {
   const entries = await fs.readdir(sourcePath);

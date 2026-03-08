@@ -7,7 +7,8 @@ const state = {
   diffMode: 'candidate',
   diffCandidateId: null,
   diffFilePath: null,
-  mergeSelections: {}
+  mergeSelections: {},
+  mergeFilter: 'all'
 };
 
 const summaryRoot = document.querySelector('#compare-summary');
@@ -148,6 +149,7 @@ function renderSummary() {
 
   const mergePlan = detail.comparison_view?.merge_plan;
   const judgeRationale = detail.comparison_view?.judge_rationale || detail.judge_rationale || null;
+  const synthesis = detail.merge_view?.synthesis || null;
   if (mergePlan) {
     appendInfoBlock(summaryRoot, 'Merge Plan', [
       mergePlan.base_candidate_label ? `base ${mergePlan.base_candidate_label}` : null,
@@ -177,6 +179,27 @@ function renderSummary() {
         [flag.severity.toUpperCase(), flag.path || null, flag.message].filter(Boolean).join(' • ')
       )),
       'No major deterministic risks flagged.'
+    );
+  }
+
+  if (synthesis) {
+    appendInfoBlock(summaryRoot, 'Synthesis Status', [
+      `${synthesis.strategy} • ${synthesis.status}`,
+      synthesis.patch_stats ? `${synthesis.patch_stats.file_count} files` : null,
+      synthesis.patch_stats ? `${synthesis.patch_stats.total_changed_lines} lines` : null,
+      synthesis.verification?.status ? `verification ${synthesis.verification.status}` : null,
+      synthesis.jj_change_id ? `jj ${shortId(synthesis.jj_change_id)}` : null
+    ].filter(Boolean).join(' • '));
+  }
+
+  if (detail.merge_view?.publication_readiness) {
+    appendInfoBlock(
+      summaryRoot,
+      'Publish Readiness',
+      [
+        detail.merge_view.publication_readiness.status,
+        detail.merge_view.publication_readiness.summary
+      ].filter(Boolean).join(' • ')
     );
   }
 }
@@ -249,6 +272,20 @@ function renderMerge() {
     `Current mode: ${state.taskDetail.run_config?.merge_mode || merge.merge_mode}. Human review stays at the merge boundary unless a clear deterministic winner is auto-finalized.`
   );
 
+  if (merge.synthesis_summary) {
+    appendInfoBlock(
+      mergeRoot,
+      'Synthesized Diff Summary',
+      [
+        `${merge.synthesis_summary.strategy} • ${merge.synthesis_summary.status}`,
+        `${merge.synthesis_summary.changed_file_count} files`,
+        `${merge.synthesis_summary.changed_line_count} lines`,
+        `verification ${merge.synthesis_summary.verification_status}`,
+        merge.synthesis_summary.jj_change_id ? `jj ${shortId(merge.synthesis_summary.jj_change_id)}` : null
+      ].filter(Boolean).join(' • ')
+    );
+  }
+
   if (merge.merge_plan) {
     appendInfoBlock(
       mergeRoot,
@@ -275,6 +312,47 @@ function renderMerge() {
       'Operator Guidance',
       merge.judge_rationale.operator_guidance || [],
       'No operator guidance is available yet.'
+    );
+  }
+
+  if (merge.publication_readiness) {
+    appendInfoBlock(
+      mergeRoot,
+      'Publication Readiness',
+      [
+        merge.publication_readiness.status,
+        merge.publication_readiness.summary
+      ].filter(Boolean).join(' • ')
+    );
+    appendListBlock(
+      mergeRoot,
+      'Readiness Blockers',
+      merge.publication_readiness.blockers || [],
+      'No publication blockers are currently recorded.'
+    );
+  }
+
+  if (merge.stack_shape) {
+    appendInfoBlock(
+      mergeRoot,
+      'jj Stack Shape',
+      [
+        merge.stack_shape.status,
+        merge.stack_shape.groups?.length ? `${merge.stack_shape.groups.length} commit group${merge.stack_shape.groups.length === 1 ? '' : 's'}` : null,
+        merge.stack_shape.tip_revision?.change_id ? `tip ${shortId(merge.stack_shape.tip_revision.change_id)}` : null
+      ].filter(Boolean).join(' • ')
+    );
+    appendListBlock(
+      mergeRoot,
+      'Stack Groups',
+      (merge.stack_shape.groups || []).map((group) => (
+        [
+          group.label || group.kind,
+          group.revision?.change_id ? `jj ${shortId(group.revision.change_id)}` : null,
+          group.files?.length ? `${group.files.length} files` : null
+        ].filter(Boolean).join(' • ')
+      )),
+      'No stack shaping groups recorded.'
     );
   }
 
@@ -331,7 +409,33 @@ function renderMerge() {
   manualBody.textContent = 'Review planned file ownership, inspect contested files first, and override selections only where the merge plan needs a human decision.';
   manualBlock.append(manualTitle, manualBody);
 
-  for (const file of merge.files) {
+  const filterRow = document.createElement('div');
+  filterRow.className = 'task-chip-row';
+  for (const [value, label] of [['all', 'All Files'], ['contested', 'Contested'], ['manual', 'Manual Overrides']]) {
+    const button = document.createElement('button');
+    button.className = state.mergeFilter === value ? '' : 'ghost-button';
+    button.textContent = label;
+    button.addEventListener('click', () => {
+      state.mergeFilter = value;
+      renderMerge();
+    });
+    filterRow.appendChild(button);
+  }
+  manualBlock.appendChild(filterRow);
+
+  const visibleFiles = filterMergeFiles(merge.files, state.mergeFilter);
+  appendInfoBlock(
+    manualBlock,
+    'File Review Summary',
+    [
+      `${visibleFiles.length} visible`,
+      `${merge.counts?.contested_files || 0} contested`,
+      `${merge.counts?.manual_overrides || 0} manual override${merge.counts?.manual_overrides === 1 ? '' : 's'}`,
+      `${merge.counts?.unresolved_conflicts || 0} unresolved`
+    ].join(' • ')
+  );
+
+  for (const file of visibleFiles) {
     const row = document.createElement('article');
     row.className = 'provenance-row';
 
@@ -340,8 +444,12 @@ function renderMerge() {
     const rowTitle = document.createElement('strong');
     rowTitle.textContent = file.path;
     const rowBadge = document.createElement('span');
-    rowBadge.className = `candidate-status ${file.unresolved_conflict ? 'state-fail' : (file.contested ? 'state-warn' : 'state-idle')}`;
-    rowBadge.textContent = file.unresolved_conflict ? '✕ manual review' : (file.contested ? '? contested' : '• single source');
+    rowBadge.className = `candidate-status ${file.unresolved_conflict ? 'state-fail' : (file.manual_override ? 'state-warn' : (file.contested ? 'state-warn' : 'state-idle'))}`;
+    rowBadge.textContent = file.unresolved_conflict
+      ? '✕ manual review'
+      : file.manual_override
+        ? '! override'
+        : (file.contested ? '? contested' : '• single source');
     rowHeader.append(rowTitle, rowBadge);
     row.appendChild(rowHeader);
 
@@ -375,6 +483,9 @@ function renderMerge() {
     selectedSummary.textContent = selectedOwner
       ? [
           `Current source ${selectedOwner.label}`,
+          file.selection_origin ? `origin ${file.selection_origin.replaceAll('_', ' ')}` : null,
+          file.manual_override ? 'manual override' : null,
+          file.planned_candidate_label ? `planned ${file.planned_candidate_label}` : null,
           selectedOwner.verification_status ? `verification ${selectedOwner.verification_status}` : null,
           selectedOwner.jj_change_id ? `jj ${shortId(selectedOwner.jj_change_id)}` : null,
           file.selection_reasons?.[selectedOwner.candidate_id] || null,
@@ -436,6 +547,25 @@ function renderMerge() {
         conflict.recommended_candidate_id ? `recommended ${candidateLabelForId(merge, conflict.recommended_candidate_id)}` : null
       ].filter(Boolean).join(' • ')),
       'No unresolved conflicts.'
+    );
+  }
+
+  if (merge.provenance_summary?.length) {
+    appendListBlock(
+      manualBlock,
+      'Final Provenance Summary',
+      merge.provenance_summary.map((entry) => (
+        [
+          entry.path,
+          entry.candidate_label,
+          entry.selection_origin?.replaceAll('_', ' ') || null,
+          entry.manual_override ? 'manual override' : null,
+          entry.planned_candidate_label && entry.planned_candidate_label !== entry.candidate_label
+            ? `planned ${entry.planned_candidate_label}`
+            : null
+        ].filter(Boolean).join(' • ')
+      )),
+      'No synthesized provenance summary is available yet.'
     );
   }
 
@@ -511,6 +641,33 @@ function renderDiff() {
       payload.verification?.status ? `verification ${payload.verification.status}` : null
     ].filter(Boolean).join(' • ')
   );
+
+  if (state.diffMode === 'synthesis') {
+    if (payload.publication_readiness) {
+      appendInfoBlock(
+        diffRoot,
+        'Publication Readiness',
+        [
+          payload.publication_readiness.status,
+          payload.publication_readiness.summary
+        ].filter(Boolean).join(' • ')
+      );
+    }
+    if (payload.stack_shape) {
+      appendListBlock(
+        diffRoot,
+        'Stack Shape',
+        (payload.stack_shape.groups || []).map((group) => (
+          [
+            group.label || group.kind,
+            group.revision?.change_id ? `jj ${shortId(group.revision.change_id)}` : null,
+            group.files?.length ? `${group.files.length} files` : null
+          ].filter(Boolean).join(' • ')
+        )),
+        'No stack shaping groups recorded.'
+      );
+    }
+  }
 
   const fileBlock = document.createElement('div');
   fileBlock.className = 'info-block';
@@ -643,6 +800,17 @@ function buildInitialMergeSelections(mergeViewData, existingSelections = {}) {
       || (file.owners.length === 1 ? file.owners[0].candidate_id : null);
   }
   return next;
+}
+
+function filterMergeFiles(files, filter) {
+  const list = files || [];
+  if (filter === 'contested') {
+    return list.filter((file) => file.unresolved_conflict || file.contested);
+  }
+  if (filter === 'manual') {
+    return list.filter((file) => file.manual_override);
+  }
+  return list;
 }
 
 function pickDefaultDiffCandidateId(detail, currentCandidateId) {

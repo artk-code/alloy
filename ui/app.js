@@ -880,6 +880,7 @@ function renderComparisonView(comparison) {
     appendInfoBlock(comparisonView, 'Decision', 'No comparison view is available yet.');
     return;
   }
+  const mergeView = state.taskDetail?.merge_view || null;
 
   appendInfoBlock(
     comparisonView,
@@ -910,6 +911,31 @@ function renderComparisonView(comparison) {
         `${strength.label}: ${strength.candidate_label} • ${strength.reason}`
       )),
       'No deterministic strengths are available yet.'
+    );
+  }
+
+  if (mergeView?.synthesis_summary) {
+    appendInfoBlock(
+      comparisonView,
+      'Synthesized Diff Summary',
+      [
+        `${mergeView.synthesis_summary.strategy} • ${mergeView.synthesis_summary.status}`,
+        `${mergeView.synthesis_summary.changed_file_count} files`,
+        `${mergeView.synthesis_summary.changed_line_count} lines`,
+        `verification ${mergeView.synthesis_summary.verification_status}`,
+        mergeView.synthesis_summary.jj_change_id ? `jj ${shortId(mergeView.synthesis_summary.jj_change_id)}` : null
+      ].filter(Boolean).join(' • ')
+    );
+  }
+
+  if (mergeView?.publication_readiness) {
+    appendInfoBlock(
+      comparisonView,
+      'Publication Readiness',
+      [
+        mergeView.publication_readiness.status,
+        mergeView.publication_readiness.summary
+      ].filter(Boolean).join(' • ')
     );
   }
 

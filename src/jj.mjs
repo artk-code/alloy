@@ -44,14 +44,34 @@ export class JjAdapter {
     statusPath
   }) {
     await this.run(['describe', '-m', description], { cwd: workspacePath });
+    return this.captureDiffRange({
+      workspacePath,
+      fromRev: '@-',
+      toRev: '@',
+      patchPath,
+      diffSummaryPath,
+      statusPath,
+      role: 'candidate'
+    });
+  }
 
-    const [candidateRevision, baseRevision, statusText, diffSummary, patchText, nameOnlyText] = await Promise.all([
+  async captureDiffRange({
+    workspacePath,
+    fromRev,
+    toRev,
+    patchPath,
+    diffSummaryPath,
+    statusPath,
+    role = 'range'
+  }) {
+    const [toRevision, baseRevision, currentRevision, statusText, diffSummary, patchText, nameOnlyText] = await Promise.all([
+      this.readRevision({ workspacePath, revset: toRev }),
+      this.readRevision({ workspacePath, revset: fromRev }),
       this.readRevision({ workspacePath, revset: '@' }),
-      this.readRevision({ workspacePath, revset: '@-' }),
       this.capture(['status'], { cwd: workspacePath }),
-      this.capture(['diff', '--from', '@-', '--to', '@', '--summary'], { cwd: workspacePath }),
-      this.capture(['diff', '--from', '@-', '--to', '@', '--git'], { cwd: workspacePath }),
-      this.capture(['diff', '--from', '@-', '--to', '@', '--name-only'], { cwd: workspacePath })
+      this.capture(['diff', '--from', fromRev, '--to', toRev, '--summary'], { cwd: workspacePath }),
+      this.capture(['diff', '--from', fromRev, '--to', toRev, '--git'], { cwd: workspacePath }),
+      this.capture(['diff', '--from', fromRev, '--to', toRev, '--name-only'], { cwd: workspacePath })
     ]);
 
     await Promise.all([
@@ -67,13 +87,53 @@ export class JjAdapter {
 
     return {
       status: 'captured',
+      capture_role: role,
       captured_at: new Date().toISOString(),
       base_revision: baseRevision,
-      candidate_revision: candidateRevision,
+      candidate_revision: toRevision,
+      current_revision: currentRevision,
+      diff_from: fromRev,
+      diff_to: toRev,
       changed_files: changedFiles,
       diff_summary: diffSummary.trim(),
       patch_stats: analyzeUnifiedDiff(patchText),
       has_changes: changedFiles.length > 0
+    };
+  }
+
+  async splitRevisionByFiles({ workspacePath, revision = '@', files, message }) {
+    const args = ['split', '-r', revision, ...files];
+    if (message) {
+      args.push('-m', message);
+    }
+    await this.run(args, { cwd: workspacePath });
+    return {
+      selected_revision: await this.readRevision({ workspacePath, revset: '@-' }),
+      remaining_revision: await this.readRevision({ workspacePath, revset: '@' })
+    };
+  }
+
+  async editRevision({ workspacePath, revision }) {
+    await this.run(['edit', revision], { cwd: workspacePath });
+    return this.readRevision({ workspacePath, revset: '@' });
+  }
+
+  async rebaseRevisionAfter({ workspacePath, revision, destination }) {
+    await this.run(['rebase', '-r', revision, '-A', destination], { cwd: workspacePath });
+    return this.readRevision({ workspacePath, revset: revision });
+  }
+
+  async squashRevisionInto({ workspacePath, fromRevision, intoRevision, paths = [], message = null }) {
+    const args = ['squash', '--from', fromRevision, '--into', intoRevision, ...paths];
+    if (message) {
+      args.push('-m', message);
+    } else {
+      args.push('-u');
+    }
+    await this.run(args, { cwd: workspacePath });
+    return {
+      into_revision: await this.readRevision({ workspacePath, revset: intoRevision }),
+      current_revision: await this.readRevision({ workspacePath, revset: '@' })
     };
   }
 

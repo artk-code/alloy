@@ -190,7 +190,10 @@ export async function getSynthesisDiff(projectRoot, taskId) {
     verification: synthesis.verification || null,
     jj: synthesis.jj || null,
     merge_plan: synthesis.merge_plan || latestRun.summary?.evaluation?.merge_plan || null,
-    contributions: synthesis.contributions || {}
+    contributions: synthesis.contributions || {},
+    selected_files: synthesis.selected_files || [],
+    stack_shape: synthesis.stack_shape || null,
+    publication_readiness: synthesis.publication_readiness || null
   };
 }
 
@@ -572,6 +575,7 @@ function buildMergeView(summary, candidates, synthesis) {
   const candidateDetails = new Map(candidates.map((candidate) => [candidate.candidate_id, candidate]));
   const evaluationByCandidateId = new Map((summary?.evaluation?.candidates || []).map((candidate) => [candidate.candidate_id, candidate]));
   const synthesizedByPath = new Map((synthesis?.selected_files || []).map((selection) => [selection.path, selection.candidate_id]));
+  const synthesizedSelectionsByPath = new Map((synthesis?.selected_files || []).map((selection) => [selection.path, selection]));
   const mergePlan = summary?.evaluation?.merge_plan || null;
   const planDecisionsByPath = new Map((mergePlan?.file_decisions || []).map((decision) => [decision.path, decision]));
   const unresolvedByPath = new Map((mergePlan?.unresolved_conflicts || []).map((conflict) => [conflict.path, conflict]));
@@ -616,11 +620,19 @@ function buildMergeView(summary, candidates, synthesis) {
         owners,
         contested: owners.length > 1,
         planned_candidate_id: planDecisionsByPath.get(filePath)?.chosen_candidate_id || null,
+        planned_candidate_label: candidateLabels.get(planDecisionsByPath.get(filePath)?.chosen_candidate_id) || null,
         planned_decision_reason: planDecisionsByPath.get(filePath)?.decision_reason || null,
         planned_confidence: planDecisionsByPath.get(filePath)?.confidence || null,
         planned_risk_level: planDecisionsByPath.get(filePath)?.risk_level || null,
         unresolved_conflict: unresolvedByPath.get(filePath) || null,
         synthesized_candidate_id: synthesizedByPath.get(filePath) || null,
+        selected_candidate_id: synthesizedSelectionsByPath.get(filePath)?.candidate_id || null,
+        selected_candidate_label: candidateLabels.get(synthesizedSelectionsByPath.get(filePath)?.candidate_id) || null,
+        selection_origin: synthesizedSelectionsByPath.get(filePath)?.selection_origin || null,
+        manual_override: synthesizedSelectionsByPath.get(filePath)?.manual_override || false,
+        planned_matches_latest: synthesizedSelectionsByPath.get(filePath)
+          ? synthesizedSelectionsByPath.get(filePath)?.planned_candidate_id === synthesizedSelectionsByPath.get(filePath)?.candidate_id
+          : null,
         selection_reasons: Object.fromEntries(owners.map((owner) => [owner.candidate_id, buildSelectionReason({
           filePath,
           owner,
@@ -631,7 +643,19 @@ function buildMergeView(summary, candidates, synthesis) {
           mergePlanDecision: planDecisionsByPath.get(filePath) || null
         })]))
       }))
-      .sort((left, right) => left.path.localeCompare(right.path)),
+      .sort(compareMergeFilesForReview),
+    provenance_summary: buildSynthesisProvenanceSummary(synthesis, candidateLabels),
+    publication_readiness: synthesis?.publication_readiness || null,
+    stack_shape: synthesis?.stack_shape || null,
+    synthesis_summary: synthesis
+      ? buildSynthesisSummaryCard(synthesis)
+      : null,
+    counts: {
+      total_files: byPath.size,
+      contested_files: [...byPath.keys()].filter((filePath) => (byPath.get(filePath) || []).length > 1).length,
+      unresolved_conflicts: (mergePlan?.unresolved_conflicts || []).length,
+      manual_overrides: (synthesis?.selected_files || []).filter((selection) => selection.manual_override).length
+    },
     synthesis: synthesis
       ? {
           synthesis_id: synthesis.synthesis_id,
@@ -646,8 +670,11 @@ function buildMergeView(summary, candidates, synthesis) {
             label: candidateLabels.get(candidateId) || candidateId
           })),
           jj_change_id: synthesis.jj?.candidate_revision?.change_id || synthesis.jj?.working_revision?.change_id || null,
+          patch_stats: synthesis.jj?.patch_stats || null,
           patch_path: synthesis.artifact_paths?.patch_path || null,
-          workspace_path: synthesis.workspace_path
+          workspace_path: synthesis.workspace_path,
+          stack_shape: synthesis.stack_shape || null,
+          publication_readiness: synthesis.publication_readiness || null
         }
       : null
   };
@@ -772,6 +799,67 @@ function buildSelectionReason({ owner, owners, winnerCandidateId, synthesizedCan
   }
 
   return 'manual review required';
+}
+
+function buildSynthesisSummaryCard(synthesis) {
+  const patchStats = synthesis?.jj?.patch_stats || null;
+  return {
+    status: synthesis.status,
+    strategy: synthesis.strategy,
+    changed_file_count: patchStats?.file_count ?? synthesis?.changed_files?.length ?? 0,
+    changed_line_count: patchStats?.total_changed_lines ?? 0,
+    verification_status: synthesis?.verification?.status || 'not_run',
+    jj_change_id: synthesis?.jj?.candidate_revision?.change_id || synthesis?.jj?.working_revision?.change_id || null
+  };
+}
+
+function buildSynthesisProvenanceSummary(synthesis, candidateLabels) {
+  return (synthesis?.selected_files || [])
+    .map((selection) => ({
+      path: selection.path,
+      candidate_id: selection.candidate_id,
+      candidate_label: candidateLabels.get(selection.candidate_id) || selection.candidate_id,
+      selection_origin: selection.selection_origin || 'merge_plan',
+      manual_override: Boolean(selection.manual_override),
+      planned_candidate_id: selection.planned_candidate_id || null,
+      planned_candidate_label: selection.planned_candidate_id
+        ? candidateLabels.get(selection.planned_candidate_id) || selection.planned_candidate_id
+        : null,
+      file_kind: selection.file_kind || classifyFileKind(selection.path)
+    }))
+    .sort(compareMergeFilesForReview);
+}
+
+function compareMergeFilesForReview(left, right) {
+  const leftPriority = priorityForMergeFile(left);
+  const rightPriority = priorityForMergeFile(right);
+  if (leftPriority !== rightPriority) {
+    return leftPriority - rightPriority;
+  }
+  return left.path.localeCompare(right.path);
+}
+
+function priorityForMergeFile(file) {
+  if (file.unresolved_conflict) {
+    return 0;
+  }
+  if (file.manual_override) {
+    return 1;
+  }
+  if (file.contested) {
+    return 2;
+  }
+  return 3;
+}
+
+function classifyFileKind(filePath) {
+  if (/(^|\/)(test|tests|spec|specs|__tests__)(\/|$)|\.(test|spec)\.[^.]+$/i.test(filePath)) {
+    return 'test';
+  }
+  if (/(^|\/)(docs?|notes?|adr)(\/|$)|\.(md|mdx|txt)$/i.test(filePath)) {
+    return 'doc';
+  }
+  return 'code';
 }
 
 function buildRunAudit({ task, summary, candidates, runDir, matchedScope }) {

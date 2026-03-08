@@ -333,20 +333,28 @@ test('synthesizeRun creates verified winner-only and file-select workspaces from
   assert.equal(winnerOnly.status, 'completed');
   assert.equal(winnerOnly.verification.status, 'pass');
   assert.equal(winnerOnly.selected_files[0].path, 'src/strategy.js');
+  assert.equal(winnerOnly.selected_files[0].selection_origin, 'winner_only');
   assert.equal(winnerOnly.merge_plan.base_candidate_id, winnerManifest.candidate_id);
+  assert.equal(winnerOnly.publication_readiness.ready, true);
+  assert.equal(winnerOnly.stack_shape.status, 'not_needed');
   assert.match(winnerPatch, /diff --git a\/src\/strategy\.js b\/src\/strategy\.js/);
 
   assert.equal(fileSelect.status, 'completed');
   assert.equal(fileSelect.verification.status, 'pass');
   assert.equal(fileSelect.selected_files[0].candidate_id, winnerManifest.candidate_id);
   assert.equal(fileSelect.merge_plan.mode, 'file_select');
+  assert.equal(fileSelect.selected_files[0].selection_origin, 'merge_plan');
+  assert.equal(fileSelect.publication_readiness.status, 'review_ready');
   assert.match(fileSelectPatch, /diff --git a\/src\/strategy\.js b\/src\/strategy\.js/);
 
   assert.equal(updatedSummary.synthesis.strategy, 'file_select');
   assert.equal(updatedSummary.synthesis.status, 'completed');
   assert.equal(updatedSummary.synthesis.merge_plan.mode, 'file_select');
+  assert.equal(updatedSummary.synthesis.publication_readiness.ready, true);
   assert.ok(synthesisDiff);
   assert.equal(synthesisDiff.strategy, 'file_select');
+  assert.equal(synthesisDiff.publication_readiness.ready, true);
+  assert.equal(synthesisDiff.selected_files[0].selection_origin, 'merge_plan');
   assert.match(synthesisDiff.patch, /diff --git a\/src\/strategy\.js b\/src\/strategy\.js/);
 
   await fs.rm(prepared.runDir, { recursive: true, force: true });

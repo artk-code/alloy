@@ -27,6 +27,7 @@ Working today:
 - first-class judge rationale artifact and UI summaries for winner/synthesis decisions
 - real per-candidate diff viewing in the operator UI from captured `jj` patches
 - explicit per-file merge provenance in the operator UI
+- synthesized diff summaries with contested/manual-override cues and publication-readiness status
 - run provenance labeling in the UI so cards distinguish:
   - command previews
   - live CLI runs
@@ -45,6 +46,10 @@ Working today:
 - conservative synthesis workspace creation:
   - winner-only finalization
   - human file-select merge
+- review-oriented `jj` stack shaping for synthesized results
+  - split
+  - rebase
+  - squash helper support for later cleanup flows
 - real verification commands against real demo repos
 - fixture-backed replay integration tests that mutate a real workspace, capture a real `jj` patch, and pass the real verifier
 - dry-run and live-run launch paths for `codex`, `gemini`, and `claude-code` from the web UI

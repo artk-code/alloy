@@ -1,7 +1,7 @@
 # Next Session
 
 Status date: March 8, 2026
-Purpose: Give the next compact-session agent an accurate starting point after the merge-plan, compare-page, in-app docs, and judge-rationale slice landed locally.
+Purpose: Give the next compact-session agent an accurate starting point after the merge-plan, compare-page, in-app docs, judge-rationale, synthesis-review, and stack-shaping slice landed locally.
 
 ## Read First
 
@@ -19,6 +19,8 @@ The working tree now includes a major local slice that is not reflected in the l
 - deterministic evaluation now emits `judge_rationale`
 - synthesis now accepts `merge_plan`
 - synthesis diff API added
+- synthesis publication-readiness metadata added
+- synthesis `jj` stack shaping added
 - dedicated `Compare Diffs` page added
 - dedicated in-app `Docs` page added
 - native markdown rendering added for task and docs surfaces
@@ -35,6 +37,7 @@ Important local files added or heavily changed:
 - [src/evaluation.mjs](/Users/codex/stack-judge/src/evaluation.mjs)
 - [src/judge-rationale.mjs](/Users/codex/stack-judge/src/judge-rationale.mjs)
 - [src/synthesis.mjs](/Users/codex/stack-judge/src/synthesis.mjs)
+- [src/jj.mjs](/Users/codex/stack-judge/src/jj.mjs)
 - [src/runner.mjs](/Users/codex/stack-judge/src/runner.mjs)
 - [src/web/data.mjs](/Users/codex/stack-judge/src/web/data.mjs)
 - [src/web/server.mjs](/Users/codex/stack-judge/src/web/server.mjs)
@@ -93,104 +96,66 @@ After manual verification of the current local slice, the next priorities should
 1. Commit and push the current merge-plan + compare/docs + markdown-viewer work
    - only after validating the live UI routes above
 
-2. Improve synthesis review clarity
-   - synthesized diff vs candidate diff review
-   - clearer unresolved-conflict presentation
-   - clearer final provenance summaries per file
+2. Add final publication flow from the shaped synthesis stack
+   - stay honest about review vs publish readiness
+   - keep PR publication behind explicit human approval
 
-3. Add `jj` stack shaping for synthesized results
-   - split
-   - squash
-   - rebase
-   - still keep publication out of scope until the stack is reviewable
+3. Add a blind judge/composer layer on top of deterministic evaluation
+   - deterministic evaluation remains the gatekeeper
+   - judge/composer should improve close-call synthesis, not replace hard gates
 
-4. Add a proper browser smoke harness only if it is made repo-local and reproducible
+4. Add broader eval cards
+   - smoke
+   - compact algorithms
+   - realistic bugfix/security demos
+
+5. Add a proper browser smoke harness only if it is made repo-local and reproducible
    - do not rely on vague global Playwright assumptions
 
-## Plan For Priority 2: Synthesis Review Clarity
-
-The next agent should treat synthesis review clarity as a UI/data contract pass, not just a styling pass.
+## Plan For Priority 2: Publication Flow
 
 ### Goal
 
-Make it obvious to a human reviewer:
-- what the final synthesized result changed
-- which candidate each final file came from
-- which files were contested
-- which files were manually overridden
-- which conflicts remain unresolved
+Turn publication readiness into a real operator decision flow without pretending PR publishing is already automatic.
 
 ### Concrete Steps
 
-1. Add a dedicated synthesized-diff summary block
-- file:
-  - [ui/compare.js](/Users/codex/stack-judge/ui/compare.js)
+1. Add a dedicated publication panel to `Compare Diffs`
 - show:
-  - total changed files
-  - total changed lines if available
-  - synthesis verification status
-  - synthesis `jj` change id
+  - review readiness
+  - publication blockers
+  - explicit human approval requirement
+  - next publishable action
 
-2. Add candidate-vs-synthesis comparison cues
-- files:
-  - [src/web/data.mjs](/Users/codex/stack-judge/src/web/data.mjs)
-  - [ui/compare.js](/Users/codex/stack-judge/ui/compare.js)
-- for each synthesized file, surface:
-  - selected candidate label
-  - whether the selection matched the merge plan
-  - whether the human overrode the merge plan
-  - whether the file was contested
+2. Define a publishable synthesis contract
+- final shaped stack present
+- verification passed
+- no unresolved conflicts
+- no hidden manual override without provenance
 
-3. Make unresolved conflicts impossible to miss
-- files:
-  - [src/web/data.mjs](/Users/codex/stack-judge/src/web/data.mjs)
-  - [ui/compare.js](/Users/codex/stack-judge/ui/compare.js)
-- add:
-  - conflict count near the merge summary
-  - red or high-visibility conflict rows
-  - direct jump/filter to contested files only
-
-4. Add a final provenance summary section
-- file:
-  - [ui/compare.js](/Users/codex/stack-judge/ui/compare.js)
-- list:
-  - `path`
-  - selected candidate
-  - provider
-  - decision reason
-  - confidence
-  - risk level
-  - `manual override` vs `merge plan selection`
-
-5. Keep the diff review compact by default
-- do not expand every patch at once
-- keep file lists clickable
-- default to the most important files first:
-  - unresolved conflicts
-  - manually overridden files
-  - synthesized files with high risk
+3. Keep remote publication out of the browser until the contract is clear
+- first land a local `publish preview`
+- then branch/bookmark push
+- only then PR automation
 
 ### Suggested Data Additions
 
-The next agent should consider extending synthesis view data with:
-- `manual_override`
-- `planned_candidate_label`
-- `selected_candidate_label`
-- `contested`
-- `selection_origin`
-  - `merge_plan`
-  - `manual_override`
-  - `winner_only`
+The next agent should consider extending publication data with:
+- `publish_status`
+- `publish_blockers`
+- `human_approved_at`
+- `publish_preview`
+- `target_remote`
+- `target_branch_or_bookmark`
 
 ### Success Criteria For Priority 2
 
 This priority is done when a human can open `Compare Diffs` and answer, without reading raw JSON:
 
-1. Which final files came from which candidate?
-2. Which files were contested?
-3. Which selections were manual overrides?
-4. Which unresolved conflicts still block safe publication?
-5. What does the synthesized diff change relative to base?
+1. Is this synthesis only reviewable, or actually publishable?
+2. What specific blockers still prevent publication?
+3. What human action is required before any remote publish step?
+4. What exact stack/diff will be published when that step is enabled?
 
 ## What Not To Prioritize Yet
 

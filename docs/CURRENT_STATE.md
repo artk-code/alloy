@@ -36,6 +36,11 @@ Purpose: Capture the honest current Alloy proof boundary so future work starts f
   - the evaluator-produced merge plan
   - the winning candidate
   - human-selected files from candidate diffs
+- Synthesized results now include:
+  - synthesized diff summaries
+  - manual-override and contested-file cues
+  - publication-readiness status
+  - review-oriented `jj` stack shaping metadata
 - The board/detail UI now classifies run provenance so it can distinguish:
   - command previews
   - live CLI runs
@@ -57,6 +62,8 @@ Real today:
 - deterministic scoring
 - deterministic merge-plan generation
 - conservative synthesis workspace creation and re-verification
+- `jj` split/rebase/squash helper support for stack shaping
+- persisted publication-readiness metadata for synthesized results
 - local API and browser UI
 - persisted `judge-rationale.json` artifact per evaluated run
 
@@ -82,6 +89,8 @@ Current demo proof:
 6. Alloy can materialize a new synthesis workspace from those captured candidate diffs and rerun the real verifier.
 7. Alloy can expose merge-plan, synthesis diff, and operator guidance surfaces through the web UI.
 8. Alloy persists and renders a separate judge rationale artifact for human review.
+9. Alloy shapes synthesized results into a reviewable `jj` stack when multiple file categories are present.
+10. Alloy computes publication-readiness blockers without pretending PR publication is already implemented.
 
 That is enough to prove the orchestration, verification, artifact, and conservative merge path. It is not yet enough to claim full live multi-provider synthesis with autonomous composition.
 
@@ -97,6 +106,7 @@ That is enough to prove the orchestration, verification, artifact, and conservat
   - per-file provenance
   - merge-plan review
   - synthesis actions
+  - publication-readiness and stack-shape summaries
 - The app now has an in-app `Docs` page backed by local markdown content.
 - Cards now carry explicit project labels so multiple labs can coexist on the same board.
 - The board can now filter by project and group by project or state.
@@ -123,17 +133,10 @@ That is enough to prove the orchestration, verification, artifact, and conservat
 ## Highest-Value Next Steps
 
 1. Manually verify the current local Compare Diffs and Docs routes, then check in the merge-plan/docs slice.
-2. Improve synthesis review clarity:
-   - candidate vs synthesis review cues
-   - clearer unresolved-conflict presentation
-   - clearer per-file provenance summaries
-3. Add a blind judge/composer layer on top of deterministic evaluation.
-4. Add `jj` stack shaping for the synthesized result:
-   - split
-   - squash
-   - rebase
-5. Add final publication flow from the synthesized stack.
-6. Add persisted project-level dashboards and saved board preferences only after the merge/publish loop is more complete.
+2. Add a blind judge/composer layer on top of deterministic evaluation.
+3. Add final publication flow from the synthesized stack.
+4. Add broader smoke/algorithm cards so the board covers fast runner checks as well as richer synthesis demos.
+5. Add persisted project-level dashboards and saved board preferences only after the merge/publish loop is more complete.
 
 ## Validation Commands
 

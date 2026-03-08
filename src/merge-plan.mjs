@@ -263,7 +263,7 @@ function compareMergeCandidates(left, right) {
   return String(left.candidate_slot || '').localeCompare(String(right.candidate_slot || ''));
 }
 
-function classifyFilePath(filePath) {
+export function classifyFilePath(filePath) {
   if (TEST_FILE_PATTERN.test(filePath)) {
     return 'test';
   }

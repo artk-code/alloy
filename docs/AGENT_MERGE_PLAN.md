@@ -63,6 +63,13 @@ Current synthesis modes:
 
 This is the correct V1 boundary.
 
+Current landed review features:
+- dedicated compare page for candidate and synthesis diffs
+- merge-plan and judge-rationale rendering
+- manual-override and contested-file cues
+- review-oriented `jj` stack shaping metadata
+- publication-readiness blockers for synthesized results
+
 ## Merge Strategy
 
 The readable and reliable synthesis strategy is:
