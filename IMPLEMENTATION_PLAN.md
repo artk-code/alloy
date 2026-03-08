@@ -27,12 +27,15 @@ Related design docs:
 
 Current implementation status:
 - tic-tac-toe is now the default first demo card
+- the product is now split into Control Panel, Operator View, and Compare Diffs
 - operator run-config overrides are implemented in the web shell
 - candidate runs are session-backed and persisted
 - each candidate workspace is bootstrapped as a `jj` repo with a base snapshot
 - candidate patches and changed-file metadata are captured after runs
 - deterministic evaluation now produces winner vs synthesize recommendations
-- judge/composer and final `jj` synthesis stack assembly are still upcoming
+- publication preview, approval, and push are implemented
+- blind-review artifacts and async blind-review CLI runs are implemented
+- the next bottlenecks are blind-review recommendation consumption, local testing workflow, and structured task composition
 
 Alloy is the recommended product name. `stack-judge` is the current working codename and can remain as a temporary internal repository slug during early development.
 

@@ -1,18 +1,18 @@
 # Alloy Milestone Checklist
 
-Status: Draft
+Status: Living checklist
 Authoring date: March 8, 2026
 Purpose: Provide an execution checklist for the first demo and near-term Alloy milestones so future agents can work from a concrete done/not-done list instead of reinterpreting planning prose.
 
-## Milestone A: Symphony Demo Shell
+## Milestone A: Control Panel + Operator Shell
 
 Checklist:
-- [ ] board view exists with task cards
-- [ ] demo task appears as a card
-- [ ] card detail view exists
-- [ ] card detail has tabs or sections for Overview, Candidates, Judge, Synthesis, and PR
-- [ ] card state maps to run state
-- [ ] task can be launched from the card detail
+- [x] board view exists with task cards
+- [x] demo task appears as a card
+- [x] operator detail view exists as a separate surface
+- [x] operator detail has tabs or sections for overview, compare, candidates, and debug
+- [x] card state maps to run state
+- [x] task can be launched from the selected-task context
 
 Done when:
 - a human can enter Alloy from a task board instead of a raw CLI-only flow
@@ -20,14 +20,14 @@ Done when:
 ## Milestone B: Task Input And Validation
 
 Checklist:
-- [ ] new custom task can be created from the UI without touching the filesystem manually
-- [ ] Markdown task brief editor exists
-- [ ] YAML frontmatter is parsed
-- [ ] parsed JSON preview is visible
-- [ ] validation errors and warnings are shown
-- [ ] task can be saved back to a `.task.md` file from the UI
-- [ ] `source_system` and `source_task_id` are stored for Symphony-origin tasks
-- [ ] launch is blocked on hard validation errors
+- [x] new custom task can be created from the UI without touching the filesystem manually
+- [x] Markdown task brief editor exists
+- [x] YAML frontmatter is parsed
+- [x] parsed JSON preview is visible
+- [x] validation errors and warnings are shown
+- [x] task can be saved back to a `.task.md` file from the UI
+- [x] `source_system` and `source_task_id` are stored for Symphony-origin tasks
+- [x] launch/save is blocked on hard validation errors
 
 Done when:
 - task input is human-friendly, system-trustworthy, and no longer filesystem-only for custom task creation
@@ -35,12 +35,12 @@ Done when:
 ## Milestone C: Provider Readiness And Login
 
 Checklist:
-- [ ] `doctor` output is exposed to the UI or backend endpoint
-- [ ] each provider row shows install state
-- [ ] each provider row shows auth state
-- [ ] each provider row exposes a login repair action
-- [ ] login actions are PTY-backed for interactive CLI flows
-- [ ] recheck action exists after login attempt
+- [x] `doctor` output is exposed to the UI or backend endpoint
+- [x] each provider row shows install state
+- [x] each provider row shows auth state
+- [x] each provider row exposes a login repair action
+- [x] login actions are PTY-backed for interactive CLI flows where supported
+- [x] recheck action exists after login attempt through refresh
 
 Done when:
 - a human can tell whether Codex, Claude Code, and Gemini are actually ready before launching a run
@@ -48,12 +48,12 @@ Done when:
 ## Milestone D: Candidate Execution
 
 Checklist:
-- [ ] card launch creates a run directory
-- [ ] prompt packets are generated per provider
-- [ ] one workspace exists per candidate
-- [ ] subprocess commands are recorded in manifests
-- [ ] stdout/stderr are captured
-- [ ] live JSONL event streams are written
+- [x] card launch creates a run directory
+- [x] prompt packets are generated per provider
+- [x] one workspace exists per candidate
+- [x] subprocess commands are recorded in manifests
+- [x] stdout/stderr are captured
+- [x] live JSONL event streams are written
 
 Done when:
 - Alloy can launch and observe all three candidates from one task
@@ -61,11 +61,11 @@ Done when:
 ## Milestone E: Verification
 
 Checklist:
-- [ ] acceptance checks run per candidate
-- [ ] verification results persist to disk
-- [ ] candidate cards show verification status
-- [ ] failed candidates are blocked from direct win path
-- [ ] final synthesized result can also be verified
+- [x] acceptance checks run per candidate
+- [x] verification results persist to disk
+- [x] candidate cards show verification status
+- [x] failed candidates are blocked from direct win path
+- [x] final synthesized result can also be verified
 
 Done when:
 - deterministic checks visibly constrain the judge path
@@ -73,12 +73,12 @@ Done when:
 ## Milestone F: Judge And Compare
 
 Checklist:
-- [ ] structured judge output schema is implemented
-- [ ] compare view is anonymized for A/B/C candidates
-- [ ] rubric scores display in the UI
+- [x] structured judge output schema is implemented
+- [x] compare view can be anonymized for A/B/C candidates
+- [x] rubric scores display in the UI
 - [ ] pairwise results display in the UI
-- [ ] contribution map is stored and shown
-- [ ] confidence is visible
+- [x] contribution map is stored and shown
+- [x] confidence is visible
 
 Done when:
 - a human can understand why Alloy chose winner-only or synthesis
@@ -86,11 +86,11 @@ Done when:
 ## Milestone G: Synthesis Plan
 
 Checklist:
-- [ ] synthesis plan view exists
-- [ ] contribution map feeds the plan
-- [ ] approval gate exists for low/medium-confidence cases
-- [ ] operator intervention is audited
-- [ ] final stack preview is shown before publication
+- [x] synthesis plan view exists
+- [x] contribution map feeds the plan
+- [x] approval gate exists for publication
+- [x] operator intervention is audited through provenance and manual-override state
+- [x] final stack preview is shown before publication
 
 Done when:
 - synthesis is visible, reviewable, and not a black box
@@ -98,11 +98,11 @@ Done when:
 ## Milestone H: `jj` Spike
 
 Checklist:
-- [ ] `jj` is installed on the demo environment
-- [ ] one candidate maps to one `jj` change in the spike flow
-- [ ] synthesized final result maps to a final `jj` stack
-- [ ] split/squash/rebase are demonstrated
-- [ ] commands and limitations are documented
+- [x] `jj` is installed on the demo environment
+- [x] one candidate maps to one `jj` change in the spike flow
+- [x] synthesized final result maps to a final `jj` stack
+- [x] split/squash/rebase are demonstrated
+- [x] commands and limitations are documented
 
 Done when:
 - the team has proof that `jj` is the right next integration layer
@@ -111,8 +111,8 @@ Done when:
 
 Checklist:
 - [ ] final PR summary view exists
-- [ ] provenance is visible in the UI
-- [ ] final verification status is shown
+- [x] provenance is visible in the UI
+- [x] final verification status is shown
 - [ ] publication action is available from the card context
 - [ ] PR URL is written back to the task card
 
@@ -122,11 +122,11 @@ Done when:
 ## Milestone J: Handoff Quality
 
 Checklist:
-- [ ] README points to all current planning docs
-- [ ] new code slices have companion docs
-- [ ] known gaps are called out explicitly
-- [ ] sample task and demo path stay current
-- [ ] future-agent entry points are obvious
+- [x] README points to all current planning docs
+- [x] new code slices have companion docs
+- [x] known gaps are called out explicitly
+- [x] sample task and demo path stay current
+- [x] future-agent entry points are obvious
 
 Done when:
 - another agent can continue without reverse-engineering prior decisions

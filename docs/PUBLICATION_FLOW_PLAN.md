@@ -258,9 +258,11 @@ Keep these under a single nested object when possible:
 
 ## Recommended Next Step After This Plan
 
-After publication push is stable:
+Publication push is now stable enough for the current prototype.
 
-1. add blind judge/composer
+Next:
+
+1. consume blind-review recommendations in synthesis/publication decisions
 2. add local candidate/synthesis testing
 3. add PR automation from the pushed ref only after those two layers are solid
 
@@ -337,7 +339,6 @@ Completed:
 
 Next:
 
-6. push helper in `jj`
-7. publication push endpoint
-8. compare-page push action
-9. push-result persistence and tests
+1. PR creation from the approved, pushed ref
+2. PR result persistence and UI
+3. publication status link-back from task cards and summaries
