@@ -78,8 +78,10 @@ export async function runPreparedCandidates({
       manifests: materializedManifests,
       outputPath: path.join(runDir, 'evaluation.json')
     });
+  const judgeRationalePath = path.join(runDir, 'judge-rationale.json');
 
   if (evaluation) {
+    await fs.writeFile(judgeRationalePath, JSON.stringify(evaluation.judge_rationale, null, 2) + '\n', 'utf8');
     const byCandidateId = new Map(evaluation.candidates.map((candidate) => [candidate.candidate_id, candidate]));
     await Promise.all(manifests.map(async (entry) => {
       const manifest = await readJson(entry.manifestPath);
@@ -91,10 +93,11 @@ export async function runPreparedCandidates({
     }));
     await appendJsonl(runEventsPath, {
       ts: new Date().toISOString(),
-    kind: 'evaluation.completed',
+      kind: 'evaluation.completed',
       project_id: task.project_id,
       task_id: task.task_id,
-      decision: evaluation.decision
+      decision: evaluation.decision,
+      judge_rationale_path: judgeRationalePath
     });
   }
 
@@ -147,6 +150,7 @@ export async function runPreparedCandidates({
     status: finalStatus,
     candidate_results: candidateResults,
     evaluation,
+    judge_rationale_path: evaluation ? judgeRationalePath : null,
     synthesis: synthesis
       ? {
           synthesis_id: synthesis.synthesis_id,

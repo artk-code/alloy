@@ -13,7 +13,8 @@
     "pairwise_preferences",
     "contribution_map",
     "decision",
-    "merge_plan"
+    "merge_plan",
+    "judge_rationale"
   ],
   "properties": {
     "task_id": { "type": "string" },
@@ -66,6 +67,9 @@
     },
     "merge_plan": {
       "$ref": "https://alloy.dev/schemas/merge-plan.schema.json"
+    },
+    "judge_rationale": {
+      "$ref": "https://alloy.dev/schemas/judge-rationale.schema.json"
     }
   }
 }

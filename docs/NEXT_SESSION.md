@@ -1,7 +1,7 @@
 # Next Session
 
 Status date: March 8, 2026
-Purpose: Give the next compact-session agent an accurate starting point after the current merge-plan, compare-page, and in-app docs slice landed locally.
+Purpose: Give the next compact-session agent an accurate starting point after the merge-plan, compare-page, in-app docs, and judge-rationale slice landed locally.
 
 ## Read First
 
@@ -16,6 +16,7 @@ The working tree now includes a major local slice that is not reflected in the l
 
 - merge-plan schema added
 - deterministic evaluation now emits `merge_plan`
+- deterministic evaluation now emits `judge_rationale`
 - synthesis now accepts `merge_plan`
 - synthesis diff API added
 - dedicated `Compare Diffs` page added
@@ -32,6 +33,7 @@ Important local files added or heavily changed:
 - [schemas/merge-plan.schema.json](/Users/codex/stack-judge/schemas/merge-plan.schema.json)
 - [src/merge-plan.mjs](/Users/codex/stack-judge/src/merge-plan.mjs)
 - [src/evaluation.mjs](/Users/codex/stack-judge/src/evaluation.mjs)
+- [src/judge-rationale.mjs](/Users/codex/stack-judge/src/judge-rationale.mjs)
 - [src/synthesis.mjs](/Users/codex/stack-judge/src/synthesis.mjs)
 - [src/runner.mjs](/Users/codex/stack-judge/src/runner.mjs)
 - [src/web/data.mjs](/Users/codex/stack-judge/src/web/data.mjs)
@@ -91,26 +93,21 @@ After manual verification of the current local slice, the next priorities should
 1. Commit and push the current merge-plan + compare/docs + markdown-viewer work
    - only after validating the live UI routes above
 
-2. Add judge rationale as a first-class artifact
-   - separate from the deterministic scorecard
-   - machine-readable enough for UI rendering
-   - visible in compare and merge surfaces
-
-3. Improve synthesis review clarity
+2. Improve synthesis review clarity
    - synthesized diff vs candidate diff review
    - clearer unresolved-conflict presentation
    - clearer final provenance summaries per file
 
-4. Add `jj` stack shaping for synthesized results
+3. Add `jj` stack shaping for synthesized results
    - split
    - squash
    - rebase
    - still keep publication out of scope until the stack is reviewable
 
-5. Add a proper browser smoke harness only if it is made repo-local and reproducible
+4. Add a proper browser smoke harness only if it is made repo-local and reproducible
    - do not rely on vague global Playwright assumptions
 
-## Plan For Priority 3: Synthesis Review Clarity
+## Plan For Priority 2: Synthesis Review Clarity
 
 The next agent should treat synthesis review clarity as a UI/data contract pass, not just a styling pass.
 
@@ -185,7 +182,7 @@ The next agent should consider extending synthesis view data with:
   - `manual_override`
   - `winner_only`
 
-### Success Criteria For Priority 3
+### Success Criteria For Priority 2
 
 This priority is done when a human can open `Compare Diffs` and answer, without reading raw JSON:
 

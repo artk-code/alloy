@@ -91,6 +91,7 @@ export async function getTaskDetail(projectRoot, taskId) {
       task_brief: buildTaskBrief(parsed.task),
       run_config: latestRun?.summary?.run_config || buildDefaultRunConfig(parsed.task),
       evaluation: latestRun?.summary?.evaluation || null,
+      judge_rationale: latestRun?.summary?.evaluation?.judge_rationale || null,
       latest_run_overview: buildLatestRunOverview(parsed.task, latestRun?.summary || null, latestRunAudit),
       comparison_view: buildComparisonView(latestRun?.summary?.evaluation || null, candidates),
       merge_view: buildMergeView(latestRun?.summary || null, candidates, synthesis),
@@ -557,6 +558,7 @@ function buildComparisonView(evaluation, candidates) {
   return {
     decision,
     merge_plan: materializeMergePlan(evaluation?.merge_plan || null, rows),
+    judge_rationale: materializeJudgeRationale(evaluation?.judge_rationale || null, rows),
     contribution_map: materializeContributionMap(contributionMap, rows),
     rows
   };
@@ -604,6 +606,10 @@ function buildMergeView(summary, candidates, synthesis) {
           base_candidate_label: candidateLabels.get(mergePlan.base_candidate_id) || null
         }
       : null,
+    judge_rationale: materializeJudgeRationale(summary?.evaluation?.judge_rationale || null, [...candidateLabels.entries()].map(([candidateId, label]) => ({
+      candidate_id: candidateId,
+      label
+    }))),
     files: [...byPath.entries()]
       .map(([filePath, owners]) => ({
         path: filePath,
@@ -703,6 +709,43 @@ function materializeMergePlan(mergePlan, rows) {
       recommended_candidate_label: conflict.recommended_candidate_id
         ? byCandidateId.get(conflict.recommended_candidate_id)?.label || conflict.recommended_candidate_id
         : null
+    }))
+  };
+}
+
+function materializeJudgeRationale(judgeRationale, rows) {
+  if (!judgeRationale) {
+    return null;
+  }
+
+  const byCandidateId = new Map((rows || []).map((row) => [row.candidate_id, row]));
+  return {
+    ...judgeRationale,
+    winner_candidate_label: judgeRationale.winner_candidate_id
+      ? byCandidateId.get(judgeRationale.winner_candidate_id)?.label || judgeRationale.winner_candidate_label
+      : judgeRationale.winner_candidate_label,
+    base_candidate_label: judgeRationale.base_candidate_id
+      ? byCandidateId.get(judgeRationale.base_candidate_id)?.label || judgeRationale.base_candidate_label
+      : judgeRationale.base_candidate_label,
+    finalists: (judgeRationale.finalists || []).map((finalist) => ({
+      ...finalist,
+      label: byCandidateId.get(finalist.candidate_id)?.label || finalist.label
+    })),
+    strengths: (judgeRationale.strengths || []).map((strength) => ({
+      ...strength,
+      candidate_label: byCandidateId.get(strength.candidate_id)?.label || strength.candidate_label
+    })),
+    file_rationale: (judgeRationale.file_rationale || []).map((fileDecision) => ({
+      ...fileDecision,
+      chosen_candidate_label: byCandidateId.get(fileDecision.chosen_candidate_id)?.label || fileDecision.chosen_candidate_label,
+      contender_labels: (fileDecision.contender_candidate_ids || []).map((candidateId) => byCandidateId.get(candidateId)?.label || candidateId)
+    })),
+    unresolved_conflicts: (judgeRationale.unresolved_conflicts || []).map((conflict) => ({
+      ...conflict,
+      contender_labels: (conflict.contender_candidate_ids || []).map((candidateId) => byCandidateId.get(candidateId)?.label || candidateId),
+      recommended_candidate_label: conflict.recommended_candidate_id
+        ? byCandidateId.get(conflict.recommended_candidate_id)?.label || conflict.recommended_candidate_label
+        : conflict.recommended_candidate_label
     }))
   };
 }

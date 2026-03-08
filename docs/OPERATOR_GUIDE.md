@@ -92,6 +92,7 @@ Alloy will then show:
 - each candidate patch captured from `jj`
 - deterministic scores and eligibility
 - merge-plan guidance
+- judge rationale
 - any available synthesis diff
 
 ## How To Review And Build A Synthesis
@@ -104,10 +105,15 @@ Inside `Compare Diffs`:
    - base candidate
    - per-file recommendations
    - unresolved contested files
-4. If the recommended winner is strong enough, finalize the whole candidate.
-5. If file-level review is needed, adjust the selected source per file.
-6. Build the synthesis workspace.
-7. Review the synthesized diff and per-file provenance.
+4. Check the judge rationale section:
+   - overview
+   - next action
+   - risk flags
+   - operator guidance
+5. If the recommended winner is strong enough, finalize the whole candidate.
+6. If file-level review is needed, adjust the selected source per file.
+7. Build the synthesis workspace.
+8. Review the synthesized diff and per-file provenance.
 
 Important rule:
 - Alloy is conservative by design

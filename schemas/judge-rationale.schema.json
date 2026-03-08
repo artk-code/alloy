@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alloy.dev/schemas/judge-rationale.schema.json",
+  "title": "Alloy Judge Rationale",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "task_id",
+    "evaluated_at",
+    "mode",
+    "confidence",
+    "overview",
+    "next_action",
+    "winner_candidate_id",
+    "winner_candidate_label",
+    "base_candidate_id",
+    "base_candidate_label",
+    "finalists",
+    "strengths",
+    "risk_flags",
+    "file_rationale",
+    "unresolved_conflicts",
+    "operator_guidance"
+  ],
+  "properties": {
+    "task_id": { "type": "string" },
+    "evaluated_at": { "type": "string" },
+    "mode": { "type": "string" },
+    "confidence": { "type": "string" },
+    "overview": { "type": "string" },
+    "next_action": { "type": "string" },
+    "winner_candidate_id": { "type": ["string", "null"] },
+    "winner_candidate_label": { "type": ["string", "null"] },
+    "base_candidate_id": { "type": ["string", "null"] },
+    "base_candidate_label": { "type": ["string", "null"] },
+    "finalists": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["candidate_id", "label", "score", "eligible", "summary"],
+        "properties": {
+          "candidate_id": { "type": "string" },
+          "label": { "type": "string" },
+          "score": { "type": "number" },
+          "eligible": { "type": "boolean" },
+          "summary": { "type": "string" }
+        }
+      }
+    },
+    "strengths": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "label", "candidate_id", "candidate_label", "reason"],
+        "properties": {
+          "kind": { "type": "string" },
+          "label": { "type": "string" },
+          "candidate_id": { "type": "string" },
+          "candidate_label": { "type": "string" },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    "risk_flags": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["severity", "message"],
+        "properties": {
+          "severity": { "type": "string" },
+          "path": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "file_rationale": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "chosen_candidate_id",
+          "chosen_candidate_label",
+          "contender_candidate_ids",
+          "contender_labels",
+          "contested",
+          "decision_reason",
+          "risk_level",
+          "confidence"
+        ],
+        "properties": {
+          "path": { "type": "string" },
+          "chosen_candidate_id": { "type": "string" },
+          "chosen_candidate_label": { "type": "string" },
+          "contender_candidate_ids": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "contender_labels": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "contested": { "type": "boolean" },
+          "decision_reason": { "type": "string" },
+          "risk_level": { "type": "string" },
+          "confidence": { "type": "string" }
+        }
+      }
+    },
+    "unresolved_conflicts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "contender_candidate_ids",
+          "contender_labels",
+          "recommended_candidate_id",
+          "recommended_candidate_label",
+          "reason"
+        ],
+        "properties": {
+          "path": { "type": "string" },
+          "contender_candidate_ids": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "contender_labels": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "recommended_candidate_id": { "type": ["string", "null"] },
+          "recommended_candidate_label": { "type": ["string", "null"] },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    "operator_guidance": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

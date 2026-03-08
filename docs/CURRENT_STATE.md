@@ -31,6 +31,7 @@ Purpose: Capture the honest current Alloy proof boundary so future work starts f
   - pairwise comparisons
   - winner vs synthesize recommendation
   - first-class `merge_plan` output
+  - first-class `judge_rationale` output
 - Alloy can create a fresh synthesis workspace from:
   - the evaluator-produced merge plan
   - the winning candidate
@@ -57,6 +58,7 @@ Real today:
 - deterministic merge-plan generation
 - conservative synthesis workspace creation and re-verification
 - local API and browser UI
+- persisted `judge-rationale.json` artifact per evaluated run
 
 Still limited:
 - automated tests do not certify live Codex, Gemini, or Claude Code authoring end to end
@@ -79,6 +81,7 @@ Current demo proof:
 5. Alloy captures the resulting `jj` patch and scores the candidate.
 6. Alloy can materialize a new synthesis workspace from those captured candidate diffs and rerun the real verifier.
 7. Alloy can expose merge-plan, synthesis diff, and operator guidance surfaces through the web UI.
+8. Alloy persists and renders a separate judge rationale artifact for human review.
 
 That is enough to prove the orchestration, verification, artifact, and conservative merge path. It is not yet enough to claim full live multi-provider synthesis with autonomous composition.
 
@@ -120,11 +123,11 @@ That is enough to prove the orchestration, verification, artifact, and conservat
 ## Highest-Value Next Steps
 
 1. Manually verify the current local Compare Diffs and Docs routes, then check in the merge-plan/docs slice.
-2. Add a blind judge/composer layer on top of deterministic evaluation.
-3. Improve synthesis review clarity:
+2. Improve synthesis review clarity:
    - candidate vs synthesis review cues
    - clearer unresolved-conflict presentation
    - clearer per-file provenance summaries
+3. Add a blind judge/composer layer on top of deterministic evaluation.
 4. Add `jj` stack shaping for the synthesized result:
    - split
    - squash

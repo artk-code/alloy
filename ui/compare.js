@@ -147,6 +147,7 @@ function renderSummary() {
   ].filter(Boolean).join(' • '));
 
   const mergePlan = detail.comparison_view?.merge_plan;
+  const judgeRationale = detail.comparison_view?.judge_rationale || detail.judge_rationale || null;
   if (mergePlan) {
     appendInfoBlock(summaryRoot, 'Merge Plan', [
       mergePlan.base_candidate_label ? `base ${mergePlan.base_candidate_label}` : null,
@@ -156,6 +157,27 @@ function renderSummary() {
       mergePlan.unresolved_conflicts.length ? `${mergePlan.unresolved_conflicts.length} unresolved` : 'no unresolved conflicts'
     ].filter(Boolean).join(' • '));
     appendInfoBlock(summaryRoot, 'Plan Rationale', mergePlan.rationale);
+  }
+
+  if (judgeRationale) {
+    appendInfoBlock(summaryRoot, 'Judge Overview', judgeRationale.overview);
+    appendInfoBlock(summaryRoot, 'Next Action', judgeRationale.next_action);
+    appendListBlock(
+      summaryRoot,
+      'Top Strengths',
+      (judgeRationale.strengths || []).map((strength) => (
+        `${strength.label}: ${strength.candidate_label} • ${strength.reason}`
+      )),
+      'No deterministic strengths are available yet.'
+    );
+    appendListBlock(
+      summaryRoot,
+      'Risk Flags',
+      (judgeRationale.risk_flags || []).map((flag) => (
+        [flag.severity.toUpperCase(), flag.path || null, flag.message].filter(Boolean).join(' • ')
+      )),
+      'No major deterministic risks flagged.'
+    );
   }
 }
 
@@ -242,6 +264,20 @@ function renderMerge() {
     );
   }
 
+  if (merge.judge_rationale) {
+    appendInfoBlock(
+      mergeRoot,
+      'Judge Call',
+      merge.judge_rationale.overview
+    );
+    appendListBlock(
+      mergeRoot,
+      'Operator Guidance',
+      merge.judge_rationale.operator_guidance || [],
+      'No operator guidance is available yet.'
+    );
+  }
+
   if (merge.synthesis) {
     appendInfoBlock(
       mergeRoot,
@@ -274,6 +310,17 @@ function renderMerge() {
   if (!merge.files?.length) {
     appendInfoBlock(mergeRoot, 'Manual Merge', 'No changed files are available for manual synthesis.');
     return;
+  }
+
+  if (merge.judge_rationale?.unresolved_conflicts?.length) {
+    appendListBlock(
+      mergeRoot,
+      'Unresolved Conflicts',
+      merge.judge_rationale.unresolved_conflicts.map((conflict) => (
+        `${conflict.path} • ${conflict.reason} • ${conflict.contender_labels.join(', ')}`
+      )),
+      'No unresolved conflicts.'
+    );
   }
 
   const manualBlock = document.createElement('div');

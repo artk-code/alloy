@@ -59,9 +59,12 @@ test('getTaskDetail returns markdown, parsed task data, and default run config',
   assert.equal(detail.latest_run_overview.run_origin, 'preview');
   assert.match(detail.latest_run_overview.run_origin_label, /Prepared Workspace|Command Preview/);
   assert.equal(detail.comparison_view.decision.mode, 'pending');
+  assert.equal(detail.judge_rationale, null);
   assert.match(detail.compare_url, /compare\.html\?task=/);
   assert.ok(Array.isArray(detail.comparison_view.rows));
+  assert.equal(detail.comparison_view.judge_rationale, null);
   assert.ok(Array.isArray(detail.merge_view.files));
+  assert.equal(detail.merge_view.judge_rationale, null);
   if (detail.merge_view.files[0]) {
     assert.equal(typeof detail.merge_view.files[0].contested, 'boolean');
     assert.equal(typeof detail.merge_view.files[0].selection_reasons, 'object');

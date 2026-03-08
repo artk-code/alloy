@@ -24,6 +24,7 @@ Working today:
 - Markdown task brief parsing into canonical task JSON
 - human-readable parsed task and evaluator summaries in the operator UI
 - compare and synthesis guidance panels backed by evaluator and `jj` artifact data
+- first-class judge rationale artifact and UI summaries for winner/synthesis decisions
 - real per-candidate diff viewing in the operator UI from captured `jj` patches
 - explicit per-file merge provenance in the operator UI
 - run provenance labeling in the UI so cards distinguish:

@@ -216,6 +216,7 @@ test('runPreparedCandidates replays a real fixture change and validates it with 
   const patch = await fs.readFile(manifest.artifact_paths.patch_path, 'utf8');
   const diffSummary = await fs.readFile(manifest.artifact_paths.diff_summary_path, 'utf8');
   const scorecard = JSON.parse(await fs.readFile(manifest.artifact_paths.evaluation_path, 'utf8'));
+  const judgeRationale = JSON.parse(await fs.readFile(path.join(prepared.runDir, 'judge-rationale.json'), 'utf8'));
 
   assert.equal(result.summary.status, 'completed');
   assert.equal(manifest.status, 'completed');
@@ -232,6 +233,10 @@ test('runPreparedCandidates replays a real fixture change and validates it with 
   assert.ok(scorecard.scorecard.total >= 90);
   assert.equal(result.summary.evaluation.decision.mode, 'winner');
   assert.equal(result.summary.evaluation.decision.winner_candidate_id, manifest.candidate_id);
+  assert.equal(result.summary.judge_rationale_path, path.join(prepared.runDir, 'judge-rationale.json'));
+  assert.equal(judgeRationale.mode, 'winner');
+  assert.equal(judgeRationale.winner_candidate_id, manifest.candidate_id);
+  assert.ok(Array.isArray(judgeRationale.operator_guidance));
   assert.equal(result.summary.synthesis, null);
   assert.match(evalStdout, /Perfect-play eval passed on/);
   assert.match(runEvents, /session.started/);

@@ -808,6 +808,7 @@ function renderTaskBrief(task) {
 
 function renderEvaluationCall(overview, evaluation) {
   evaluationCall.innerHTML = '';
+  const rationale = evaluation?.judge_rationale || state.taskDetail?.judge_rationale || null;
 
   appendInfoBlock(
     evaluationCall,
@@ -839,6 +840,31 @@ function renderEvaluationCall(overview, evaluation) {
     overview?.acceptance_summary || 'No acceptance summary is available.'
   );
 
+  if (rationale) {
+    appendInfoBlock(
+      evaluationCall,
+      'Judge Overview',
+      rationale.overview
+    );
+    appendInfoBlock(
+      evaluationCall,
+      'Next Action',
+      rationale.next_action
+    );
+
+    const riskLines = (rationale.risk_flags || []).map((flag) => [
+      flag.severity.toUpperCase(),
+      flag.path || null,
+      flag.message
+    ].filter(Boolean).join(' • '));
+    appendListBlock(
+      evaluationCall,
+      'Risk Flags',
+      riskLines,
+      'No major deterministic risks flagged.'
+    );
+  }
+
   const finalists = evaluation?.decision?.finalists || overview?.finalists || [];
   appendListBlock(
     evaluationCall,
@@ -866,6 +892,27 @@ function renderComparisonView(comparison) {
     comparison.decision?.synthesis_summary || 'Synthesis guidance is not available yet.'
   );
 
+  if (comparison.judge_rationale) {
+    appendInfoBlock(
+      comparisonView,
+      'Judge Overview',
+      comparison.judge_rationale.overview
+    );
+    appendInfoBlock(
+      comparisonView,
+      'Next Action',
+      comparison.judge_rationale.next_action
+    );
+    appendListBlock(
+      comparisonView,
+      'Top Strengths',
+      (comparison.judge_rationale.strengths || []).map((strength) => (
+        `${strength.label}: ${strength.candidate_label} • ${strength.reason}`
+      )),
+      'No deterministic strengths are available yet.'
+    );
+  }
+
   if (comparison.merge_plan) {
     appendInfoBlock(
       comparisonView,
@@ -883,6 +930,17 @@ function renderComparisonView(comparison) {
       comparisonView,
       'Plan Rationale',
       comparison.merge_plan.rationale
+    );
+  }
+
+  if (comparison.judge_rationale?.unresolved_conflicts?.length) {
+    appendListBlock(
+      comparisonView,
+      'Unresolved Conflicts',
+      comparison.judge_rationale.unresolved_conflicts.map((conflict) => (
+        `${conflict.path} • ${conflict.reason} • ${conflict.contender_labels.join(', ')}`
+      )),
+      'No unresolved conflicts.'
     );
   }
 

@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 
+import { buildJudgeRationale } from './judge-rationale.mjs';
 import { buildMergePlan } from './merge-plan.mjs';
 
 export async function evaluateRun({ task, manifests, outputPath = null }) {
@@ -10,17 +11,26 @@ export async function evaluateRun({ task, manifests, outputPath = null }) {
   const contribution_map = buildContributionMap(candidates, eligible);
   const decision = summarizeDecision(buildDecision(candidates, eligible), candidates);
   const merge_plan = buildMergePlan({ candidates, decision });
+  const judge_rationale = buildJudgeRationale({
+    taskId: task.task_id,
+    evaluatedAt: new Date().toISOString(),
+    candidates,
+    decision,
+    mergePlan: merge_plan,
+    contributionMap: contribution_map
+  });
 
   const result = {
     task_id: task.task_id,
-    evaluated_at: new Date().toISOString(),
+    evaluated_at: judge_rationale.evaluated_at,
     candidate_count: candidates.length,
     candidates,
     ranking,
     pairwise_preferences,
     contribution_map,
     decision,
-    merge_plan
+    merge_plan,
+    judge_rationale
   };
 
   if (outputPath) {
