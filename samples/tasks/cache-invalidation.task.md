@@ -3,7 +3,9 @@ task_id: task_20260308_cache_invalidation
 source_system: symphony
 source_task_id: demo_card_cache_invalidation
 repo: demo/cache-service
+repo_path: ../repos/cache-service
 base_ref: main
+demo_priority: 20
 mode: race
 providers:
   - codex
@@ -41,6 +43,7 @@ Project detail reads are cached. After an update mutation, reads may continue re
 - npm test
 - npm run lint
 - npm run typecheck
+- node scripts/check-demo-state.mjs
 
 ## Optional Guidance
 - Small observability improvements are acceptable if directly related.

@@ -1,12 +1,21 @@
+import { buildDefaultRunConfig, expandRunConfig, normalizeRunConfig } from './run-config.mjs';
+
 const SLOT_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
-export function buildPromptPackets(task) {
-  return task.providers.map((provider, index) => {
+export function buildPromptPackets(task, { runConfig = null } = {}) {
+  const normalizedRunConfig = normalizeRunConfig(task, runConfig || buildDefaultRunConfig(task));
+  const candidatePlan = expandRunConfig(task, normalizedRunConfig);
+
+  return candidatePlan.map((candidate, index) => {
     const candidateSlot = SLOT_LETTERS[index] || `S${index + 1}`;
     const packet = {
       task_id: task.task_id,
       candidate_slot: candidateSlot,
-      provider,
+      provider: candidate.provider,
+      provider_instance_id: candidate.provider_instance_id,
+      agent_index: candidate.agent_index,
+      profile_id: candidate.profile_id,
+      transport: candidate.transport,
       base_ref: task.base_ref,
       mode: task.mode,
       objective: task.title,
@@ -32,8 +41,13 @@ export function buildPromptPackets(task) {
     };
 
     return {
-      provider,
+      provider: candidate.provider,
+      providerInstanceId: candidate.provider_instance_id,
+      agentIndex: candidate.agent_index,
+      profileId: candidate.profile_id,
+      transport: candidate.transport,
       candidateSlot,
+      candidateKey: `${candidateSlot.toLowerCase()}-${sanitizeCandidateKey(candidate.provider_instance_id)}`,
       packet,
       markdown: renderPromptPacketMarkdown(packet)
     };
@@ -47,6 +61,10 @@ function renderPromptPacketMarkdown(packet) {
     `Task ID: ${packet.task_id}`,
     `Candidate Slot: ${packet.candidate_slot}`,
     `Provider: ${packet.provider}`,
+    `Provider Instance: ${packet.provider_instance_id}`,
+    `Agent Index: ${packet.agent_index}`,
+    `Profile: ${packet.profile_id}`,
+    `Transport: ${packet.transport}`,
     `Base Ref: ${packet.base_ref}`,
     `Mode: ${packet.mode}`,
     '',
@@ -78,4 +96,11 @@ function renderPromptPacketMarkdown(packet) {
 
   lines.push('## Working Rules', ...packet.working_rules.map((item) => `- ${item}`));
   return lines.join('\n').trim() + '\n';
+}
+
+function sanitizeCandidateKey(value) {
+  return String(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 }

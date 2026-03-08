@@ -1,0 +1,42 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { buildTerminalLoginLaunch } from '../src/auth-launch.mjs';
+import { getTaskDetail, listTaskCards } from '../src/web/data.mjs';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const projectRoot = path.resolve(__dirname, '..');
+
+test('listTaskCards prioritizes the tic-tac-toe demo card for the first board view', async () => {
+  const cards = await listTaskCards(projectRoot);
+
+  assert.ok(cards.length >= 2);
+  assert.equal(cards[0].task_id, 'task_20260308_tic_tac_toe_perfect_play');
+  assert.equal(cards[0].source_system, 'symphony');
+  assert.equal(cards[0].source_task_id, 'demo_card_tic_tac_toe_perfect_play');
+  assert.match(cards[0].title, /perfect play/i);
+});
+
+test('getTaskDetail returns markdown, parsed task data, and default run config', async () => {
+  const detail = await getTaskDetail(projectRoot, 'task_20260308_tic_tac_toe_perfect_play');
+
+  assert.ok(detail);
+  assert.match(detail.markdown, /# Task/);
+  assert.equal(detail.task.repo, 'demo/tic-tac-toe');
+  assert.equal(detail.run_config.providers.length, 3);
+  assert.equal(detail.run_config.providers[0].provider, 'codex');
+  assert.ok(detail.run_config.providers[0].agents >= 1);
+  assert.ok(Array.isArray(detail.candidates));
+  assert.ok(Array.isArray(detail.sessions));
+});
+
+test('buildTerminalLoginLaunch always exposes a human command', () => {
+  const launch = buildTerminalLoginLaunch({ projectRoot, provider: 'codex' });
+
+  assert.match(launch.human_command, /node src\/cli\.mjs login/);
+  assert.match(launch.human_command, /codex/);
+  assert.equal(typeof launch.supported, 'boolean');
+});

@@ -2,11 +2,8 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { materializeRunArtifacts } from './artifacts.mjs';
-import { parseTaskBriefFile } from './parser.mjs';
-import { buildPromptPackets } from './prompt-packets.mjs';
+import { prepareTaskFromFile, runTaskFromPrepared } from './orchestrator.mjs';
 import { doctorProviders, getProviderLoginCommand, listSupportedProviders } from './providers.mjs';
-import { runPreparedCandidates } from './runner.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -46,36 +43,30 @@ async function main() {
 
   const options = parseFlags(args.slice(taskArgIndex + 1));
   const absoluteInputPath = path.resolve(process.cwd(), inputPath);
-  const parsed = await parseTaskBriefFile(absoluteInputPath);
-
-  if (!parsed.ok) {
-    console.error('Task brief validation failed.');
-    console.error(JSON.stringify({ errors: parsed.errors, warnings: parsed.warnings }, null, 2));
-    process.exit(1);
-  }
-
-  const packets = buildPromptPackets(parsed.task);
-  const prepared = await materializeRunArtifacts({ projectRoot, parsed, packets });
+  const preparedTask = await prepareTaskFromFile({ projectRoot, taskFilePath: absoluteInputPath })
+    .catch((error) => {
+      if (error.details) {
+        console.error('Task brief validation failed.');
+        console.error(JSON.stringify(error.details, null, 2));
+        process.exit(1);
+      }
+      throw error;
+    });
 
   if (command === 'prepare') {
-    console.log(JSON.stringify(buildPreparedOutput(parsed, packets, prepared), null, 2));
+    console.log(JSON.stringify(preparedTask.output, null, 2));
     return;
   }
 
-  const runResult = await runPreparedCandidates({
-    runDir: prepared.runDir,
-    task: parsed.task,
-    packets,
-    manifests: prepared.manifests,
+  const runResult = await runTaskFromPrepared({
+    task: preparedTask.task,
+    packets: preparedTask.packets,
+    prepared: preparedTask.prepared,
     dryRun: options.dryRun,
     maxTurns: options.maxTurns
   });
 
-  console.log(JSON.stringify({
-    ...buildPreparedOutput(parsed, packets, prepared),
-    run_events_path: runResult.runEventsPath,
-    summary: runResult.summary
-  }, null, 2));
+  console.log(JSON.stringify(runResult, null, 2));
 }
 
 function normalizeCommand(arg) {
@@ -108,18 +99,6 @@ function parseFlags(flags) {
   }
 
   return options;
-}
-
-function buildPreparedOutput(parsed, packets, prepared) {
-  return {
-    task_id: parsed.task.task_id,
-    source_system: parsed.task.source_system,
-    source_task_id: parsed.task.source_task_id || null,
-    run_dir: prepared.runDir,
-    warnings: parsed.warnings,
-    prompt_packets: packets.map((packet) => ({ provider: packet.provider, slot: packet.candidateSlot })),
-    candidates: prepared.manifests
-  };
 }
 
 function printUsage() {

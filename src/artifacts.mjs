@@ -1,7 +1,10 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-export async function materializeRunArtifacts({ projectRoot, parsed, packets }) {
+import { JjAdapter } from './jj.mjs';
+
+export async function materializeRunArtifacts({ projectRoot, parsed, packets, runConfig = null }) {
+  const jj = new JjAdapter();
   const runDir = await prepareRunDirectory(projectRoot, parsed.task.task_id);
   const taskDir = path.join(runDir, 'task');
   const packetDir = path.join(runDir, 'prompt-packets');
@@ -26,6 +29,7 @@ export async function materializeRunArtifacts({ projectRoot, parsed, packets }) 
       judge: parsed.task.judge,
       warnings: parsed.warnings,
       candidate_count: packets.length,
+      run_config: runConfig,
       status: 'prepared'
     }, null, 2) + '\n',
     'utf8'
@@ -34,7 +38,7 @@ export async function materializeRunArtifacts({ projectRoot, parsed, packets }) 
   const manifests = [];
 
   for (const entry of packets) {
-    const providerDir = path.join(candidateRoot, entry.provider);
+    const providerDir = path.join(candidateRoot, entry.candidateKey);
     const workspaceDir = path.join(providerDir, 'workspace');
     const logsDir = path.join(providerDir, 'logs');
     const artifactsDir = path.join(providerDir, 'artifacts');
@@ -47,18 +51,35 @@ export async function materializeRunArtifacts({ projectRoot, parsed, packets }) 
       await seedWorkspace(parsed.task.repo_path, workspaceDir);
     }
 
-    const promptJsonPath = path.join(packetDir, `${entry.provider}.json`);
-    const promptMarkdownPath = path.join(packetDir, `${entry.provider}.md`);
+    const promptJsonPath = path.join(packetDir, `${entry.candidateKey}.json`);
+    const promptMarkdownPath = path.join(packetDir, `${entry.candidateKey}.md`);
     await fs.writeFile(promptJsonPath, JSON.stringify(entry.packet, null, 2) + '\n', 'utf8');
     await fs.writeFile(promptMarkdownPath, entry.markdown, 'utf8');
     await fs.writeFile(candidateEventsPath, '', 'utf8');
 
     const candidateId = `cand_${entry.candidateSlot.toLowerCase()}`;
+    const jjState = await jj.bootstrapWorkspace({
+      workspacePath: workspaceDir,
+      taskId: parsed.task.task_id,
+      candidateId,
+      candidateSlot: entry.candidateSlot,
+      providerInstanceId: entry.providerInstanceId,
+      baseRef: parsed.task.base_ref
+    }).catch((error) => ({
+      status: error.code === 'ENOENT' ? 'unavailable' : 'failed',
+      error: error.message || String(error),
+      initialized_at: new Date().toISOString()
+    }));
     const manifest = {
       task_id: parsed.task.task_id,
       candidate_id: candidateId,
+      candidate_key: entry.candidateKey,
       candidate_slot: entry.candidateSlot,
       provider: entry.provider,
+      provider_instance_id: entry.providerInstanceId,
+      agent_index: entry.agentIndex,
+      profile_id: entry.profileId,
+      transport: entry.transport,
       status: 'planned',
       workspace_path: workspaceDir,
       prompt_packet_path: promptMarkdownPath,
@@ -68,15 +89,23 @@ export async function materializeRunArtifacts({ projectRoot, parsed, packets }) 
       completed_at: null,
       changed_files: [],
       summary: null,
+      verification: null,
+      evaluation: null,
       command: null,
       exit_code: null,
       error: null,
+      jj: jjState,
+      session_id: null,
+      session_record_path: null,
       events_path: candidateEventsPath,
       artifact_paths: {
         stdout_path: path.join(logsDir, 'stdout.log'),
         stderr_path: path.join(logsDir, 'stderr.log'),
         patch_path: path.join(artifactsDir, 'candidate.patch'),
-        summary_path: path.join(artifactsDir, 'summary.md')
+        diff_summary_path: path.join(artifactsDir, 'diff-summary.txt'),
+        status_path: path.join(artifactsDir, 'jj-status.txt'),
+        summary_path: path.join(artifactsDir, 'summary.md'),
+        evaluation_path: path.join(artifactsDir, 'scorecard.json')
       }
     };
 
@@ -84,6 +113,9 @@ export async function materializeRunArtifacts({ projectRoot, parsed, packets }) 
     await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
     manifests.push({
       provider: entry.provider,
+      providerInstanceId: entry.providerInstanceId,
+      candidateSlot: entry.candidateSlot,
+      candidateKey: entry.candidateKey,
       manifestPath,
       workspaceDir,
       promptJsonPath,
@@ -98,18 +130,10 @@ export async function materializeRunArtifacts({ projectRoot, parsed, packets }) 
 async function prepareRunDirectory(projectRoot, taskId) {
   const runsRoot = path.join(projectRoot, 'runs');
   await fs.mkdir(runsRoot, { recursive: true });
-  const baseDir = path.join(runsRoot, taskId);
-
-  try {
-    await fs.access(baseDir);
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const versioned = `${baseDir}_${timestamp}`;
-    await fs.mkdir(versioned, { recursive: true });
-    return versioned;
-  } catch {
-    await fs.mkdir(baseDir, { recursive: true });
-    return baseDir;
-  }
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const runDir = path.join(runsRoot, `${taskId}_${timestamp}`);
+  await fs.mkdir(runDir, { recursive: true });
+  return runDir;
 }
 
 async function seedWorkspace(sourcePath, destinationPath) {

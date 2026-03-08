@@ -1,8 +1,11 @@
-import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
+import { evaluateRun } from './evaluation.mjs';
+import { JjAdapter } from './jj.mjs';
 import { buildProviderCommand, DEFAULT_PROVIDER_SPECS } from './providers.mjs';
+import { SessionManager } from './session-manager.mjs';
+import { runAcceptanceChecks } from './verify.mjs';
 
 export async function runPreparedCandidates({
   runDir,
@@ -10,9 +13,14 @@ export async function runPreparedCandidates({
   packets,
   manifests,
   specs = DEFAULT_PROVIDER_SPECS,
+  sessionManager = null,
   dryRun = false,
   maxTurns = 24
 }) {
+  const jj = new JjAdapter();
+  const manager = sessionManager || new SessionManager({
+    projectRoot: path.resolve(runDir, '..', '..')
+  });
   const runEventsPath = path.join(runDir, 'events', 'run-events.jsonl');
   await fs.writeFile(runEventsPath, '', 'utf8');
 
@@ -20,20 +28,23 @@ export async function runPreparedCandidates({
     ts: new Date().toISOString(),
     kind: 'run.started',
     task_id: task.task_id,
-    providers: task.providers,
+    providers: packets.map((packet) => packet.providerInstanceId),
     dry_run: dryRun
   });
 
-  const manifestByProvider = new Map(manifests.map((manifest) => [manifest.provider, manifest]));
+  const manifestByCandidateKey = new Map(manifests.map((manifest) => [manifest.candidateKey, manifest]));
   const results = await Promise.allSettled(
     packets.map((packet) => {
-      const manifestEntry = manifestByProvider.get(packet.provider);
+      const manifestEntry = manifestByCandidateKey.get(packet.candidateKey);
       return runOneCandidate({
+        runDir,
         runEventsPath,
         task,
         packet,
         manifestEntry,
         specs,
+        jj,
+        sessionManager: manager,
         dryRun,
         maxTurns
       });
@@ -47,6 +58,7 @@ export async function runPreparedCandidates({
     return {
       provider: packets[index].provider,
       candidate_slot: packets[index].candidateSlot,
+      provider_instance_id: packets[index].providerInstanceId,
       status: 'failed',
       error: result.reason?.message || String(result.reason)
     };
@@ -56,15 +68,46 @@ export async function runPreparedCandidates({
     ? (dryRun ? 'dry-run' : 'completed')
     : 'completed_with_failures';
 
+  const materializedManifests = await Promise.all(manifests.map((entry) => readJson(entry.manifestPath)));
+  const evaluation = dryRun
+    ? null
+    : await evaluateRun({
+      task,
+      manifests: materializedManifests,
+      outputPath: path.join(runDir, 'evaluation.json')
+    });
+
+  if (evaluation) {
+    const byCandidateId = new Map(evaluation.candidates.map((candidate) => [candidate.candidate_id, candidate]));
+    await Promise.all(manifests.map(async (entry) => {
+      const manifest = await readJson(entry.manifestPath);
+      manifest.evaluation = byCandidateId.get(manifest.candidate_id) || null;
+      if (manifest.artifact_paths?.evaluation_path) {
+        await fs.writeFile(manifest.artifact_paths.evaluation_path, JSON.stringify(manifest.evaluation, null, 2) + '\n', 'utf8');
+      }
+      await writeManifest(entry.manifestPath, manifest);
+    }));
+    await appendJsonl(runEventsPath, {
+      ts: new Date().toISOString(),
+      kind: 'evaluation.completed',
+      task_id: task.task_id,
+      decision: evaluation.decision
+    });
+  }
+
   const summary = {
     task_id: task.task_id,
+    source_system: task.source_system,
+    source_task_id: task.source_task_id || null,
     repo: task.repo,
     repo_path: task.repo_path || null,
     base_ref: task.base_ref,
     providers: task.providers,
     judge: task.judge,
+    run_config: task.run_config || null,
     status: finalStatus,
-    candidate_results: candidateResults
+    candidate_results: candidateResults,
+    evaluation
   };
 
   await fs.writeFile(path.join(runDir, 'run-summary.json'), JSON.stringify(summary, null, 2) + '\n', 'utf8');
@@ -72,13 +115,15 @@ export async function runPreparedCandidates({
     ts: new Date().toISOString(),
     kind: 'run.completed',
     task_id: task.task_id,
-    status: finalStatus
+    status: finalStatus,
+    source_system: task.source_system,
+    source_task_id: task.source_task_id || null
   });
 
   return { runEventsPath, summary };
 }
 
-async function runOneCandidate({ runEventsPath, task, packet, manifestEntry, specs, dryRun, maxTurns }) {
+async function runOneCandidate({ runDir, runEventsPath, task, packet, manifestEntry, specs, jj, sessionManager, dryRun, maxTurns }) {
   if (!manifestEntry) {
     throw new Error(`Missing manifest for provider ${packet.provider}`);
   }
@@ -108,144 +153,123 @@ async function runOneCandidate({ runEventsPath, task, packet, manifestEntry, spe
     return {
       provider: packet.provider,
       candidate_slot: packet.candidateSlot,
+      provider_instance_id: packet.providerInstanceId,
       status: 'dry-run',
       command: manifest.command
     };
   }
 
   manifest.status = 'running';
+  manifest.verification = null;
   await writeManifest(manifestEntry.manifestPath, manifest);
   await appendJsonl(runEventsPath, buildEvent('candidate.started', packet, { command: manifest.command }));
   await appendJsonl(manifest.events_path, buildEvent('candidate.started', packet, { command: manifest.command }));
-
-  const stdoutHandle = await fs.open(manifest.artifact_paths.stdout_path, 'a');
-  const stderrHandle = await fs.open(manifest.artifact_paths.stderr_path, 'a');
   let lastSummaryLine = '';
 
   try {
-    const child = spawn(command.binary, command.args, {
+    const session = await sessionManager.runCommandSession({
+      kind: 'candidate-run',
+      provider: packet.provider,
+      profileId: packet.profileId,
+      transport: packet.transport,
+      runDir,
+      taskId: task.task_id,
+      candidateId: manifest.candidate_id,
+      command,
       cwd: manifest.workspace_path,
       env: process.env,
-      stdio: ['ignore', 'pipe', 'pipe']
+      metadata: {
+        candidate_slot: packet.candidateSlot,
+        provider_instance_id: packet.providerInstanceId
+      },
+      timeoutMs: task.max_runtime_minutes * 60 * 1000,
+      onEvent: async (event) => {
+        const mapped = mapSessionEvent(packet, event);
+        await appendJsonl(runEventsPath, mapped);
+        await appendJsonl(manifest.events_path, mapped);
+      },
+      onStdoutLine(line) {
+        lastSummaryLine = line || lastSummaryLine;
+      }
     });
 
-    const timeoutMs = task.max_runtime_minutes * 60 * 1000;
-    const timeout = setTimeout(() => {
-      child.kill('SIGTERM');
-    }, timeoutMs);
-
-    await Promise.all([
-      pumpStream({
-        stream: child.stdout,
-        fileHandle: stdoutHandle,
-        packet,
-        candidateEventsPath: manifest.events_path,
-        runEventsPath,
-        streamName: 'stdout',
-        onLine(line) {
-          lastSummaryLine = line || lastSummaryLine;
-        }
-      }),
-      pumpStream({
-        stream: child.stderr,
-        fileHandle: stderrHandle,
-        packet,
-        candidateEventsPath: manifest.events_path,
-        runEventsPath,
-        streamName: 'stderr'
-      }),
-      waitForExit(child)
-        .then(({ code, signal }) => {
-          clearTimeout(timeout);
-          manifest.completed_at = new Date().toISOString();
-          manifest.exit_code = code;
-          manifest.status = code === 0 ? 'completed' : 'failed';
-          manifest.summary = lastSummaryLine || null;
-          if (signal) {
-            manifest.error = `terminated_by_signal:${signal}`;
-          }
-          return { code, signal };
-        })
-    ]);
+    manifest.session_id = session.session_id;
+    manifest.session_record_path = session.paths.record_path;
+    manifest.artifact_paths.stdout_path = session.paths.stdout_path;
+    manifest.artifact_paths.stderr_path = session.paths.stderr_path;
+    manifest.completed_at = session.completed_at;
+    manifest.exit_code = session.exit_code;
+    manifest.status = session.status;
+    manifest.summary = lastSummaryLine || manifest.summary || null;
+    manifest.error = session.error;
   } catch (error) {
     manifest.completed_at = new Date().toISOString();
     manifest.status = 'failed';
     manifest.error = error.code === 'ENOENT' ? `binary_not_found:${command.binary}` : (error.message || String(error));
-  } finally {
-    await stdoutHandle.close();
-    await stderrHandle.close();
   }
+
+  if (manifest.status === 'completed' && Array.isArray(task.acceptance_checks) && task.acceptance_checks.length > 0) {
+    await appendJsonl(runEventsPath, buildEvent('verification.started', packet, {
+      commands: task.acceptance_checks
+    }));
+    await appendJsonl(manifest.events_path, buildEvent('verification.started', packet, {
+      commands: task.acceptance_checks
+    }));
+
+    manifest.verification = await runAcceptanceChecks({
+      workspacePath: manifest.workspace_path,
+      commands: task.acceptance_checks,
+      outputDir: path.dirname(manifest.artifact_paths.summary_path)
+    });
+
+    if (manifest.verification.status !== 'pass') {
+      manifest.status = 'failed';
+      manifest.error = manifest.error || 'verification_failed';
+    }
+
+    await appendJsonl(runEventsPath, buildEvent('verification.completed', packet, {
+      verification: manifest.verification
+    }));
+    await appendJsonl(manifest.events_path, buildEvent('verification.completed', packet, {
+      verification: manifest.verification
+    }));
+  }
+
+  await captureJjArtifacts({
+    jj,
+    task,
+    packet,
+    manifest,
+    manifestPath: manifestEntry.manifestPath,
+    runEventsPath
+  });
 
   await writeManifest(manifestEntry.manifestPath, manifest);
   await appendJsonl(runEventsPath, buildEvent('candidate.completed', packet, {
     status: manifest.status,
     exit_code: manifest.exit_code,
     error: manifest.error,
-    summary: manifest.summary
+    summary: manifest.summary,
+    verification: manifest.verification
   }));
   await appendJsonl(manifest.events_path, buildEvent('candidate.completed', packet, {
     status: manifest.status,
     exit_code: manifest.exit_code,
     error: manifest.error,
-    summary: manifest.summary
+    summary: manifest.summary,
+    verification: manifest.verification
   }));
 
   return {
     provider: packet.provider,
     candidate_slot: packet.candidateSlot,
+    provider_instance_id: packet.providerInstanceId,
     status: manifest.status,
     exit_code: manifest.exit_code,
     error: manifest.error,
-    summary: manifest.summary
+    summary: manifest.summary,
+    verification: manifest.verification
   };
-}
-
-async function pumpStream({ stream, fileHandle, packet, candidateEventsPath, runEventsPath, streamName, onLine = () => {} }) {
-  if (!stream) {
-    return;
-  }
-
-  let buffer = '';
-
-  for await (const chunk of stream) {
-    const text = chunk.toString('utf8');
-    await fileHandle.appendFile(text);
-    buffer += text;
-
-    while (true) {
-      const newlineIndex = buffer.indexOf('\n');
-      if (newlineIndex === -1) {
-        break;
-      }
-      const line = buffer.slice(0, newlineIndex).trimEnd();
-      buffer = buffer.slice(newlineIndex + 1);
-      if (!line) {
-        continue;
-      }
-      onLine(line);
-      const event = buildStreamEvent(packet, streamName, line);
-      await appendJsonl(candidateEventsPath, event);
-      await appendJsonl(runEventsPath, event);
-    }
-  }
-
-  const finalLine = buffer.trim();
-  if (finalLine) {
-    onLine(finalLine);
-    const event = buildStreamEvent(packet, streamName, finalLine);
-    await appendJsonl(candidateEventsPath, event);
-    await appendJsonl(runEventsPath, event);
-  }
-}
-
-function buildStreamEvent(packet, streamName, line) {
-  const base = buildEvent('candidate.stream', packet, { stream: streamName, line });
-  try {
-    base.parsed = JSON.parse(line);
-  } catch {
-    base.parsed = null;
-  }
-  return base;
 }
 
 function buildEvent(kind, packet, extra = {}) {
@@ -259,11 +283,77 @@ function buildEvent(kind, packet, extra = {}) {
   };
 }
 
-async function waitForExit(child) {
-  return new Promise((resolve, reject) => {
-    child.once('error', reject);
-    child.once('close', (code, signal) => resolve({ code, signal }));
+function mapSessionEvent(packet, event) {
+  if (event.kind !== 'session.output') {
+    return buildEvent(event.kind, packet, {
+      session_id: event.session_id,
+      transport: event.transport,
+      exit_code: event.exit_code ?? null,
+      signal: event.signal ?? null,
+      error: event.error ?? null
+    });
+  }
+
+  const mapped = buildEvent('candidate.stream', packet, {
+    session_id: event.session_id,
+    transport: event.transport,
+    stream: event.stream,
+    line: event.line
   });
+  try {
+    mapped.parsed = JSON.parse(event.line);
+  } catch {
+    mapped.parsed = null;
+  }
+  return mapped;
+}
+
+async function captureJjArtifacts({ jj, task, packet, manifest, manifestPath, runEventsPath }) {
+  if (!manifest.jj || manifest.jj.status !== 'ready') {
+    return;
+  }
+
+  await appendJsonl(runEventsPath, buildEvent('jj.capture.started', packet));
+  await appendJsonl(manifest.events_path, buildEvent('jj.capture.started', packet));
+
+  try {
+    const snapshot = await jj.captureCandidateSnapshot({
+      workspacePath: manifest.workspace_path,
+      description: `Alloy candidate ${task.task_id} ${packet.candidateSlot} ${packet.providerInstanceId}`,
+      patchPath: manifest.artifact_paths.patch_path,
+      diffSummaryPath: manifest.artifact_paths.diff_summary_path,
+      statusPath: manifest.artifact_paths.status_path
+    });
+
+    manifest.changed_files = snapshot.changed_files;
+    manifest.jj = {
+      ...manifest.jj,
+      ...snapshot
+    };
+
+    await appendJsonl(runEventsPath, buildEvent('jj.capture.completed', packet, {
+      changed_files: snapshot.changed_files,
+      patch_stats: snapshot.patch_stats
+    }));
+    await appendJsonl(manifest.events_path, buildEvent('jj.capture.completed', packet, {
+      changed_files: snapshot.changed_files,
+      patch_stats: snapshot.patch_stats
+    }));
+  } catch (error) {
+    manifest.jj = {
+      ...manifest.jj,
+      status: 'failed',
+      error: error.message || String(error)
+    };
+    await appendJsonl(runEventsPath, buildEvent('jj.capture.failed', packet, {
+      error: manifest.jj.error
+    }));
+    await appendJsonl(manifest.events_path, buildEvent('jj.capture.failed', packet, {
+      error: manifest.jj.error
+    }));
+  }
+
+  await writeManifest(manifestPath, manifest);
 }
 
 async function appendJsonl(filePath, value) {

@@ -11,6 +11,15 @@ export const DEFAULT_PROVIDER_SPECS = {
     versionArgs: ['--version'],
     eventFormat: 'jsonl',
     docs: 'https://developers.openai.com/codex/cli',
+    runtime: {
+      loginTransport: 'pty',
+      runTransport: 'pipe',
+      supportedRunTransports: ['pipe', 'pty'],
+      supportsJsonStream: true,
+      supportsNonInteractive: true,
+      authObservable: false,
+      profiles: [{ id: 'default', label: 'Default' }]
+    },
     auth: {
       status: 'unknown',
       flow: 'interactive-browser',
@@ -46,6 +55,15 @@ export const DEFAULT_PROVIDER_SPECS = {
     versionArgs: ['--version'],
     eventFormat: 'stream-json',
     docs: 'https://code.claude.com/docs/en/quickstart',
+    runtime: {
+      loginTransport: 'pty',
+      runTransport: 'pipe',
+      supportedRunTransports: ['pipe', 'pty'],
+      supportsJsonStream: true,
+      supportsNonInteractive: true,
+      authObservable: false,
+      profiles: [{ id: 'default', label: 'Default' }]
+    },
     auth: {
       status: 'unknown',
       flow: 'interactive-browser',
@@ -82,6 +100,15 @@ export const DEFAULT_PROVIDER_SPECS = {
     versionArgs: ['--version'],
     eventFormat: 'stream-json',
     docs: 'https://github.com/google-gemini/gemini-cli',
+    runtime: {
+      loginTransport: 'pty',
+      runTransport: 'pipe',
+      supportedRunTransports: ['pipe', 'pty'],
+      supportsJsonStream: true,
+      supportsNonInteractive: true,
+      authObservable: false,
+      profiles: [{ id: 'default', label: 'Default' }]
+    },
     auth: {
       status: 'unknown',
       flow: 'interactive-browser',
@@ -140,8 +167,15 @@ export async function doctorProviders({ specs = DEFAULT_PROVIDER_SPECS, timeoutM
         installed: true,
         auth_status: spec.auth?.status || 'unknown',
         auth_flow: spec.auth?.flow || 'unknown',
+        auth_observable: spec.runtime?.authObservable === true,
         login_command: spec.auth?.loginCommand || null,
         login_instructions: spec.auth?.instructions || [],
+        default_transport: spec.runtime?.runTransport || 'pipe',
+        login_transport: spec.runtime?.loginTransport || 'pty',
+        supported_run_transports: spec.runtime?.supportedRunTransports || [spec.runtime?.runTransport || 'pipe'],
+        supports_noninteractive: spec.runtime?.supportsNonInteractive !== false,
+        supports_json_stream: spec.runtime?.supportsJsonStream !== false,
+        profiles: spec.runtime?.profiles || [{ id: 'default', label: 'Default' }],
         version: version || null,
         docs: spec.docs
       };
@@ -153,8 +187,15 @@ export async function doctorProviders({ specs = DEFAULT_PROVIDER_SPECS, timeoutM
         installed: false,
         auth_status: spec.auth?.status || 'unknown',
         auth_flow: spec.auth?.flow || 'unknown',
+        auth_observable: spec.runtime?.authObservable === true,
         login_command: spec.auth?.loginCommand || null,
         login_instructions: spec.auth?.instructions || [],
+        default_transport: spec.runtime?.runTransport || 'pipe',
+        login_transport: spec.runtime?.loginTransport || 'pty',
+        supported_run_transports: spec.runtime?.supportedRunTransports || [spec.runtime?.runTransport || 'pipe'],
+        supports_noninteractive: spec.runtime?.supportsNonInteractive !== false,
+        supports_json_stream: spec.runtime?.supportsJsonStream !== false,
+        profiles: spec.runtime?.profiles || [{ id: 'default', label: 'Default' }],
         version: null,
         docs: spec.docs,
         error: error.code === 'ENOENT' ? 'binary_not_found' : (error.message || String(error))

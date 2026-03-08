@@ -176,6 +176,7 @@ function normalizeTaskBrief(frontmatter, sections) {
     repo: frontmatter.repo,
     repo_path: frontmatter.repo_path || '',
     base_ref: frontmatter.base_ref,
+    demo_priority: Number.parseInt(frontmatter.demo_priority || 0, 10) || 0,
     mode: frontmatter.mode,
     providers: ensureArray(frontmatter.providers),
     judge: frontmatter.judge,

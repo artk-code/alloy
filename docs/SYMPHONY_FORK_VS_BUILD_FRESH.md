@@ -4,6 +4,11 @@ Status: Draft
 Authoring date: March 8, 2026
 Purpose: Decide which parts of Symphony should be forked or reused and which parts Alloy should build fresh for the first demo and near-term roadmap.
 
+Current implementation stance:
+- Alloy is not currently booting Symphony's Elixir services.
+- The live prototype path is a build-fresh Alloy runtime with Symphony-compatible task-manager ideas and demo affordances.
+- A hard fork remains an option later if direct reuse of Symphony internals becomes worth the operational cost.
+
 ## 1. Decision Summary
 
 Recommendation:

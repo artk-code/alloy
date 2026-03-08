@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alloy.dev/schemas/evaluation-result.schema.json",
+  "title": "Alloy Deterministic Evaluation Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "task_id",
+    "evaluated_at",
+    "candidate_count",
+    "candidates",
+    "ranking",
+    "pairwise_preferences",
+    "contribution_map",
+    "decision"
+  ],
+  "properties": {
+    "task_id": { "type": "string" },
+    "evaluated_at": { "type": "string" },
+    "candidate_count": { "type": "integer" },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["candidate_id", "candidate_slot", "provider", "provider_instance_id", "eligible", "status", "verification_status", "metrics", "scorecard", "reasons"],
+        "properties": {
+          "candidate_id": { "type": "string" },
+          "candidate_slot": { "type": "string" },
+          "provider": { "type": "string" },
+          "provider_instance_id": { "type": "string" },
+          "eligible": { "type": "boolean" },
+          "status": { "type": "string" },
+          "verification_status": { "type": "string" },
+          "changed_files": { "type": "array", "items": { "type": "string" } },
+          "metrics": { "type": "object" },
+          "scorecard": { "type": "object" },
+          "reasons": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "ranking": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "pairwise_preferences": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "contribution_map": {
+      "type": "object"
+    },
+    "decision": {
+      "type": "object",
+      "required": ["mode", "confidence", "rationale", "winner_candidate_id", "finalist_candidate_ids"],
+      "properties": {
+        "mode": { "type": "string" },
+        "confidence": { "type": "string" },
+        "rationale": { "type": "string" },
+        "winner_candidate_id": { "type": ["string", "null"] },
+        "finalist_candidate_ids": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

@@ -7,8 +7,13 @@
   "required": [
     "task_id",
     "candidate_id",
+    "candidate_key",
     "candidate_slot",
     "provider",
+    "provider_instance_id",
+    "agent_index",
+    "profile_id",
+    "transport",
     "status",
     "workspace_path",
     "prompt_packet_path",
@@ -17,8 +22,13 @@
   "properties": {
     "task_id": {"type": "string"},
     "candidate_id": {"type": "string"},
+    "candidate_key": {"type": "string"},
     "candidate_slot": {"type": "string"},
     "provider": {"type": "string"},
+    "provider_instance_id": {"type": "string"},
+    "agent_index": {"type": "integer"},
+    "profile_id": {"type": "string"},
+    "transport": {"type": "string"},
     "status": {"type": "string", "enum": ["planned", "running", "completed", "failed"]},
     "workspace_path": {"type": "string"},
     "prompt_packet_path": {"type": "string"},
@@ -28,18 +38,26 @@
     "completed_at": {"type": ["string", "null"]},
     "changed_files": {"type": "array", "items": {"type": "string"}},
     "summary": {"type": ["string", "null"]},
+    "verification": {"type": ["object", "null"]},
+    "evaluation": {"type": ["object", "null"]},
     "command": {"type": ["object", "null"]},
     "exit_code": {"type": ["integer", "null"]},
     "error": {"type": ["string", "null"]},
+    "jj": {"type": ["object", "null"]},
+    "session_id": {"type": ["string", "null"]},
+    "session_record_path": {"type": ["string", "null"]},
     "events_path": {"type": ["string", "null"]},
     "artifact_paths": {
       "type": "object",
-      "required": ["stdout_path", "stderr_path", "patch_path", "summary_path"],
+      "required": ["stdout_path", "stderr_path", "patch_path", "diff_summary_path", "status_path", "summary_path", "evaluation_path"],
       "properties": {
         "stdout_path": {"type": "string"},
         "stderr_path": {"type": "string"},
         "patch_path": {"type": "string"},
-        "summary_path": {"type": "string"}
+        "diff_summary_path": {"type": "string"},
+        "status_path": {"type": "string"},
+        "summary_path": {"type": "string"},
+        "evaluation_path": {"type": "string"}
       }
     }
   }

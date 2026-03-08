@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Alloy Board</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div>
+          <p class="eyebrow">Alloy</p>
+          <h1>Symphony Manager Board</h1>
+          <p class="lede">Task cards, provider readiness, judge state, and synthesis planning in one operator surface.</p>
+        </div>
+        <section class="panel" id="provider-panel">
+          <div class="panel-header">
+            <h2>Provider Readiness</h2>
+            <button id="refresh-providers" class="ghost-button">Refresh</button>
+          </div>
+          <div id="providers" class="stack"></div>
+        </section>
+        <section class="panel" id="run-config-panel">
+          <div class="panel-header">
+            <div>
+              <h2>Run Config</h2>
+              <p id="run-config-summary" class="hint">Select a task to configure providers.</p>
+            </div>
+          </div>
+          <div id="run-config" class="stack"></div>
+        </section>
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Run Actions</h2>
+          </div>
+          <div class="stack compact">
+            <button id="prepare-task" class="ghost-button" disabled>Prepare Task</button>
+            <button id="run-task" disabled>Run Dry</button>
+            <button id="open-latest-run" class="ghost-button" disabled>Open Latest Run</button>
+          </div>
+          <p class="hint">The first demo runs from a task card and keeps provider login repair visible.</p>
+        </section>
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Session Monitor</h2>
+          </div>
+          <div id="session-list" class="stack compact"></div>
+        </section>
+      </aside>
+      <main class="main-grid">
+        <section class="board panel">
+          <div class="panel-header">
+            <h2>Board</h2>
+            <span id="board-summary" class="hint"></span>
+          </div>
+          <div id="task-board" class="board-grid"></div>
+        </section>
+        <section class="detail panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Card Detail</p>
+              <h2 id="detail-title">Select a task</h2>
+            </div>
+            <span id="detail-state" class="state-pill state-idle">Draft</span>
+          </div>
+          <div class="detail-layout">
+            <div class="editor-column">
+              <label class="field-label" for="task-markdown">Markdown Task Brief</label>
+              <textarea id="task-markdown" spellcheck="false"></textarea>
+            </div>
+            <div class="preview-column">
+              <div class="subpanel">
+                <h3>Parsed Task</h3>
+                <pre id="task-json">{}</pre>
+              </div>
+              <div class="subpanel">
+                <h3>Latest Run Summary</h3>
+                <pre id="run-summary">No run selected.</pre>
+              </div>
+              <div class="subpanel">
+                <h3>Candidate Cards</h3>
+                <div id="candidate-cards" class="stack"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+    <template id="task-card-template">
+      <article class="task-card">
+        <div class="task-card-top">
+          <span class="task-source"></span>
+          <span class="task-state"></span>
+        </div>
+        <h3></h3>
+        <p class="task-meta"></p>
+        <p class="task-providers"></p>
+        <button class="ghost-button open-card">Open Card</button>
+      </article>
+    </template>
+    <template id="provider-template">
+      <article class="provider-row">
+        <div>
+          <h3 class="provider-name"></h3>
+          <p class="provider-meta"></p>
+        </div>
+        <div class="provider-actions">
+          <span class="provider-state"></span>
+          <button class="ghost-button provider-login">Open Login</button>
+        </div>
+      </article>
+    </template>
+    <template id="run-config-template">
+      <article class="provider-config-row">
+        <div class="provider-config-top">
+          <label class="provider-toggle">
+            <input type="checkbox" class="provider-enabled">
+            <span class="provider-config-name"></span>
+          </label>
+          <span class="provider-config-auth"></span>
+        </div>
+        <p class="provider-config-meta"></p>
+        <div class="provider-config-controls">
+          <label>
+            Agents
+            <input type="number" class="provider-agents" min="0" max="4" step="1">
+          </label>
+          <label>
+            Profile
+            <input type="text" class="provider-profile" value="default">
+          </label>
+          <label>
+            Transport
+            <select class="provider-transport"></select>
+          </label>
+        </div>
+      </article>
+    </template>
+    <template id="candidate-template">
+      <article class="candidate-card">
+        <div class="candidate-header">
+          <strong class="candidate-label"></strong>
+          <span class="candidate-status"></span>
+        </div>
+        <p class="candidate-summary"></p>
+        <p class="candidate-verification"></p>
+      </article>
+    </template>
+    <template id="session-template">
+      <article class="session-row">
+        <div class="candidate-header">
+          <strong class="session-label"></strong>
+          <span class="session-status"></span>
+        </div>
+        <p class="session-meta"></p>
+      </article>
+    </template>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

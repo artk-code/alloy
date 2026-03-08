@@ -8,10 +8,12 @@
     "login:codex": "node src/cli.mjs login codex",
     "login:claude": "node src/cli.mjs login claude-code",
     "login:gemini": "node src/cli.mjs login gemini",
-    "task:prepare": "node src/cli.mjs prepare samples/tasks/cache-invalidation.task.md",
-    "task:run:dry": "node src/cli.mjs run samples/tasks/cache-invalidation.task.md --dry-run",
-    "task:sample": "node src/cli.mjs prepare samples/tasks/cache-invalidation.task.md",
-    "test": "node --test"
+    "web": "node src/web/server.mjs",
+    "task:prepare": "node src/cli.mjs prepare samples/tasks/tic-tac-toe-perfect-play.task.md",
+    "task:run:dry": "node src/cli.mjs run samples/tasks/tic-tac-toe-perfect-play.task.md --dry-run",
+    "task:sample": "node src/cli.mjs prepare samples/tasks/tic-tac-toe-perfect-play.task.md",
+    "demo:eval": "cd samples/repos/tic-tac-toe && npm test && node scripts/eval-perfect-play.mjs",
+    "test": "node --test test/*.test.mjs"
   },
   "engines": {
     "node": ">=20"

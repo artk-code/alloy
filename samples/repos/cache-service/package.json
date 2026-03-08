@@ -1,0 +1,14 @@
+{
+  "name": "cache-service-demo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "lint": "eslint src test scripts",
+    "typecheck": "tsc --project tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "eslint": "^9.22.0",
+    "typescript": "^5.8.2"
+  }
+}

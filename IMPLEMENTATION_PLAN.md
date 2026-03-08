@@ -4,6 +4,11 @@ Status: Draft for implementation
 Authoring date: March 8, 2026
 Primary objective: Build a Symphony-inspired orchestration system that uses multiple official coding CLIs authenticated via web-account subscriptions, evaluates candidate code changes objectively, synthesizes the best result with `jj`, and publishes a single clean pull request.
 
+Runtime stance:
+- Alloy is currently being implemented as an Alloy-native Node system.
+- Symphony is the workflow/model inspiration and demo-shell reference point, not a mandatory runtime dependency in the MVP.
+- Pulling in Symphony's Elixir runtime is a later optional integration decision, not a current implementation prerequisite.
+
 Related design docs:
 - `docs/DEMO_AND_OPERATOR_EXPERIENCE.md` for the first demo task, task input contract, operator steering model, GUI surfaces, and monitoring requirements
 - `docs/TASK_BRIEF_SCHEMA_AND_PARSER.md` for the Markdown task format, normalized JSON contract, parser behavior, and validation rules
@@ -11,11 +16,22 @@ Related design docs:
 - `docs/SYMPHONY_MANAGER_INTEGRATION.md` for the first-demo requirement that tasks/cards live in a Symphony-style manager while Alloy supplies judging and synthesis
 - `docs/ADAPTERS_AND_RUNNER.md` for the current CLI adapter defaults, event model, workspace seeding behavior, and next runner steps
 - `docs/AUTH_AND_LOGIN.md` for CLI-first provider authentication handling and the GUI login-repair flow
+- `docs/RUNTIME_AND_AUTH_ARCHITECTURE.md` for provider login state, session orchestration, PTY usage, and GUI/API runtime control
+- `docs/JJ_AND_EVALUATION.md` for the currently implemented `jj` bootstrap flow, candidate patch capture, deterministic scorecard, and winner/synthesize decision output
 - `docs/TWO_WEEK_BUILD_ORDER.md` for the concrete 10-working-day demo build sequence
 - `docs/MILESTONE_CHECKLIST.md` for execution checklists across the first Alloy milestones
 - `docs/SYMPHONY_FORK_VS_BUILD_FRESH.md` for the decision split between reusing Symphony and building Alloy-native systems
 
 ## 1. Summary
+
+Current implementation status:
+- tic-tac-toe is now the default first demo card
+- operator run-config overrides are implemented in the web shell
+- candidate runs are session-backed and persisted
+- each candidate workspace is bootstrapped as a `jj` repo with a base snapshot
+- candidate patches and changed-file metadata are captured after runs
+- deterministic evaluation now produces winner vs synthesize recommendations
+- judge/composer and final `jj` synthesis stack assembly are still upcoming
 
 Alloy is the recommended product name. `stack-judge` is the current working codename and can remain as a temporary internal repository slug during early development.
 
