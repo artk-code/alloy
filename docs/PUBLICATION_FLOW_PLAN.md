@@ -20,7 +20,7 @@ This plan does not require PR automation yet.
 Already implemented:
 
 - synthesis manifests include `publication_readiness`
-- `Compare Diffs` renders publication-readiness status and blockers
+- `Review` renders publication-readiness status and blockers
 - synthesized runs include `stack_shape`
 - synthesized runs include `jj` capture metadata
 - operator UI already separates review from synthesis actions
@@ -207,10 +207,10 @@ Add a compact publication summary in the operator view:
 - synthesis status
 - approval status
 - blocker count
-- link into `Compare Diffs` publication panel
+- link into `Review` publication panel
 
 This should stay summary-only.
-The detailed publication workflow belongs on `Compare Diffs`.
+The detailed publication workflow belongs on `Review`.
 
 ## Data Additions
 
@@ -240,7 +240,7 @@ Keep these under a single nested object when possible:
     "required_actions": ["Push the approved bookmark or branch to the configured remote."],
     "human_approved_at": "2026-03-08T12:00:00.000Z",
     "human_approved_by": "human-ui",
-    "human_approval_note": "Reviewed in Compare Diffs",
+    "human_approval_note": "Reviewed in Review",
     "target_remote": "origin",
     "target_branch_or_bookmark": "alloy/task_20260308_tic_tac_toe_perfect_play/synth_...",
     "published_ref": null,
@@ -311,7 +311,7 @@ Add tests for:
 
 This step is complete when:
 
-1. `Compare Diffs` shows a dedicated publication panel.
+1. `Review` shows a dedicated publication panel.
 2. The operator can trigger a local publication preview.
 3. The operator can record explicit approval.
 4. Alloy persists approval and preview metadata in artifacts.

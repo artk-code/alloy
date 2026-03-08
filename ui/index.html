@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Alloy Control Panel</title>
+    <title>Alloy Queue</title>
     <script>
       try {
         const theme = localStorage.getItem('alloy-theme');
@@ -20,13 +20,13 @@
       <header class="hero panel">
         <div>
           <p class="eyebrow">Alloy</p>
-          <h1>Control Panel</h1>
-          <p class="lede">Multi-agent task routing, provider readiness, deterministic evaluation, and synthesis planning in one operator surface.</p>
+          <h1>Queue</h1>
+          <p class="lede">Queued task monitoring, provider readiness, and run planning for Alloy’s multi-agent workflow.</p>
         </div>
         <nav class="page-nav" aria-label="Primary">
-          <a class="nav-link is-active" href="/">Control Panel</a>
-          <button id="hero-open-operator" class="ghost-button" disabled>Operator View</button>
-          <button id="hero-open-compare" class="ghost-button" disabled>Compare Diffs</button>
+          <a class="nav-link is-active" href="/">Queue</a>
+          <button id="hero-open-operator" class="ghost-button" disabled>Tasks</button>
+          <button id="hero-open-compare" class="ghost-button" disabled>Review</button>
           <a id="hero-open-docs" class="nav-link" href="/docs.html">Docs</a>
           <button id="theme-toggle" class="ghost-button" type="button">Dark Mode</button>
         </nav>
@@ -60,7 +60,7 @@
           <div class="panel-header">
             <div>
               <p class="eyebrow">Queue</p>
-              <h2>Task Board</h2>
+              <h2>Queued Tasks</h2>
             </div>
             <span id="board-summary" class="hint"></span>
           </div>
@@ -92,7 +92,7 @@
               <button id="prepare-task" class="ghost-button" disabled>Prepare Run</button>
               <button id="run-task" disabled>Preview Commands</button>
               <button id="run-task-live" disabled>Run Live</button>
-              <button id="open-compare-page" class="ghost-button" disabled>Compare Diffs</button>
+              <button id="open-compare-page" class="ghost-button" disabled>Review</button>
               <button id="open-latest-run" class="ghost-button" disabled>Copy Run Path</button>
             </div>
             <p class="hint">Preview keeps costs at zero. Live run launches the enabled provider CLIs and waits for verification and deterministic evaluation.</p>
@@ -106,8 +106,8 @@
               <h2 id="detail-title">Select a task</h2>
             </div>
             <div class="detail-header-actions">
-              <button id="detail-open-operator" class="ghost-button" disabled>Operator View</button>
-              <button id="detail-open-compare" class="ghost-button" disabled>Compare Diffs</button>
+              <button id="detail-open-operator" class="ghost-button" disabled>Tasks</button>
+              <button id="detail-open-compare" class="ghost-button" disabled>Review</button>
               <span id="detail-state" class="state-pill state-idle">Draft</span>
             </div>
           </div>

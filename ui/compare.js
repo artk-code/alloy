@@ -126,7 +126,7 @@ async function loadActiveDiff() {
 
 function renderPage() {
   const task = state.taskDetail?.task || null;
-  titleRoot.textContent = 'Compare Diffs';
+  titleRoot.textContent = 'Review';
   taskCrumbRoot.textContent = task?.title || 'Task';
   subtitleRoot.textContent = [
     task?.title || null,
@@ -134,7 +134,7 @@ function renderPage() {
     task?.repo || null,
     state.taskDetail?.latest_run_overview?.status_label || null
   ].filter(Boolean).join(' • ');
-  document.title = task?.title ? `Alloy Compare Diffs - ${task.title}` : 'Alloy Compare Diffs';
+  document.title = task?.title ? `Alloy Review - ${task.title}` : 'Alloy Review';
   const activeNavLink = document.querySelector('.page-nav .nav-link.is-active');
   if (activeNavLink) {
     activeNavLink.setAttribute('href', window.location.pathname + window.location.search);
@@ -153,9 +153,9 @@ function renderPage() {
 }
 
 function renderMissingTask() {
-  titleRoot.textContent = 'Compare Diffs';
+  titleRoot.textContent = 'Review';
   taskCrumbRoot.textContent = 'Missing task';
-  subtitleRoot.textContent = 'Open this page from the Control Panel or include ?task=<task_id> in the URL.';
+  subtitleRoot.textContent = 'Open this page from Queue or Tasks, or include ?task=<task_id> in the URL.';
   appendInfoBlock(summaryRoot, 'Task', 'No task id was provided.');
 }
 
@@ -276,6 +276,10 @@ function renderSummary() {
         publication.summary
       ].filter(Boolean).join(' • ')
     );
+  }
+
+  if (detail.local_testing?.preferred_target) {
+    renderLocalTestingBlock(summaryRoot, detail.local_testing);
   }
 }
 
@@ -876,7 +880,7 @@ async function approvePublicationAction() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         approved_by: 'human-ui',
-        note: 'Approved from Compare Diffs.'
+        note: 'Approved from Review.'
       })
     });
     const result = await response.json();
@@ -1250,10 +1254,57 @@ function buildDocsUrl(taskId) {
 
 function buildOperatorUrl(taskId) {
   if (!taskId) {
-    return '/operator.html';
+    return '/tasks.html';
   }
   const params = new URLSearchParams({ task: taskId });
-  return `/operator.html?${params.toString()}`;
+  return `/tasks.html?${params.toString()}`;
+}
+
+function renderLocalTestingBlock(root, localTesting) {
+  const block = document.createElement('div');
+  block.className = 'info-block';
+  const title = document.createElement('h4');
+  title.textContent = 'Local Testing';
+  const summary = document.createElement('p');
+  summary.textContent = [
+    localTesting.preferred_target.label,
+    localTesting.preferred_target.recommendation || null,
+    localTesting.preferred_target.workspace_path || null
+  ].filter(Boolean).join(' • ');
+  const actions = document.createElement('div');
+  actions.className = 'task-chip-row';
+
+  const openButton = document.createElement('button');
+  openButton.className = 'ghost-button';
+  openButton.textContent = 'Open Preferred Workspace';
+  openButton.addEventListener('click', async () => {
+    await openLocalTestingTarget(localTesting.preferred_target.target_id);
+  });
+
+  const copyButton = document.createElement('button');
+  copyButton.className = 'ghost-button';
+  copyButton.textContent = 'Copy Validation Commands';
+  copyButton.addEventListener('click', async () => {
+    await copyLocalTestingCommands(localTesting.preferred_target);
+  });
+
+  actions.append(openButton, copyButton);
+  block.append(title, summary, actions);
+
+  appendListBlock(
+    block,
+    'Available Targets',
+    (localTesting.targets || []).map((target) => (
+      [
+        target.label,
+        target.kind,
+        target.verification_status ? `verification ${target.verification_status}` : null
+      ].filter(Boolean).join(' • ')
+    )),
+    'No local testing targets are available yet.'
+  );
+
+  root.appendChild(block);
 }
 
 function appendInfoBlock(root, heading, body) {
@@ -1305,6 +1356,53 @@ function showToast({ title, lines = [], tone = 'info', timeoutMs = 6000 }) {
   }
   toastStack.appendChild(toast);
   window.setTimeout(() => toast.remove(), timeoutMs);
+}
+
+async function openLocalTestingTarget(targetId) {
+  try {
+    const response = await fetch(`/api/tasks/${encodeURIComponent(state.taskId)}/local-testing/open`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target_id: targetId })
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload.error || 'local_testing_open_failed');
+    }
+
+    showToast({
+      title: payload.launched ? 'Workspace opened' : 'Workspace command prepared',
+      lines: [
+        payload.target?.label || targetId,
+        payload.target?.workspace_path || null,
+        payload.launcher?.human_command || payload.message || null
+      ].filter(Boolean)
+    });
+  } catch (error) {
+    showToast({
+      title: 'Workspace open failed',
+      lines: [error.message || String(error)],
+      tone: 'danger'
+    });
+  }
+}
+
+async function copyLocalTestingCommands(target) {
+  const commands = target?.validation_commands || [];
+  if (commands.length === 0) {
+    showToast({
+      title: 'No validation commands',
+      lines: ['This target does not have persisted verification commands yet.'],
+      tone: 'warn'
+    });
+    return;
+  }
+
+  await navigator.clipboard?.writeText(commands.join('\n'));
+  showToast({
+    title: 'Validation commands copied',
+    lines: commands
+  });
 }
 
 function shortId(value) {

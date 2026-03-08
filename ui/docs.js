@@ -60,8 +60,8 @@ function renderPage() {
   document.title = state.currentDoc?.title ? `Alloy Docs - ${state.currentDoc.title}` : 'Alloy Docs';
 
   docsHomeLink.href = state.taskId ? `/?task=${encodeURIComponent(state.taskId)}` : '/';
-  docsOperatorLink.href = state.taskId ? `/operator.html?task=${encodeURIComponent(state.taskId)}` : '/operator.html';
-  docsCompareLink.href = state.taskId ? `/compare.html?task=${encodeURIComponent(state.taskId)}` : '/compare.html';
+  docsOperatorLink.href = state.taskId ? `/tasks.html?task=${encodeURIComponent(state.taskId)}` : '/tasks.html';
+  docsCompareLink.href = state.taskId ? `/review.html?task=${encodeURIComponent(state.taskId)}` : '/review.html';
 
   renderDocsList();
   renderMarkdownInto(docsContentRoot, state.currentDoc?.markdown || '');

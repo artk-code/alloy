@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Alloy Tasks</title>
+    <script>
+      try {
+        const theme = localStorage.getItem('alloy-theme');
+        if (theme === 'dark' || theme === 'light') {
+          document.documentElement.dataset.theme = theme;
+        }
+      } catch {}
+    </script>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div id="toast-stack" class="toast-stack" aria-live="polite" aria-atomic="false"></div>
+    <div class="app-shell operator-shell">
+      <header class="hero panel compare-hero">
+        <div>
+          <nav class="page-nav" aria-label="Primary">
+            <a id="operator-home-link" class="nav-link" href="/">Queue</a>
+            <a class="nav-link is-active" href="">Tasks</a>
+            <a id="operator-compare-link" class="nav-link" href="/review.html">Review</a>
+            <a id="operator-docs-link" class="nav-link" href="/docs.html">Docs</a>
+            <button id="theme-toggle" class="ghost-button" type="button">Dark Mode</button>
+          </nav>
+          <nav class="breadcrumbs" aria-label="Breadcrumb">
+            <a href="/">Alloy Queue</a>
+            <span>/</span>
+            <span>Tasks</span>
+            <span>/</span>
+            <span id="operator-task-crumb">Task</span>
+          </nav>
+          <p class="eyebrow">Alloy</p>
+          <h1 id="operator-title">Tasks</h1>
+          <p id="operator-subtitle" class="lede">Task setup, source generation, queue control, and candidate inspection.</p>
+        </div>
+        <div class="task-chip-row">
+          <button id="operator-open-compare" class="ghost-button" disabled>Review</button>
+          <button id="operator-copy-run" class="ghost-button" disabled>Copy Run Path</button>
+          <button id="refresh-operator" class="ghost-button">Refresh</button>
+        </div>
+      </header>
+
+      <main class="operator-grid">
+        <section class="panel operator-editor-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Tasks</p>
+              <h2>Task Setup</h2>
+            </div>
+          </div>
+          <details class="subpanel collapsible composer-builder" open>
+            <summary><h3>Quick Start</h3></summary>
+            <p class="hint">Start here. Use a guided template for greenfield or existing-repo work, then save the generated markdown only after the parsed task and acceptance checks look sane.</p>
+            <div class="composer-quickstart-grid">
+              <label>Task Template
+                <select id="composer-template">
+                  <option value="existing_repo_bugfix">Existing Repo Bugfix</option>
+                  <option value="existing_repo_feature">Existing Repo Feature</option>
+                  <option value="greenfield_init">New Project</option>
+                  <option value="security_repair">Security Repair</option>
+                </select>
+              </label>
+              <label>Workspace Strategy
+                <select id="composer-bootstrap-style">
+                  <option value="existing_repo">existing_repo</option>
+                  <option value="greenfield">greenfield</option>
+                  <option value="none">none</option>
+                </select>
+              </label>
+              <label>Init Command Hint<input id="composer-init-command" type="text" value="/init" placeholder="/init"></label>
+              <label class="composer-wide">Demo Scenario
+                <select id="composer-demo-task">
+                  <option value="">Select a demo task</option>
+                </select>
+              </label>
+            </div>
+            <div class="task-chip-row">
+              <button id="composer-apply-template" class="ghost-button" type="button">Use Template</button>
+              <button id="composer-apply-greenfield" class="ghost-button" type="button">New</button>
+              <button id="composer-apply-existing" class="ghost-button" type="button">Existing Repo</button>
+              <button id="composer-load-demo" class="ghost-button" type="button">Load Demo Into Setup</button>
+              <button id="composer-open-demo" class="ghost-button" type="button">Open Demo</button>
+              <button id="composer-fill-current" class="ghost-button" type="button">Load Selected Task</button>
+              <button id="composer-reset-template" class="ghost-button" type="button">New Blank Task</button>
+            </div>
+            <div id="composer-template-summary" class="info-stack"></div>
+          </details>
+          <details class="subpanel collapsible composer-builder" open>
+            <summary><h3>Guided Fields</h3></summary>
+            <p class="hint">These fields are the primary task-authoring flow. Markdown remains the saved source format, but most operators should use these controls instead of writing raw task files by hand.</p>
+            <div class="composer-form-grid">
+              <label>Title<input id="composer-title" type="text" placeholder="Fix the cache invalidation bug"></label>
+              <label>Task ID<input id="composer-task-id" type="text" placeholder="task_20260308_cache_invalidation"></label>
+              <label>Project ID<input id="composer-project-id" type="text" placeholder="bugfix-lab"></label>
+              <label>Project Label<input id="composer-project-label" type="text" placeholder="Bugfix Lab"></label>
+              <label>Repo<input id="composer-repo" type="text" placeholder="demo/cache-service"></label>
+              <label>Repo Path<input id="composer-repo-path" type="text" placeholder="../repos/cache-service"></label>
+              <label>Base Ref<input id="composer-base-ref" type="text" value="main"></label>
+              <label>Runtime Minutes<input id="composer-runtime" type="number" min="1" step="1" value="15"></label>
+              <label>Mode
+                <select id="composer-mode">
+                  <option value="race">race</option>
+                  <option value="fast">fast</option>
+                  <option value="relay">relay</option>
+                  <option value="committee">committee</option>
+                </select>
+              </label>
+              <label>Judge
+                <select id="composer-judge">
+                  <option value="claude-code">claude-code</option>
+                  <option value="codex">codex</option>
+                  <option value="gemini">gemini</option>
+                </select>
+              </label>
+              <label>Risk
+                <select id="composer-risk">
+                  <option value="low">low</option>
+                  <option value="medium">medium</option>
+                  <option value="high">high</option>
+                </select>
+              </label>
+              <label>Review Policy
+                <select id="composer-review-policy">
+                  <option value="standard">standard</option>
+                  <option value="minimal">minimal</option>
+                  <option value="strict">strict</option>
+                </select>
+              </label>
+              <label>Publish Policy
+                <select id="composer-publish-policy">
+                  <option value="manual">manual</option>
+                  <option value="auto_if_high_confidence">auto_if_high_confidence</option>
+                </select>
+              </label>
+              <label>Synthesis Policy
+                <select id="composer-synthesis-policy">
+                  <option value="auto">auto</option>
+                  <option value="manual">manual</option>
+                </select>
+              </label>
+              <label class="composer-wide">Context<textarea id="composer-context" rows="4" placeholder="Describe the bug, feature, or repair goal."></textarea></label>
+              <label class="composer-wide">Requirements<textarea id="composer-requirements" rows="4" placeholder="- Preserve the public API&#10;- Add tests if useful"></textarea></label>
+              <label class="composer-wide">Constraints<textarea id="composer-constraints" rows="4" placeholder="- No new dependencies&#10;- Keep the patch reviewable"></textarea></label>
+              <label class="composer-wide">Acceptance Checks<textarea id="composer-acceptance-checks" rows="4" placeholder="npm test&#10;npm run lint"></textarea></label>
+              <label class="composer-wide">Optional Guidance<textarea id="composer-guidance" rows="4" placeholder="- Prefer a small deterministic fix"></textarea></label>
+              <label class="composer-wide">Human Notes<textarea id="composer-human-notes" rows="4" placeholder="- Explain any non-obvious tradeoffs for reviewers"></textarea></label>
+              <div class="composer-wide provider-checklist">
+                <span>Providers</span>
+                <label><input id="composer-provider-codex" type="checkbox" checked> Codex</label>
+                <label><input id="composer-provider-gemini" type="checkbox" checked> Gemini</label>
+                <label><input id="composer-provider-claude-code" type="checkbox" checked> Claude Code</label>
+              </div>
+              <label>Output File Name<input id="create-task-filename" type="text" placeholder="new-task.task.md"></label>
+              <label class="composer-wide">Source File Path<input id="create-task-source" type="text" placeholder="path/to/source.md"></label>
+            </div>
+            <div class="task-chip-row">
+              <button id="composer-load-source" class="ghost-button" type="button">Import Source File</button>
+              <button id="composer-write-editor" class="ghost-button" type="button">Generate Task Source</button>
+              <button id="create-task-file" class="ghost-button" type="button">Save Task File</button>
+              <button id="create-task-file-source" class="ghost-button" type="button">Save Current Source As File</button>
+            </div>
+          </details>
+          <details class="subpanel collapsible" open>
+            <summary><h3>Task Source</h3></summary>
+            <p class="hint">Raw markdown is persisted on disk. Keep this section for inspection, source imports, and advanced edits; use Guided Fields for normal task setup.</p>
+            <div class="editor-nav" aria-label="Markdown view mode">
+              <button id="task-markdown-edit-tab" class="detail-tab is-active" type="button">Edit Source</button>
+              <button id="task-markdown-preview-tab" class="detail-tab ghost-button" type="button">Render Markdown</button>
+            </div>
+            <textarea id="task-markdown" spellcheck="false"></textarea>
+            <article id="task-markdown-preview" class="markdown-body panel-like" hidden></article>
+          </details>
+        </section>
+
+        <section class="panel operator-summary-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Tasks</p>
+              <h2 id="detail-title">Select a task</h2>
+            </div>
+            <span id="detail-state" class="state-pill state-idle">Draft</span>
+          </div>
+          <div id="detail-nav" class="detail-nav"></div>
+          <div class="operator-stack">
+            <details class="subpanel collapsible" open>
+              <summary><h3>Task Catalog</h3></summary>
+              <div id="task-catalog" class="stack compact"></div>
+            </details>
+
+            <details class="subpanel collapsible" data-detail-section="overview" open>
+              <summary><h3>Overview</h3></summary>
+              <div id="task-brief" class="info-stack"></div>
+              <div id="evaluation-call" class="info-stack"></div>
+            </details>
+
+            <details class="subpanel collapsible" data-detail-section="compare">
+              <summary><h3>Compare + Merge</h3></summary>
+              <div id="comparison-view" class="info-stack"></div>
+            </details>
+
+            <details class="subpanel collapsible" data-detail-section="candidates">
+              <summary><h3>Candidate Cards</h3></summary>
+              <div id="candidate-cards" class="stack"></div>
+            </details>
+
+            <details class="subpanel debug-panel" data-detail-section="debug">
+              <summary>Operator Debug JSON</summary>
+              <div class="debug-stack">
+                <div>
+                  <h4>Parsed Task</h4>
+                  <pre id="task-json">{}</pre>
+                </div>
+                <div>
+                  <h4>Latest Run Summary</h4>
+                  <pre id="run-summary">No run selected.</pre>
+                </div>
+              </div>
+            </details>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <template id="candidate-template">
+      <article class="candidate-card">
+        <div class="candidate-header">
+          <strong class="candidate-label"></strong>
+          <span class="candidate-status"></span>
+        </div>
+        <p class="candidate-summary"></p>
+        <p class="candidate-score"></p>
+        <p class="candidate-verification"></p>
+      </article>
+    </template>
+
+    <script type="module" src="/tasks.js"></script>
+  </body>
+</html>

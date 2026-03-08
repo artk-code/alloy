@@ -1,7 +1,7 @@
 # Next Session
 
 Status date: March 8, 2026
-Purpose: Give the next compact-session agent an accurate starting point from the current pushed state after merge-plan, compare/docs, judge-rationale, synthesis-review, publication, blind-review, and Operator View work landed on `main`.
+Purpose: Give the next agent a concrete starting point from the current pushed state.
 
 ## Read First
 
@@ -24,19 +24,19 @@ The current pushed repo already includes:
 - publication preview and approval state added
 - publication push state and API added
 - optional async blind-review agent runs added
-- dedicated `Operator View` page added
-- task creation/import from `Operator View` added
+- dedicated `Tasks` page added
+- task creation/import from `Tasks` added
 - synthesis `jj` stack shaping added
-- dedicated `Compare Diffs` page added
+- dedicated `Review` page added
 - dedicated in-app `Docs` page added
 - native markdown rendering added for task and docs surfaces
-- task-aware top-nav links added across Control Panel, Operator View, Compare Diffs, and Docs
+- task-aware top-nav links added across Queue, Tasks, Review, and Docs
 - task cards now focus the selected task directly instead of relying on a separate `Open Card` button
-- the Control Panel now stays compact while Operator View holds the heavy task-detail workflow
+- the Queue now stays compact while Tasks holds the heavy task-detail workflow
 - persistent light/dark mode across all top-level pages via local storage
 
 Tests last verified locally:
-- `33/33` passing
+- `38/38` passing
 
 Important local files added or heavily changed:
 - [schemas/merge-plan.schema.json](/Users/codex/stack-judge/schemas/merge-plan.schema.json)
@@ -52,8 +52,12 @@ Important local files added or heavily changed:
 - [src/blind-review.mjs](/Users/codex/stack-judge/src/blind-review.mjs)
 - [src/blind-review-agent.mjs](/Users/codex/stack-judge/src/blind-review-agent.mjs)
 - [ui/app.js](/Users/codex/stack-judge/ui/app.js)
+- [ui/tasks.html](/Users/codex/stack-judge/ui/tasks.html)
+- [ui/tasks.js](/Users/codex/stack-judge/ui/tasks.js)
 - [ui/operator.html](/Users/codex/stack-judge/ui/operator.html)
 - [ui/operator.js](/Users/codex/stack-judge/ui/operator.js)
+- [ui/review.html](/Users/codex/stack-judge/ui/review.html)
+- [ui/review.js](/Users/codex/stack-judge/ui/review.js)
 - [ui/compare.html](/Users/codex/stack-judge/ui/compare.html)
 - [ui/compare.js](/Users/codex/stack-judge/ui/compare.js)
 - [ui/docs.html](/Users/codex/stack-judge/ui/docs.html)
@@ -61,6 +65,8 @@ Important local files added or heavily changed:
 - [ui/markdown-viewer.mjs](/Users/codex/stack-judge/ui/markdown-viewer.mjs)
 - [ui/index.html](/Users/codex/stack-judge/ui/index.html)
 - [ui/styles.css](/Users/codex/stack-judge/ui/styles.css)
+- [ui/task-composer.mjs](/Users/codex/stack-judge/ui/task-composer.mjs)
+- [src/task-queue.mjs](/Users/codex/stack-judge/src/task-queue.mjs)
 - [docs/OPERATOR_GUIDE.md](/Users/codex/stack-judge/docs/OPERATOR_GUIDE.md)
 
 ## What To Verify First
@@ -72,20 +78,30 @@ Start by validating the current pushed build:
 1. confirm the running web server is serving the current tree
 2. manually verify these routes and pages:
    - `/`
-   - `/operator.html`
-   - `/compare.html?task=task_20260308_tic_tac_toe_perfect_play`
+   - `/tasks.html`
+   - `/review.html?task=task_20260308_tic_tac_toe_perfect_play`
    - `/docs.html?doc=operator-guide&task=task_20260308_tic_tac_toe_perfect_play`
+   - `/operator.html` redirects to `/tasks.html`
+   - `/compare.html` redirects to `/review.html`
    - `/api/tasks/task_20260308_tic_tac_toe_perfect_play`
    - `/api/tasks/task_20260308_tic_tac_toe_perfect_play/synthesis/diff`
+   - `/api/queue`
+   - `/api/tasks/catalog`
    - `/api/docs/operator-guide`
    - `POST /api/tasks/create`
 3. verify task-aware nav links:
-   - Control Panel -> Operator View -> Compare Diffs -> Docs
-   - Docs -> Control Panel / Operator View / Compare Diffs
+   - Queue -> Tasks -> Review -> Docs
+   - Docs -> Queue / Tasks / Review
 4. verify theme persistence across page navigation and refresh
-5. verify the task markdown source/render toggle in `Operator View`
-6. verify task creation/import from `Operator View`
-7. only after that, clean up any remaining UI/data inconsistencies before adding new product features
+5. verify demo loading on `Tasks`
+   - pick a demo from `Quick Start`
+   - `Load Demo Into Setup`
+   - `Open Demo`
+6. verify guided task creation on `Tasks`
+   - choose a template
+   - `Generate Task Source`
+   - `Save Task File`
+7. only after that, add new product features
 
 ## Current Limitation On Browser Smoke Tests
 
@@ -99,40 +115,32 @@ This means:
 
 If the next agent wants browser automation, they should add a repo-local Playwright dependency or another reproducible driver path instead of assuming ambient machine state.
 
-## New Priority List
+## Concrete Next Priorities
 
-After manual verification of the current pushed build, the next priorities should be:
+1. Make blind review affect merge/publication state.
+   - If blind review agrees with deterministic evaluation, show `aligned`.
+   - If it disagrees, mark publication as blocked pending human approval.
+   - Keep deterministic failures as hard stops.
 
-1. Consume blind-review recommendations in the synthesis/publication flow
-   - deterministic evaluation remains the gatekeeper
-   - blind review already exists as a persisted async artifact; the gap is using it productively
+2. Add local testing from `Review`.
+   - Add an `Open Workspace` action for the selected candidate or synthesis result.
+   - Show the exact test commands next to that action.
 
-2. Add a local candidate/synthesis testing workflow
-   - one-click or one-command path from the UI/docs into the selected workspace
-   - make local validation easy once a candidate or synthesis is chosen
+3. Finish the `Tasks` page cleanup.
+   - Keep guided fields as the primary flow.
+   - Make saved-task editing clearer.
+   - Keep raw markdown for advanced use only.
 
-3. Expand the in-app Task Composer
-   - operators can already create/import markdown task files from `Operator View`
-   - the next step is a safer structured editor and richer validation/preview, not re-adding basic creation
+4. Add two fast tasks:
+   - `FizzBuzz CLI`
+   - `Roman Numerals`
+   These should run fast and validate the pipeline without the heavier demo repos.
 
-4. Add broader eval cards
-   - smoke
-   - compact algorithms
-   - realistic bugfix/security demos
+5. Add PR creation from a pushed synthesis ref.
+   - Only allow this after approval and successful push.
 
-5. Add PR creation from the approved, pushed synthesis ref
-   - keep it behind explicit human approval
-   - do not let PR creation bypass the pushed-ref state
-
-6. Refine the compare surface after the core workflow gaps are closed
-   - better side-by-side candidate vs synthesis ergonomics
-   - explicit `jj` stack timeline/history view for humans
-
-7. Add a proper browser smoke harness only if it is made repo-local and reproducible
-   - do not rely on vague global Playwright assumptions
-
-8. Add trace grading and `jj` operation-history mining only after the merge loop is stable
-   - useful later, not a current bottleneck
+6. Add repo-local browser smoke tests later.
+   - Only with repo-local tooling.
 
 ## Publication Flow Status
 
@@ -151,7 +159,7 @@ What now works:
 Current next publication increment:
 - PR creation from the approved, pushed ref
 
-The publication slice is considered complete enough when a human can open `Compare Diffs` and answer, without reading raw JSON:
+The publication slice is considered complete enough when a human can open `Review` and answer, without reading raw JSON:
 
 1. Has this synthesis been approved for publication?
 2. What exact branch/bookmark will be pushed?
@@ -203,48 +211,10 @@ node scripts/check-demo-state.mjs
 - Keep `docs/COMPETITIVE_ANALYSIS.md` out of commits unless explicitly requested.
 - Preserve the conservative synthesis strategy: winner-only first, file-level composition second, deeper merge units later.
 
-## Appended Priority Ladder
+## Done Means
 
-Use this order unless a blocking regression is found:
+For the next slice to count as complete:
 
-1. Blind-review recommendation consumption
-   - The next highest-value gap is using saved blind-review output to shape merge and publication decisions without weakening deterministic gates.
-   - Keep deterministic checks as the hard gate and layer persisted blind-review output on top.
-   - Deliverables:
-     - decision rules for when blind review changes merge guidance
-     - UI emphasis for aligned vs conflicting deterministic/blind recommendations
-     - publication gating when blind review raises high-risk objections
-
-2. Local testing workflow
-   - Operators need a direct path from the UI to a chosen candidate or synthesis workspace.
-   - This improves trust faster than more analytics or more visual work.
-   - Deliverables:
-      - one-click or one-command open path
-      - explicit local validation commands beside the chosen workspace
-
-3. Structured Task Composer expansion
-   - Custom tasks can now be created or imported from `Operator View`.
-   - Keep markdown as the persisted source format, but add a safer GUI composer/editor and save flow on top.
-   - Deliverables:
-     - structured field inputs for Alloy frontmatter
-     - markdown/body preview beside parsed validation
-     - safe import guidance and clearer validation errors before save
-     - edit existing task files without dropping to the filesystem
-
-4. Broader eval coverage
-   - Add a smoke task and a compact algorithm task so Alloy is easier to demo and regress-test quickly.
-   - Keep the current richer cards for synthesis credibility.
-
-5. PR creation from the pushed synthesis ref
-   - Remote push is now the gating publication step.
-   - Add PR creation only on top of a successful pushed-ref state.
-
-6. Compare-surface refinement
-   - Improve side-by-side review and add a clearer `jj` history/timeline view for the final stack.
-
-7. Repo-local browser smoke harness
-   - Useful, but only after the core publish/judge/test loop is stronger.
-   - Make it reproducible from this repo rather than dependent on machine-specific tooling.
-
-8. Trace grading and `jj` operation-history mining
-   - Useful learning signals later, but explicitly not a current bottleneck.
+1. Blind review can change the publication state shown in `Review`.
+2. A human can open the selected workspace and run local checks without searching under `runs/`.
+3. A human can load a demo task from `Tasks`, generate task source, save it, and queue it without touching the filesystem manually.

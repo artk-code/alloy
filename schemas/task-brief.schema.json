@@ -26,7 +26,7 @@
     "task_id": {"type": "string", "minLength": 1},
     "project_id": {"type": "string", "minLength": 1},
     "project_label": {"type": "string", "minLength": 1},
-    "source_system": {"type": "string", "enum": ["manual", "symphony"]},
+    "source_system": {"type": "string", "enum": ["manual", "imported"]},
     "source_task_id": {"type": "string"},
     "source_url": {"type": "string"},
     "repo": {"type": "string", "minLength": 1},

@@ -229,10 +229,10 @@ a.ghost-button:hover {
 .workspace-grid {
   display: grid;
   gap: 1rem;
-  grid-template-columns: minmax(17rem, 21rem) minmax(22rem, 0.92fr) minmax(26rem, 1.18fr);
+  grid-template-columns: minmax(17rem, 21rem) minmax(24rem, 1.15fr) minmax(22rem, 0.95fr);
   grid-template-areas:
-    "providers board detail"
-    "providers routing routing";
+    "providers board routing"
+    "providers detail detail";
   align-items: start;
 }
 
@@ -249,6 +249,52 @@ a.ghost-button:hover {
   gap: 1rem;
   grid-template-columns: minmax(30rem, 1.1fr) minmax(24rem, 1fr);
   align-items: start;
+}
+
+.composer-form-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.composer-quickstart-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 0.85rem;
+}
+
+.composer-form-grid label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  min-width: 0;
+}
+
+.composer-quickstart-grid label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  min-width: 0;
+}
+
+.composer-wide {
+  grid-column: 1 / -1;
+}
+
+.provider-checklist {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.8rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  background: var(--panel-muted);
+}
+
+.provider-checklist span {
+  font-weight: 600;
 }
 
 .compare-grid {
@@ -301,6 +347,10 @@ a.ghost-button:hover {
 .operator-stack {
   display: grid;
   gap: 1rem;
+}
+
+.composer-builder .hint {
+  margin-bottom: 0.85rem;
 }
 
 .compare-candidates-panel {
@@ -379,7 +429,7 @@ a.ghost-button:hover {
 
 .routing-column {
   grid-area: routing;
-  grid-template-columns: minmax(0, 1.4fr) minmax(18rem, 24rem);
+  grid-template-columns: 1fr;
   align-items: start;
 }
 
@@ -418,6 +468,10 @@ a.ghost-button:hover {
   justify-content: space-between;
   gap: 0.75rem;
   margin-bottom: 0.9rem;
+}
+
+.panel-header > * {
+  min-width: 0;
 }
 
 .breadcrumbs {
@@ -463,6 +517,7 @@ a.ghost-button:hover {
 .info-block p,
 .info-list {
   color: var(--muted);
+  overflow-wrap: anywhere;
 }
 
 .stack {
@@ -482,7 +537,7 @@ a.ghost-button:hover {
 
 .board-toolbar {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
   gap: 0.75rem;
   margin-bottom: 0.9rem;
 }
@@ -604,7 +659,10 @@ a.ghost-button:hover {
   color: var(--text);
   font-size: 0.75rem;
   font-weight: 600;
-  white-space: nowrap;
+  white-space: normal;
+  line-height: 1.25;
+  text-align: center;
+  max-width: 100%;
 }
 
 .chip {
@@ -639,7 +697,7 @@ a.ghost-button:hover {
 
 .provider-config-controls {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
   gap: 0.75rem;
 }
 
@@ -656,6 +714,7 @@ a.ghost-button:hover {
   display: grid;
   gap: 0.35rem;
   font-size: 0.85rem;
+  min-width: 0;
 }
 
 .provider-config-hint {
@@ -686,6 +745,24 @@ textarea {
   background: var(--bg-elevated);
   color: var(--text);
   padding: 0.72rem 0.8rem;
+}
+
+.task-card h3,
+.provider-name,
+.candidate-label,
+.session-label,
+.panel h2,
+.panel h3,
+.panel h4,
+.provider-meta,
+.provider-config-meta,
+.provider-config-hint,
+.comparison-meta,
+.comparison-files,
+.comparison-summary,
+.task-providers,
+.task-summary {
+  overflow-wrap: anywhere;
 }
 
 .provider-toggle {
@@ -929,7 +1006,7 @@ pre {
 
 @media (min-width: 1600px) {
   .workspace-grid {
-    grid-template-columns: minmax(18rem, 22rem) minmax(24rem, 0.95fr) minmax(30rem, 1.2fr);
+    grid-template-columns: minmax(18rem, 22rem) minmax(26rem, 1.15fr) minmax(24rem, 1fr);
   }
 
   textarea {
@@ -939,11 +1016,7 @@ pre {
 
 @media (max-width: 1400px) {
   .workspace-grid {
-    grid-template-columns: minmax(17rem, 19rem) minmax(20rem, 0.9fr) minmax(24rem, 1.05fr);
-  }
-
-  .routing-column {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(16rem, 19rem) minmax(21rem, 1fr) minmax(20rem, 0.95fr);
   }
 
   .detail-layout {
@@ -961,8 +1034,8 @@ pre {
     grid-template-areas:
       "providers"
       "board"
-      "detail"
-      "routing";
+      "routing"
+      "detail";
   }
 
   .provider-column,
@@ -987,6 +1060,11 @@ pre {
 
   .operator-grid,
   .docs-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .composer-quickstart-grid,
+  .composer-form-grid {
     grid-template-columns: 1fr;
   }
 }

@@ -4,13 +4,13 @@ Status: Living checklist
 Authoring date: March 8, 2026
 Purpose: Provide an execution checklist for the first demo and near-term Alloy milestones so future agents can work from a concrete done/not-done list instead of reinterpreting planning prose.
 
-## Milestone A: Control Panel + Operator Shell
+## Milestone A: Queue + Tasks Shell
 
 Checklist:
 - [x] board view exists with task cards
 - [x] demo task appears as a card
-- [x] operator detail view exists as a separate surface
-- [x] operator detail has tabs or sections for overview, compare, candidates, and debug
+- [x] tasks page exists as a separate surface
+- [x] tasks page has sections for overview, compare, candidates, and debug
 - [x] card state maps to run state
 - [x] task can be launched from the selected-task context
 
@@ -21,12 +21,13 @@ Done when:
 
 Checklist:
 - [x] new custom task can be created from the UI without touching the filesystem manually
-- [x] Markdown task brief editor exists
+- [x] Guided task setup exists
+- [x] Markdown task source editor exists
 - [x] YAML frontmatter is parsed
 - [x] parsed JSON preview is visible
 - [x] validation errors and warnings are shown
 - [x] task can be saved back to a `.task.md` file from the UI
-- [x] `source_system` and `source_task_id` are stored for Symphony-origin tasks
+- [x] `source_system` and `source_task_id` are stored for imported tasks
 - [x] launch/save is blocked on hard validation errors
 
 Done when:
@@ -118,6 +119,17 @@ Checklist:
 
 Done when:
 - one task card can lead all the way to one published PR
+
+## Milestone K: Fast Regression Tasks
+
+Checklist:
+- [ ] `FizzBuzz CLI` task exists
+- [ ] `Roman Numerals` task exists
+- [ ] both tasks have acceptance commands
+- [ ] both tasks appear clearly as fast regression/demo tasks in `Tasks`
+
+Done when:
+- Alloy can validate queue -> run -> verify -> diff capture quickly without requiring a heavy demo repo every time
 
 ## Milestone J: Handoff Quality
 

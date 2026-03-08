@@ -127,7 +127,7 @@ export function buildMergePlanFromSelections({
     base_candidate_id: baseCandidateId,
     mode: 'file_select',
     confidence: 'medium',
-    rationale: 'Manual file-selection synthesis from the Control Panel.',
+    rationale: 'Manual file-selection synthesis from the Review page.',
     verification_expectation: 'full_repo_checks_required',
     file_decisions: selectedEntries.map(([filePath, candidateId]) => {
       const candidate = candidatesById.get(candidateId);

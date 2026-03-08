@@ -2,7 +2,7 @@
 
 Status: Draft for implementation
 Authoring date: March 8, 2026
-Primary objective: Build a Symphony-inspired orchestration system that uses multiple official coding CLIs authenticated via web-account subscriptions, evaluates candidate code changes objectively, synthesizes the best result with `jj`, and publishes a single clean pull request.
+Primary objective: Build a historical orchestration system that uses multiple official coding CLIs authenticated via web-account subscriptions, evaluates candidate code changes objectively, synthesizes the best result with `jj`, and publishes a single clean pull request.
 
 Runtime stance:
 - Alloy is currently being implemented as an Alloy-native Node system.
@@ -27,7 +27,7 @@ Related design docs:
 
 Current implementation status:
 - tic-tac-toe is now the default first demo card
-- the product is now split into Control Panel, Operator View, and Compare Diffs
+- the product is now split into Queue, Tasks, and Review
 - operator run-config overrides are implemented in the web shell
 - candidate runs are session-backed and persisted
 - each candidate workspace is bootstrapped as a `jj` repo with a base snapshot

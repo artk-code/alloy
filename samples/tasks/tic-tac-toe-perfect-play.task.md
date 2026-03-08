@@ -2,7 +2,7 @@
 task_id: task_20260308_tic_tac_toe_perfect_play
 project_id: game-lab
 project_label: Game Lab
-source_system: symphony
+source_system: imported
 source_task_id: demo_card_tic_tac_toe_perfect_play
 repo: demo/tic-tac-toe
 repo_path: ../repos/tic-tac-toe

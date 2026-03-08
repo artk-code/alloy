@@ -46,7 +46,7 @@ Deliverables:
 - wire the Markdown task brief into the card detail view
 - show parsed JSON preview
 - show validation errors and warnings
-- persist task metadata including `source_system: symphony`
+- persist task metadata including `source_system: imported`
 
 Acceptance:
 - editing the task brief updates the parsed preview

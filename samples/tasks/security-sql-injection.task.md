@@ -2,7 +2,7 @@
 task_id: task_20260308_security_sql_injection
 project_id: security-lab
 project_label: Security Lab
-source_system: symphony
+source_system: imported
 source_task_id: demo_card_security_sql_injection
 repo: demo/security-sqli
 repo_path: ../repos/security-sqli

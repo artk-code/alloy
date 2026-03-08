@@ -1,19 +1,32 @@
 # Alloy Operator Guide
 
-This guide is for humans running Alloy from the Control Panel, Operator View, and Compare Diffs.
+This guide is for humans running Alloy from the Queue, Tasks, and Review.
 
 ## What Alloy Does
 
 Alloy runs multiple CLI coding agents against the same task, captures each candidate as a real workspace diff, evaluates them deterministically, and lets a human review or synthesize the strongest result.
 
 Core surfaces:
-- `Control Panel`: task board, provider readiness, run plan, and compact task summary
-- `Operator View`: markdown brief editing, task creation/import, parsed task review, and candidate/evaluation detail
-- `Compare Diffs`: candidate patch review, merge-plan inspection, synthesis controls, blind review, and publication
+- `Queue`: queued work only, provider readiness, run plan, and compact task summary
+- `Tasks`: task catalog, structured task setup, source generation/import, parsed task review, and candidate/evaluation detail
+- `Review`: candidate patch review, merge-plan inspection, synthesis controls, blind review, and publication
 
 Current limitation:
-- the current Task Composer is markdown-first, not a structured form editor
+- the current Task Composer is structured-first, but raw markdown still remains part of the save path
 - importing markdown from arbitrary locations is an advanced-user testing path with limited security guardrails
+
+## Workflow At A Glance
+
+```text
+Queue  ->  Tasks  ->  Review
+monitor    author     inspect / synthesize / publish
+run work   import     blind review / approve / push
+```
+
+Practical rule:
+- if it is not queued, it should not appear on `Queue`
+- if you want to create, import, or edit a task, use `Tasks`
+- if you want to compare diffs or approve publication, use `Review`
 
 ## Before You Run Anything
 
@@ -40,19 +53,57 @@ npm run login:claude
 
 If Gemini shows `manual check`, use `Test Auth` from the provider panel and confirm the CLI session manually.
 
-## Create Or Import A Task
+## Create, Load, Or Import A Task
 
-Use `Operator View` when you need to create or edit task briefs.
+Use `Tasks` when you need to create, load, duplicate, or queue task briefs.
 
-### Create a task from pasted markdown
+### Recommended path: use Guided Fields
 
-1. Open `Operator View` from the top nav or from a selected task.
-2. Paste a complete Alloy task brief into the markdown editor.
-3. Optional: set `Output File Name`.
-4. Click `Create Task File`.
-5. Alloy writes a new `.task.md` file under `samples/tasks/`.
+1. Open `Tasks`.
+2. In `Quick Start`, choose a template:
+   - `New Project`
+   - `Existing Repo Bugfix`
+   - `Existing Repo Feature`
+   - `Security Repair`
+3. Set:
+   - project label
+   - repo or repo path
+   - acceptance checks
+   - provider set
+   - blind review CLI if needed
+4. Optional: choose a demo scenario and click `Load Demo Into Setup`.
+5. Click `Generate Task Source`.
+6. Review the parsed summary and validation output.
+7. Click `Save Task File`.
 
-The markdown must include real Alloy fields in frontmatter, including:
+What `Save Task File` does:
+- generates markdown from the current guided fields
+- validates it as an Alloy task
+- writes a new `.task.md` file under `samples/tasks/`
+
+### Demo scenarios
+
+Demo tasks live in markdown under `samples/tasks/`, but you should not need to hunt for them in the filesystem.
+
+Use either of these paths from `Tasks`:
+- `Quick Start -> Demo Scenario -> Load Demo Into Setup`
+- `Task Catalog -> Demo Scenarios`
+
+Important:
+- demos are seed examples
+- they can be loaded, duplicated, queued, or deleted from the filesystem
+- they are meant to teach the workflow, not stay immutable forever
+
+### Raw markdown path
+
+Use raw markdown only when you need fine-grained control.
+
+1. Open `Tasks`.
+2. Expand `Task Source`.
+3. Paste or edit markdown directly.
+4. Use `Save Current Source As File` if you want to preserve those manual edits exactly.
+
+The markdown must still include real Alloy fields in frontmatter, including:
 - `task_id`
 - `project_id`
 - `project_label`
@@ -74,11 +125,11 @@ The parser also expects body sections like:
 
 ### Import a task from the filesystem
 
-1. Open `Operator View`.
-2. Leave the editor empty or paste markdown if you want to compare before saving.
-3. Set `Source File Path` to an existing local markdown file.
-4. Optional: set `Output File Name`.
-5. Click `Create Task File`.
+1. Open `Tasks`.
+2. Set `Source File Path` to an existing local markdown file.
+3. Click `Import Source File`.
+4. Review the parsed task and validation output.
+5. Save it with `Save Task File` or `Save Current Source As File`.
 
 Current import sanity checks:
 - only `.md` and `.markdown` sources are accepted
@@ -99,7 +150,8 @@ Reasons:
 - Alloy currently assumes the operator is choosing trusted local content deliberately
 
 Safe current practice:
-- author task markdown yourself
+- prefer Guided Fields first
+- author task markdown yourself when possible
 - import only trusted local files you understand
 - review the parsed task and acceptance checks before running any provider
 
@@ -132,7 +184,7 @@ Expected baseline:
 
 ## Preview vs Live Runs
 
-From the Control Panel:
+From the Queue:
 - `Prepare Run`: seed workspaces and prompt packets only
 - `Preview Commands`: show the CLI launch plan without provider execution
 - `Run Live`: execute the enabled provider CLIs, then verify and evaluate the results
@@ -165,7 +217,7 @@ The `Run Plan` column is ordered to match how Alloy actually executes work.
 3. Choose review controls.
    - `Blind Review CLI`: optional
      - `Deterministic only` means Alloy will stop at disk-based verification, scoring, merge plan, and judge rationale
-     - choosing a CLI here means you can later run an async blind review from `Compare Diffs`
+     - choosing a CLI here means you can later run an async blind review from `Review`
    - `Merge Mode`:
      - `auto`: only auto-finalize a clear deterministic winner
      - `hybrid`: produce a merge recommendation but keep human approval at the merge boundary
@@ -181,15 +233,32 @@ Important:
 - blind review is optional and runs later against artifacts on disk
 - a blind review CLI is not required to run candidates or get a merge plan
 
+## Queue A Task And Run It
+
+`Queue` only shows entries from `runtime/task-queue.json`.
+
+That means:
+- a task file on disk is not automatically queued
+- saving a task in `Tasks` does not automatically make it runnable
+- add or remove queue entries from `Tasks`
+
+Recommended sequence:
+
+1. Create or load a task in `Tasks`.
+2. Use `Add To Queue`.
+3. Go back to `Queue`.
+4. Select the queued task.
+5. Run `Prepare Run`, `Preview Commands`, or `Run Live`.
+
 ## How To Generate Candidate Diffs
 
-1. Select a task card in `Control Panel`.
+1. Select a task card in `Queue`.
    - selecting the card focuses that task and updates the URL for sharing
-2. Open `Operator View` when you need the full markdown brief, parsed task detail, or candidate/evaluation detail.
-3. Confirm which providers and agent counts are enabled in `Control Panel`.
+2. Open `Tasks` when you need task setup, source generation, parsed task detail, or candidate/evaluation detail.
+3. Confirm which providers and agent counts are enabled in `Queue`.
 4. Run `Preview Commands` if you want a zero-cost launch check.
 5. Run `Run Live` to create real candidate workspaces and verifier output.
-6. Open `Compare Diffs` from the top nav or task header.
+6. Open `Review` from the top nav or task header.
 
 Alloy will then show:
 - each candidate patch captured from `jj`
@@ -202,7 +271,7 @@ Alloy will then show:
 
 ## How To Review And Build A Synthesis
 
-Inside `Compare Diffs`:
+Inside `Review`:
 
 1. Review the task summary and deterministic decision.
 2. Inspect candidate diffs one by one.
@@ -303,7 +372,7 @@ Common states:
 5. Open compare diffs.
 6. Inspect the merge plan.
 7. Approve winner-only or perform file-level synthesis.
-8. Optionally run a blind review agent from `Compare Diffs` if you want an additional provider recommendation.
+8. Optionally run a blind review agent from `Review` if you want an additional provider recommendation.
 9. Review the synthesized diff before any publication step.
 10. Preview publication and record approval if the synthesis is ready.
 11. Push the approved ref once the target and blockers look correct.

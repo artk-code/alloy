@@ -34,7 +34,7 @@ Shape:
 task_id: task_20260308_001
 project_id: bugfix-lab
 project_label: Bugfix Lab
-source_system: symphony
+source_system: imported
 source_task_id: card_cache_001
 source_url: https://example.local/tasks/card_cache_001
 repo: demo/cache-service
@@ -85,7 +85,7 @@ Required:
 - `task_id`: stable task identifier
 - `project_id`: stable project identifier used for board grouping and run organization
 - `project_label`: human-readable project label shown in the control panel
-- `source_system`: `manual` or `symphony`
+- `source_system`: `manual` or `imported`
 - `repo`: target repository slug or path alias
 - `base_ref`: target branch/ref/commit-ish
 - `mode`: `fast`, `race`, `relay`, or `committee`
@@ -132,7 +132,7 @@ Alloy normalizes every task brief to this object shape:
   "task_id": "task_20260308_001",
   "project_id": "bugfix-lab",
   "project_label": "Bugfix Lab",
-  "source_system": "symphony",
+  "source_system": "imported",
   "source_task_id": "card_cache_001",
   "source_url": "https://example.local/tasks/card_cache_001",
   "repo": "demo/cache-service",

@@ -13,7 +13,7 @@ const MODES = new Set(['fast', 'race', 'relay', 'committee']);
 const RISK_LEVELS = new Set(['low', 'medium', 'high']);
 const REVIEW_POLICIES = new Set(['minimal', 'standard', 'strict']);
 const PROVIDERS = new Set(['codex', 'gemini', 'claude-code']);
-const SOURCE_SYSTEMS = new Set(['manual', 'symphony']);
+const SOURCE_SYSTEMS = new Set(['manual', 'imported']);
 
 export async function parseTaskBriefFile(filePath) {
   const markdown = await fs.readFile(filePath, 'utf8');

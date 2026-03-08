@@ -38,7 +38,7 @@ test('parseTaskBriefFile normalizes the primary tic-tac-toe demo task', async ()
   assert.equal(parsed.task.task_id, 'task_20260308_tic_tac_toe_perfect_play');
   assert.equal(parsed.task.project_id, 'game-lab');
   assert.equal(parsed.task.project_label, 'Game Lab');
-  assert.equal(parsed.task.source_system, 'symphony');
+  assert.equal(parsed.task.source_system, 'imported');
   assert.equal(parsed.task.source_task_id, 'demo_card_tic_tac_toe_perfect_play');
   assert.equal(parsed.task.demo_priority, 100);
   assert.deepEqual(parsed.task.providers, ['codex', 'gemini', 'claude-code']);

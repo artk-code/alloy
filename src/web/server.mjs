@@ -11,8 +11,9 @@ import { parseTaskBrief } from '../parser.mjs';
 import { buildProviderEnv, doctorProviders, getProviderLoginCommand, getProviderTestCommand } from '../providers.mjs';
 import { SessionManager } from '../session-manager.mjs';
 import { approvePublication, pushPublication, refreshPublicationState, synthesizeRun } from '../synthesis.mjs';
+import { dequeueTask, enqueueTask, readTaskQueue, updateQueuedTask } from '../task-queue.mjs';
 import { listGuideDocs, readGuideDoc } from './docs-data.mjs';
-import { getCandidateDiff, getCandidateJj, getSynthesisDiff, getTaskDetail, getTaskPublication, listTaskCards } from './data.mjs';
+import { getCandidateDiff, getCandidateJj, getSynthesisDiff, getTaskDetail, getTaskLocalTesting, getTaskPublication, listTaskCards, listTaskCatalog } from './data.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -57,9 +58,32 @@ export function createServer() {
         return sendJson(res, 200, { tasks: await listTaskCards(projectRoot) });
       }
 
+      if (req.method === 'GET' && url.pathname === '/api/queue') {
+        return sendJson(res, 200, {
+          queue: await readTaskQueue(projectRoot),
+          tasks: await listTaskCards(projectRoot)
+        });
+      }
+
+      if (req.method === 'GET' && url.pathname === '/api/tasks/catalog') {
+        return sendJson(res, 200, { tasks: await listTaskCatalog(projectRoot) });
+      }
+
       if (req.method === 'POST' && url.pathname === '/api/tasks/create') {
         try {
           return sendJson(res, 200, await createTaskFile(projectRoot, await readJsonBody(req)));
+        } catch (error) {
+          const statusCode = error.validation ? 400 : 500;
+          return sendJson(res, statusCode, {
+            error: error.message || String(error),
+            validation: error.validation || null
+          });
+        }
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/tasks/import-preview') {
+        try {
+          return sendJson(res, 200, await previewTaskImport(projectRoot, await readJsonBody(req)));
         } catch (error) {
           const statusCode = error.validation ? 400 : 500;
           return sendJson(res, statusCode, {
@@ -124,12 +148,29 @@ export function createServer() {
             : sendJson(res, 404, { error: 'publication_not_found' });
         }
 
+        if (segments[3] === 'local-testing' && !segments[4]) {
+          const payload = await getTaskLocalTesting(projectRoot, taskId);
+          return payload
+            ? sendJson(res, 200, payload)
+            : sendJson(res, 404, { error: 'local_testing_not_found' });
+        }
+
         const detail = await getTaskDetail(projectRoot, taskId);
         if (!detail) {
           return sendJson(res, 404, { error: 'task_not_found' });
         }
         detail.current_sessions = await sessionManager.listSessions({ taskId, limit: 20 });
         return sendJson(res, 200, detail);
+      }
+
+      if (req.method === 'POST' && url.pathname.startsWith('/api/tasks/') && url.pathname.endsWith('/queue/enqueue')) {
+        const taskId = decodeURIComponent(url.pathname.split('/')[3] || '');
+        return sendJson(res, 200, await enqueueTaskFromRequest(taskId, await readJsonBody(req)));
+      }
+
+      if (req.method === 'POST' && url.pathname.startsWith('/api/tasks/') && url.pathname.endsWith('/queue/dequeue')) {
+        const taskId = decodeURIComponent(url.pathname.split('/')[3] || '');
+        return sendJson(res, 200, await dequeueTaskFromRequest(taskId));
       }
 
       if (req.method === 'GET' && url.pathname === '/api/sessions') {
@@ -171,6 +212,11 @@ export function createServer() {
       if (req.method === 'POST' && url.pathname.startsWith('/api/tasks/') && url.pathname.endsWith('/blind-review/run')) {
         const taskId = decodeURIComponent(url.pathname.split('/')[3] || '');
         return sendJson(res, 200, await runTaskBlindReview(taskId, await readJsonBody(req)));
+      }
+
+      if (req.method === 'POST' && url.pathname.startsWith('/api/tasks/') && url.pathname.endsWith('/local-testing/open')) {
+        const taskId = decodeURIComponent(url.pathname.split('/')[3] || '');
+        return sendJson(res, 200, await openLocalTestingTarget(taskId, await readJsonBody(req)));
       }
 
       if (req.method === 'POST' && url.pathname === '/api/parse-markdown') {
@@ -215,6 +261,10 @@ async function runTask(taskId, body, searchParams) {
   }
 
   const dryRun = body?.dry_run ?? (searchParams.get('dryRun') !== 'false');
+  await updateQueuedTask(projectRoot, taskId, {
+    status: body?.action === 'prepare' ? 'preparing' : (dryRun ? 'previewing' : 'running')
+  }).catch(() => null);
+
   let preparedTask;
   if (body?.markdown) {
     preparedTask = await prepareTaskFromMarkdown({
@@ -232,10 +282,14 @@ async function runTask(taskId, body, searchParams) {
   }
 
   if (body?.action === 'prepare') {
+    await updateQueuedTask(projectRoot, taskId, {
+      status: 'prepared',
+      run_config_snapshot: body?.run_config || detail.run_config || null
+    }).catch(() => null);
     return preparedTask.output;
   }
 
-  return runTaskFromPrepared({
+  const result = await runTaskFromPrepared({
     task: preparedTask.task,
     packets: preparedTask.packets,
     prepared: preparedTask.prepared,
@@ -243,6 +297,14 @@ async function runTask(taskId, body, searchParams) {
     maxTurns: 24,
     sessionManager
   });
+
+  await updateQueuedTask(projectRoot, taskId, {
+    status: dryRun ? 'previewed' : 'evaluated',
+    latest_run_dir: result?.summary?.run_dir || result?.runDir || detail.run_dir || null,
+    run_config_snapshot: body?.run_config || detail.run_config || null
+  }).catch(() => null);
+
+  return result;
 }
 
 async function openLogin(provider) {
@@ -431,6 +493,53 @@ export async function createTaskFile(rootDir, body) {
   };
 }
 
+async function previewTaskImport(rootDir, body) {
+  const sourcePath = cleanTaskPathInput(body?.source_path);
+  const { markdown, securityWarnings } = await resolveTaskMarkdown(rootDir, '', sourcePath);
+  const parsed = parseTaskBrief(markdown, sourcePath || '<web-ui>');
+
+  return {
+    source_path: sourcePath,
+    markdown,
+    task: parsed.task,
+    security_warnings: securityWarnings,
+    validation: {
+      ok: parsed.ok,
+      errors: parsed.errors,
+      warnings: parsed.warnings
+    }
+  };
+}
+
+async function enqueueTaskFromRequest(taskId, body) {
+  const detail = await getTaskDetail(projectRoot, taskId);
+  if (!detail) {
+    throw new Error(`Unknown task: ${taskId}`);
+  }
+
+  const entry = await enqueueTask(projectRoot, detail.task, {
+    note: body?.note || '',
+    queuedBy: body?.queued_by || 'operator',
+    priority: Number.isFinite(body?.priority) ? body.priority : 50,
+    status: body?.status || 'queued',
+    runConfigSnapshot: body?.run_config || detail.run_config || null,
+    latestRunDir: detail.run_dir || null
+  });
+
+  return {
+    task_id: taskId,
+    queue_entry: entry
+  };
+}
+
+async function dequeueTaskFromRequest(taskId) {
+  const result = await dequeueTask(projectRoot, taskId);
+  return {
+    task_id: taskId,
+    removed: result.removed
+  };
+}
+
 async function runTaskBlindReview(taskId, body) {
   const detail = await getTaskDetail(projectRoot, taskId);
   if (!detail || !detail.run_dir) {
@@ -462,6 +571,76 @@ async function runTaskBlindReview(taskId, body) {
   return {
     task_id: taskId,
     blind_review_agent: review
+  };
+}
+
+async function openLocalTestingTarget(taskId, body) {
+  const detail = await getTaskDetail(projectRoot, taskId);
+  if (!detail) {
+    throw new Error(`Unknown task: ${taskId}`);
+  }
+
+  const localTesting = await getTaskLocalTesting(projectRoot, taskId);
+  if (!localTesting?.has_targets) {
+    throw new Error(`No local testing targets are available for task ${taskId}`);
+  }
+
+  const targetId = body?.target_id || localTesting.preferred_target?.target_id || null;
+  const target = localTesting.targets.find((entry) => entry.target_id === targetId);
+  if (!target) {
+    throw new Error(`Unknown local testing target: ${targetId}`);
+  }
+
+  const command = buildWorkspaceOpenCommand(target);
+  const launcher = buildTerminalCommandLaunch({ command });
+  const session = await sessionManager.recordExternalLaunch({
+    kind: 'local-testing-open',
+    provider: target.kind === 'candidate' ? 'alloy-candidate' : 'alloy-synthesis',
+    profileId: 'default',
+    transport: launcher.supported ? 'pty' : 'external',
+    metadata: {
+      target_id: target.target_id,
+      workspace_path: target.workspace_path,
+      launcher: launcher.launcher,
+      human_command: launcher.human_command
+    }
+  });
+
+  if (!launcher.supported) {
+    return {
+      launched: false,
+      task_id: taskId,
+      target,
+      launcher,
+      session,
+      message: 'Terminal auto-launch is not supported on this platform. Run the command manually.'
+    };
+  }
+
+  const launchResult = await new Promise((resolve, reject) => {
+    const child = spawn(launcher.launcher, launcher.args, {
+      cwd: projectRoot,
+      env: buildProviderEnv(process.env),
+      stdio: 'ignore',
+      detached: false
+    });
+    child.once('error', reject);
+    child.once('exit', (code) => {
+      if (code === 0) {
+        resolve({ launched: true });
+      } else {
+        reject(new Error(`workspace launcher exited with code ${code}`));
+      }
+    });
+  }).catch((error) => ({ launched: false, error: error.message || String(error) }));
+
+  return {
+    launched: launchResult.launched,
+    task_id: taskId,
+    target,
+    launcher,
+    session,
+    error: launchResult.error || null
   };
 }
 
@@ -558,6 +737,25 @@ function sendJson(res, statusCode, value) {
 
 function shellQuote(value) {
   return `'${String(value).replace(/'/g, `'"'"'`)}'`;
+}
+
+function buildWorkspaceOpenCommand(target) {
+  const shellPath = process.env.SHELL || '/bin/zsh';
+  const lines = [
+    `printf '%s\\n' ${shellQuote(`Alloy local testing target: ${target.label}`)}`,
+    `printf '%s\\n' ${shellQuote(`Workspace: ${target.workspace_path}`)}`,
+    `printf '%s\\n' ''`
+  ];
+  if ((target.validation_commands || []).length > 0) {
+    lines.push(`printf '%s\\n' ${shellQuote('Suggested validation commands:')}`);
+    for (const command of target.validation_commands) {
+      lines.push(`printf '%s\\n' ${shellQuote(`- ${command}`)}`);
+    }
+    lines.push(`printf '%s\\n' ''`);
+  }
+  lines.push(`cd ${shellQuote(target.workspace_path)}`);
+  lines.push(`exec ${shellQuote(shellPath)} -l`);
+  return lines.join(' && ');
 }
 
 function cleanTaskPathInput(value) {

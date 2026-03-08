@@ -21,20 +21,28 @@ The current implementation priorities should be:
 1. Consume blind-review recommendations on top of deterministic gates
    - deterministic evaluation stays the gatekeeper
    - blind review already exists as a saved async artifact layer
-   - the next step is using that recommendation to improve close-call synthesis and publication decisions
+   - next step:
+     - mark deterministic/blind agreement explicitly
+     - block publication on high-risk disagreement
+     - never let blind review rescue a failed deterministic run
 
 2. Local candidate and synthesis testing
    - one-click operator flow to open and test a candidate or synthesis workspace locally
+   - show the exact commands beside the chosen workspace
 
 3. Structured Task Composer expansion
-   - task creation/import now exists in `Operator View`
-   - the next step is a safer structured editor on top of the current markdown-first flow
-   - markdown files should remain the persisted task format, not the primary UX
+   - task creation/import now exists in `Tasks`
+   - guided fields now exist and should remain the primary UX
+   - next step:
+     - improve saved-task editing
+     - improve import warnings
+     - keep raw markdown as an advanced path only
 
 4. Broader evaluation coverage
-   - smoke tasks
-   - compact algorithm tasks
-   - realistic bugfix and security tasks
+   - add two fast tasks first:
+     - `FizzBuzz CLI`
+     - `Roman Numerals`
+   - keep the current bugfix and security demos for heavier review and synthesis testing
 
 5. PR creation from the pushed synthesis ref
    - publish preview, approval, and push are already implemented
@@ -54,10 +62,9 @@ The current implementation priorities should be:
    - mine conflicts and `jj` operations only after the core merge loop is mature
 
 Focus now:
-- judge/composer
-- human-reviewable synthesis decisions
-- reliable local validation
-- task authoring inside the product
+- make review decisions more trustworthy
+- make local validation easier
+- make task authoring easier without dropping to the filesystem
 
 Do not focus first on:
 - operation mining
@@ -81,7 +88,7 @@ This is the correct V1 boundary.
 Current landed review features:
 - dedicated compare page for candidate and synthesis diffs
 - merge-plan and judge-rationale rendering
-- separate `Operator View` page for markdown editing, task creation/import, and candidate detail
+- separate `Tasks` page for guided task setup, demo loading, task creation/import, and candidate detail
 - manual-override and contested-file cues
 - review-oriented `jj` stack shaping metadata
 - publication-readiness blockers for synthesized results
@@ -324,34 +331,34 @@ Deliver:
 Acceptance:
 - operator can open a candidate or synthesis workspace locally and run checks without hunting for paths
 
-### Milestone 3: Structured Task Composer Expansion
+### Milestone 3: Tasks Page Cleanup
 
 Deliver:
-- structured field editor for Alloy frontmatter
-- markdown/body editing in `Operator View`
-- save to a `.task.md` file
-- validate and preview before run preparation
-- keep create/import guardrails and security warnings visible
+- guided task setup stays primary
+- saved-task editing is clearer
+- source import warnings stay visible
+- save flow generates markdown from fields first
+- raw markdown remains available for advanced users
 
 Acceptance:
-- operator can create a custom task without manually creating files on disk
+- operator can create, edit, and queue a task without manually creating files on disk
 
-### Milestone 4: Broader Eval Coverage
+### Milestone 4: Fast Regression Tasks
 
 Deliver:
-- smoke task(s)
-- compact algorithm task(s)
-- continued realistic bugfix/security tasks
+- `FizzBuzz CLI`
+- `Roman Numerals`
+- `.task.md` cards plus acceptance commands
 
 Acceptance:
-- Alloy can be demoed quickly on small tasks and credibly on richer synthesis tasks
+- Alloy can validate queue -> run -> verify -> diff capture quickly without always running the heavier repo demos
 
 ### Milestone 5: PR Creation From Pushed Synthesis Ref
 
 Deliver:
 - PR creation only from a successful pushed synthesis ref
 - persisted PR URL and status
-- visible PR state in Compare Diffs and Control Panel
+- visible PR state in Review and Queue
 
 Acceptance:
 - operator can publish a reviewed synthesis into one PR without bypassing the pushed-ref gate
@@ -361,7 +368,7 @@ Acceptance:
 Deliver:
 - stronger side-by-side candidate vs synthesis review
 - clearer per-file provenance review cues
-- `jj` stack timeline/history surface in `Compare Diffs`
+- `jj` stack timeline/history surface in `Review`
 
 Acceptance:
 - humans can inspect both file-level provenance and final stack history without reading raw JSON
@@ -393,8 +400,8 @@ Preferred sequence from the current state:
 
 1. consume blind-review recommendations on top of deterministic gates
 2. local testing workflow
-3. structured Task Composer expansion
-4. broader eval coverage
+3. tasks page cleanup
+4. fast regression tasks
 5. PR creation from the pushed synthesis ref
 6. compare-surface refinement
 7. SQLite control-plane metadata
@@ -431,11 +438,11 @@ This is the practical build order from the current shipped state:
    - This improves operator confidence and shortens debugging loops.
 
 3. Structured Task Composer expansion
-   - Basic task creation/import already exists in `Operator View`.
-   - Keep markdown as the source of truth, but move safer task authoring into the product.
+   - Basic task creation/import already exists in `Tasks`.
+   - Keep markdown as the source of truth, but keep it behind the guided setup flow.
 
 4. Broader eval coverage
-   - Add smoke and compact algorithm tasks so Alloy can be demonstrated quickly and regression-tested cheaply.
+   - Add `FizzBuzz CLI` and `Roman Numerals` so Alloy can be regression-tested quickly.
 
 5. PR creation from the pushed synthesis ref
    - Build this only on top of the explicit push state and human approval flow.

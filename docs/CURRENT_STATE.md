@@ -3,9 +3,17 @@
 Status date: March 8, 2026
 Purpose: Capture the honest current Alloy proof boundary so future work starts from the actual implementation instead of the aspirational architecture.
 
+Current product split:
+
+```text
+Queue  ->  Tasks  ->  Review
+monitor    author     inspect / synthesize / publish
+run work   import     blind review / approve / push
+```
+
 ## What Works Now
 
-- Alloy Control Panel serves a real local web UI for:
+- Alloy serves a real local web UI for:
   - project-labeled task cards
   - board project filtering and grouping
   - board pagination
@@ -14,8 +22,9 @@ Purpose: Capture the honest current Alloy proof boundary so future work starts f
   - optional blind-review CLI selection inside the run plan
   - session monitor
   - compact selected-task summary
-  - dedicated `Operator View` page for markdown editing, task creation/import, parsed task review, and candidate detail
-  - dedicated `Compare Diffs` page for candidate and synthesis review
+  - queue-backed monitoring from `runtime/task-queue.json`
+  - dedicated `Tasks` page for structured task setup, demo loading, source generation/import, parsed task review, and candidate detail
+  - dedicated `Review` page for candidate and synthesis review
   - merge-plan and synthesis guidance in the operator view
   - per-file provenance in the merge workflow
   - dedicated in-app docs page for operator workflow guidance
@@ -77,7 +86,7 @@ Real today:
 - persisted `judge-rationale.json` artifact per evaluated run
 - persisted `blind-judge-packet.json` and `composer-plan.json` artifacts per evaluated run
 - persisted async blind-review agent recommendations
-- a shared dark-mode toggle persisted across Control Panel, Compare Diffs, and Docs
+- a shared dark-mode toggle persisted across Queue, Review, and Docs
 - task creation/import sanity checks:
   - markdown-only source import
   - file existence check
@@ -91,7 +100,7 @@ Still limited:
 - some historical run artifacts under `runs/` were created with older mock/replay helpers and still exist for audit purposes
 - Gemini auth is intentionally treated as manual operator verification in the current build
 - blind-review recommendations do not automatically rewrite the synthesis or publication decision yet
-- the current in-app Task Composer is markdown-first and still aimed at advanced users, not a hardened general-purpose import path
+- the current in-app Task Composer is now guided-field-first, but the raw markdown source is still part of the save path and the overall flow is not hardened for non-expert users yet
 - final PR creation is not implemented yet
 - no repo-local browser smoke harness exists yet, so browser validation is still mostly manual
 
@@ -115,21 +124,23 @@ That is enough to prove the orchestration, verification, artifact, and conservat
 ## UI State
 
 - The product is now split into three top-level surfaces:
-  - `Control Panel`
-  - `Operator View`
-  - `Compare Diffs`
-- `Control Panel` stays compact:
+  - `Queue`
+  - `Tasks`
+  - `Review`
+- `Queue` stays compact:
   - providers and runtime
-  - task board
+  - real queued work only
   - run plan and actions
   - selected-task summary
-- `Operator View` now holds the heavy task-detail surface:
+- `Tasks` now holds the heavy task-detail surface:
+  - guided task setup
+  - demo scenario loading
   - markdown source/render
   - parsed task review
   - candidate cards
   - evaluation summary
   - task file creation/import
-- The heavy diff workflow now has its own `Compare Diffs` page with:
+- The heavy diff workflow now has its own `Review` page with:
   - candidate diff inspection
   - synthesis diff inspection
   - per-file provenance
@@ -139,12 +150,12 @@ That is enough to prove the orchestration, verification, artifact, and conservat
 - The app now has an in-app `Docs` page backed by local markdown content.
 - Cards now carry explicit project labels so multiple labs can coexist on the same board.
 - The board can now filter by project and group by project or state.
-- Task cards are directly selectable and sync the focused task into the URL and Operator View.
+- Task cards are directly selectable and sync the focused task into the URL and Tasks.
 - Narrow screens collapse to a single-column flow.
 - The UI now supports persistent light/dark theme switching across all top-level pages.
 - Gemini always shows manual auth verification rather than a false precision status.
 - Heavy operator sections are collapsible and the operator view is tabbed so only one dense pane is visible at a time.
-- Control Panel, Operator View, Compare Diffs, and Docs now share top-level navigation.
+- Queue, Tasks, Review, and Docs now share top-level navigation.
 - The run plan now mirrors the actual execution order:
   - candidate runs first
   - deterministic evaluation from disk
@@ -165,32 +176,51 @@ That is enough to prove the orchestration, verification, artifact, and conservat
 
 ## Highest-Value Next Steps
 
-1. Consume blind-review recommendations in the synthesis/publication flow instead of only rendering them.
-2. Add a local candidate/synthesis testing flow so operators can open or run a chosen workspace without hunting through artifacts.
-3. Expand the Task Composer from markdown-first creation/import into a safer structured editor with better validation and preview.
-4. Add broader smoke/algorithm cards so the board covers fast runner checks as well as richer synthesis demos.
-5. Add PR creation from the approved, pushed synthesis ref after the judge/local-test workflow is stable.
-6. Add a repo-local browser smoke harness once it is reproducible from this repo rather than dependent on ambient machine state.
+1. Make blind review change real decisions, not just the UI.
+   - When blind review agrees with deterministic evaluation, show that clearly.
+   - When blind review disagrees, mark publication as `needs human review`.
+   - Do not let blind review override failed deterministic checks.
 
-## Appended Execution Order
+2. Add a local testing button for the chosen candidate or synthesis workspace.
+   - The operator should be able to open a terminal in the right workspace from `Review`.
+   - Show the exact test commands beside that button.
 
-For the next build slice, use this order:
+3. Tighten the `Tasks` page.
+   - Keep guided fields as the main path.
+   - Make it easy to edit an existing saved task without manually touching raw markdown.
+   - Keep source import behind explicit warnings and validation.
 
-1. Blind-review recommendation consumption
-2. Local candidate/synthesis testing
-3. Structured Task Composer expansion
-4. Broader eval cards
-5. PR creation from the pushed synthesis ref
-6. Repo-local browser smoke harness
+4. Add two fast regression cards.
+   - `FizzBuzz CLI`
+   - `Roman Numerals`
+   These are not headline demos. They exist to prove queue -> run -> verify -> diff capture quickly.
 
-Reason:
-- push now turns synthesis output into a real remote publication step
-- blind review now exists as an optional async artifact layer, so the next gap is consuming that recommendation, not inventing a second review path
-- local testing improves trust quickly
-- task creation now exists, but it is still markdown-first and needs a safer structured editing layer
-- broader evals improve demo speed and regression coverage
-- PR creation is straightforward but lower leverage than better selection and validation
-- browser automation is useful, but lower leverage than the four items above
+5. Add PR creation only after push succeeds.
+   - Use the pushed synthesis ref as the only source for PR creation.
+   - Keep PR creation behind explicit human approval.
+
+6. Add repo-local browser smoke tests later.
+   - Only do this with a reproducible repo-local runner.
+   - Do not rely on ambient browser tooling.
+
+## Execution Order
+
+Build in this order:
+
+1. Blind-review decision consumption
+2. Local testing from `Review`
+3. `Tasks` editing and validation cleanup
+4. Add `FizzBuzz CLI` and `Roman Numerals` cards
+5. PR creation from a pushed synthesis ref
+6. Repo-local browser smoke tests
+
+Why this order:
+- blind review already exists on disk, so using it is the shortest path to better decision quality
+- local testing is the fastest trust improvement for humans
+- the `Tasks` page is now usable but still needs cleanup around save/edit flow
+- fast cards improve regression speed once the flow above is solid
+- PR creation should stay behind push and approval
+- browser smoke tests are useful, but not a product bottleneck
 
 ## Validation Commands
 

@@ -3,6 +3,7 @@ import path from 'node:path';
 
 import { parseTaskBriefFile } from '../parser.mjs';
 import { buildDefaultRunConfig } from '../run-config.mjs';
+import { getQueuedTaskMap } from '../task-queue.mjs';
 
 const PROVIDER_LABELS = {
   codex: 'Codex',
@@ -11,11 +12,16 @@ const PROVIDER_LABELS = {
 };
 
 export async function listTaskCards(projectRoot) {
+  const queuedTaskMap = await getQueuedTaskMap(projectRoot);
   const taskFiles = await findTaskFiles(path.join(projectRoot, 'samples', 'tasks'));
   const cards = [];
 
   for (const taskFile of taskFiles) {
     const parsed = await parseTaskBriefFile(taskFile);
+    const queueEntry = queuedTaskMap.get(parsed.task.task_id);
+    if (!queueEntry) {
+      continue;
+    }
     const latestRun = await findLatestRun(projectRoot, parsed.task.project_id, parsed.task.task_id);
     const latestCandidates = latestRun ? await readCandidateManifests(latestRun.runDir) : [];
     const latestRunAudit = buildRunAudit({
@@ -26,6 +32,8 @@ export async function listTaskCards(projectRoot) {
       matchedScope: latestRun?.matchedScope || null
     });
     cards.push({
+      queue_entry: queueEntry,
+      is_demo: (parsed.task.demo_priority || 0) > 0,
       project_id: parsed.task.project_id,
       project_label: parsed.task.project_label,
       task_id: parsed.task.task_id,
@@ -43,6 +51,9 @@ export async function listTaskCards(projectRoot) {
       state: deriveRunDisplayState(latestRun?.summary || null, latestRunAudit),
       latest_run: latestRun?.summary || null,
       run_dir: latestRun?.runDir || null,
+      queue_status: queueEntry.status || 'queued',
+      queued_at: queueEntry.queued_at || null,
+      queued_by: queueEntry.queued_by || null,
       run_origin: latestRunAudit.origin,
       run_origin_label: latestRunAudit.origin_label,
       run_origin_detail: latestRunAudit.origin_detail,
@@ -56,6 +67,14 @@ export async function listTaskCards(projectRoot) {
   }
 
   return cards.sort((left, right) => {
+    const leftPosition = Number.isFinite(left.queue_entry?.position) ? left.queue_entry.position : Number.MAX_SAFE_INTEGER;
+    const rightPosition = Number.isFinite(right.queue_entry?.position) ? right.queue_entry.position : Number.MAX_SAFE_INTEGER;
+    if (leftPosition !== rightPosition) {
+      return leftPosition - rightPosition;
+    }
+    if ((right.queue_entry?.priority || 0) !== (left.queue_entry?.priority || 0)) {
+      return (right.queue_entry?.priority || 0) - (left.queue_entry?.priority || 0);
+    }
     if ((right.demo_priority || 0) !== (left.demo_priority || 0)) {
       return (right.demo_priority || 0) - (left.demo_priority || 0);
     }
@@ -63,7 +82,62 @@ export async function listTaskCards(projectRoot) {
   });
 }
 
+export async function listTaskCatalog(projectRoot) {
+  const queuedTaskMap = await getQueuedTaskMap(projectRoot);
+  const taskFiles = await findTaskFiles(path.join(projectRoot, 'samples', 'tasks'));
+  const catalog = [];
+
+  for (const taskFile of taskFiles) {
+    const parsed = await parseTaskBriefFile(taskFile);
+    const latestRun = await findLatestRun(projectRoot, parsed.task.project_id, parsed.task.task_id);
+    const latestCandidates = latestRun ? await readCandidateManifests(latestRun.runDir) : [];
+    const latestRunAudit = buildRunAudit({
+      task: parsed.task,
+      summary: latestRun?.summary || null,
+      candidates: latestCandidates,
+      runDir: latestRun?.runDir || null,
+      matchedScope: latestRun?.matchedScope || null
+    });
+    const queueEntry = queuedTaskMap.get(parsed.task.task_id) || null;
+
+    catalog.push({
+      is_demo: (parsed.task.demo_priority || 0) > 0,
+      project_id: parsed.task.project_id,
+      project_label: parsed.task.project_label,
+      task_id: parsed.task.task_id,
+      demo_priority: parsed.task.demo_priority || 0,
+      title: parsed.task.title,
+      objective: parsed.task.context || parsed.task.title,
+      repo: parsed.task.repo,
+      source_system: parsed.task.source_system,
+      source_label: formatSourceLabel(parsed.task),
+      markdown_path: taskFile,
+      providers: parsed.task.providers,
+      provider_labels: formatProviderLabels(parsed.task.providers),
+      judge: parsed.task.judge,
+      state: deriveRunDisplayState(latestRun?.summary || null, latestRunAudit),
+      run_origin_label: latestRunAudit.origin_label,
+      card_summary: buildCardSummary(parsed.task, latestRun?.summary || null, latestRunAudit),
+      queued: Boolean(queueEntry),
+      queue_entry: queueEntry,
+      queue_status: queueEntry?.status || null,
+      queued_at: queueEntry?.queued_at || null
+    });
+  }
+
+  return catalog.sort((left, right) => {
+    if (left.queued !== right.queued) {
+      return left.queued ? -1 : 1;
+    }
+    if ((right.demo_priority || 0) !== (left.demo_priority || 0)) {
+      return (right.demo_priority || 0) - (left.demo_priority || 0);
+    }
+    return left.title.localeCompare(right.title);
+  });
+}
+
 export async function getTaskDetail(projectRoot, taskId) {
+  const queuedTaskMap = await getQueuedTaskMap(projectRoot);
   const taskFiles = await findTaskFiles(path.join(projectRoot, 'samples', 'tasks'));
   for (const taskFile of taskFiles) {
     const parsed = await parseTaskBriefFile(taskFile);
@@ -88,7 +162,9 @@ export async function getTaskDetail(projectRoot, taskId) {
       markdown_path: taskFile,
       markdown: parsed.markdown,
       task: parsed.task,
+      is_demo: (parsed.task.demo_priority || 0) > 0,
       task_brief: buildTaskBrief(parsed.task),
+      queue_entry: queuedTaskMap.get(parsed.task.task_id) || null,
       run_config: latestRun?.summary?.run_config || buildDefaultRunConfig(parsed.task),
       evaluation: latestRun?.summary?.evaluation || null,
       judge_rationale: latestRun?.summary?.evaluation?.judge_rationale || null,
@@ -96,7 +172,8 @@ export async function getTaskDetail(projectRoot, taskId) {
       comparison_view: buildComparisonView(latestRun?.summary?.evaluation || null, candidates, latestRun?.summary || null),
       merge_view: buildMergeView(latestRun?.summary || null, candidates, synthesis),
       publication_view: buildPublicationView(latestRun?.summary || null, synthesis, parsed.task, candidates),
-      compare_url: `/compare.html?task=${encodeURIComponent(taskId)}`,
+      local_testing: buildLocalTestingView(parsed.task, latestRun?.summary || null, candidates, synthesis),
+      compare_url: `/review.html?task=${encodeURIComponent(taskId)}`,
       warnings: parsed.warnings,
       latest_run: latestRun?.summary || null,
       latest_run_audit: latestRunAudit,
@@ -209,6 +286,18 @@ export async function getTaskPublication(projectRoot, taskId) {
   const candidates = await readCandidateManifests(latestRun.runDir);
   const synthesis = await readLatestSynthesisManifest(latestRun.summary);
   return buildPublicationView(latestRun.summary, synthesis, task, candidates);
+}
+
+export async function getTaskLocalTesting(projectRoot, taskId) {
+  const task = await findTaskById(projectRoot, taskId);
+  const latestRun = task ? await findLatestRun(projectRoot, task.project_id, taskId) : null;
+  if (!task) {
+    return null;
+  }
+
+  const candidates = latestRun ? await readCandidateManifests(latestRun.runDir) : [];
+  const synthesis = latestRun ? await readLatestSynthesisManifest(latestRun.summary) : null;
+  return buildLocalTestingView(task, latestRun?.summary || null, candidates, synthesis);
 }
 
 async function readSessionRecordsForCandidates(runDir) {
@@ -447,11 +536,11 @@ function buildTaskBrief(task) {
 }
 
 function formatSourceLabel(task) {
-  if (task.source_system === 'symphony') {
-    return task.source_task_id ? `Imported card ${task.source_task_id}` : 'Imported card';
-  }
   if (task.source_system === 'manual') {
     return task.source_task_id ? `Manual task ${task.source_task_id}` : 'Manual task';
+  }
+  if (task.source_system === 'imported') {
+    return task.source_task_id ? `Imported task ${task.source_task_id}` : 'Imported task';
   }
   return task.source_task_id
     ? `${task.source_system} ${task.source_task_id}`
@@ -745,6 +834,70 @@ function buildPublicationView(summary, synthesis, task, candidates = []) {
         }
       : null
   };
+}
+
+function buildLocalTestingView(task, summary, candidates, synthesis) {
+  const candidateTargets = (candidates || []).map((candidate) => ({
+    target_id: `candidate:${candidate.candidate_id}`,
+    kind: 'candidate',
+    candidate_id: candidate.candidate_id,
+    label: `${candidate.candidate_slot} / ${PROVIDER_LABELS[candidate.provider] || candidate.provider}`,
+    workspace_path: candidate.workspace_path,
+    verification_status: candidate.verification?.status || 'not_run',
+    validation_commands: extractValidationCommands(candidate.verification, task),
+    changed_files: candidate.changed_files || []
+  }));
+
+  const synthesisTarget = synthesis
+    ? {
+        target_id: 'synthesis:latest',
+        kind: 'synthesis',
+        synthesis_id: synthesis.synthesis_id,
+        label: `Synthesis / ${synthesis.strategy || 'file_select'}`,
+        workspace_path: synthesis.workspace_path,
+        verification_status: synthesis.verification?.status || 'not_run',
+        validation_commands: extractValidationCommands(synthesis.verification, task),
+        changed_files: synthesis.changed_files || synthesis.selected_files?.map((selection) => selection.path) || []
+      }
+    : null;
+
+  const targets = synthesisTarget ? [synthesisTarget, ...candidateTargets] : candidateTargets;
+  const preferredTarget = synthesisTarget
+    || pickPreferredCandidateTarget(candidateTargets, summary?.evaluation?.decision?.winner_candidate_id || null)
+    || null;
+
+  return {
+    has_targets: targets.length > 0,
+    preferred_target: preferredTarget
+      ? {
+          ...preferredTarget,
+          recommendation: preferredTarget.kind === 'synthesis'
+            ? 'Latest synthesized result'
+            : 'Best available candidate workspace'
+        }
+      : null,
+    targets
+  };
+}
+
+function pickPreferredCandidateTarget(targets, winnerCandidateId) {
+  if (!targets.length) {
+    return null;
+  }
+  if (winnerCandidateId) {
+    const winner = targets.find((target) => target.candidate_id === winnerCandidateId);
+    if (winner) {
+      return winner;
+    }
+  }
+  return targets.find((target) => target.verification_status === 'pass') || targets[0];
+}
+
+function extractValidationCommands(verification, task) {
+  const commands = (verification?.checks || [])
+    .map((check) => check.command)
+    .filter(Boolean);
+  return commands.length > 0 ? commands : (task?.acceptance_checks || []);
 }
 
 function buildSynthesisSummary(decision, contributionMap, rows) {

@@ -4,24 +4,38 @@ Alloy is a multi-agent orchestration system for running `codex`, `gemini`, and `
 
 Current architecture note:
 - The prototype is Alloy-native and Node-based.
-- It is Symphony-inspired in workflow and demo UX, but it is not currently booting or embedding Symphony's Elixir runtime.
-- That split is intentional for the MVP so the team can validate CLI orchestration, judging, and synthesis before deciding whether any Symphony code should be pulled in directly.
+- The current product flow is:
+
+```text
+Queue  ->  Tasks  ->  Review
+monitor    author     diff / merge / publish
+run work   import     inspect provenance
+```
+
+- `Queue` only shows tasks that are actually queued in `runtime/task-queue.json`.
+- `Tasks` is the task catalog and task setup surface.
+- `Review` is the merge, blind-review, and publication surface.
 
 ## Current POC Status
 
 Working today:
-- Alloy Control Panel web shell for project-labeled task cards, provider readiness, run config, and candidate visibility
-- dedicated `Operator View` for markdown task editing, task creation/import, parsed task review, and candidate detail
-- dedicated `Compare Diffs` view for candidate review, synthesis, blind review, and publication
+- Queue web shell for project-labeled queued tasks, provider readiness, run config, and candidate visibility
+- dedicated `Tasks` for structured task setup, source generation/import, parsed task review, and candidate detail
+- dedicated `Review` view for candidate review, synthesis, blind review, and publication
 - primary demo card: tic-tac-toe perfect-play repair
 - additional runnable security demo card: SQL injection remediation + writeup
 - board project filter and grouping controls
 - board pagination and cards-per-page controls
 - direct task-card selection that focuses the selected task and syncs task context into the URL
-- compact Control Panel plus separate Operator View and Compare Diffs surfaces
+- compact Queue plus separate Tasks and Review surfaces
 - collapsible/tabbed operator sections for dense task detail views
 - native markdown rendering for task briefs and docs
-- task creation from pasted markdown or imported markdown files in `Operator View`
+- structured Task Setup with template-driven task generation for:
+  - new projects
+  - existing repos
+  - security repairs
+- task creation from guided fields, pasted markdown, or imported markdown files in `Tasks`
+- first-class demo scenario loading in `Tasks`
 - dedicated in-app docs page for operator guidance
 - Markdown task brief parsing into canonical task JSON
 - human-readable parsed task and evaluator summaries in the operator UI
@@ -30,8 +44,8 @@ Working today:
 - real per-candidate diff viewing in the operator UI from captured `jj` patches
 - explicit per-file merge provenance in the operator UI
 - synthesized diff summaries with contested/manual-override cues and publication-readiness status
-- publication preview and approval state in `Compare Diffs`
-- publication push state in `Compare Diffs`
+- publication preview and approval state in `Review`
+- publication push state in `Review`
 - run provenance labeling in the UI so cards distinguish:
   - command previews
   - live CLI runs
@@ -64,7 +78,7 @@ Working today:
 
 Not implemented yet:
 - blind-review recommendation consumption in synthesis/publication
-- structured Task Composer fields on top of the current markdown-first task creation/import flow
+- a fully hardened structured task editor and import path for non-expert users
 - final PR publishing
 - persisted project-level dashboards and saved board preferences
 
@@ -75,11 +89,11 @@ This repository currently contains:
 - demo and operator experience specs
 - setup guides
 - task brief and GUI specs
-- Symphony-inspired workflow notes and integration references
+- current queue/tasks/review workflow notes
 - adapter and runner notes
 - runtime/auth architecture notes
 - a working Node scaffold for `task brief -> run config -> prompt packet -> session-backed candidate run`
-- the Alloy Control Panel for task cards, provider readiness, run config, evaluator summaries, and candidate/session visibility
+- the Queue surface for queued work, provider readiness, run config, evaluator summaries, and candidate/session visibility
 
 Core planning docs:
 - `IMPLEMENTATION_PLAN.md`
@@ -91,7 +105,7 @@ Core planning docs:
 - `docs/PUBLICATION_FLOW_PLAN.md`
 - `docs/TWO_WEEK_BUILD_ORDER.md`
 - `docs/MILESTONE_CHECKLIST.md`
-- `docs/SYMPHONY_FORK_VS_BUILD_FRESH.md`
+- `docs/NEXT_SESSION.md`
 
 ## Quick Start
 
@@ -112,7 +126,7 @@ npm run task:prepare
 npm run task:run:dry
 ```
 
-Launch the Alloy Control Panel:
+Launch the Alloy web UI:
 
 ```bash
 npm run web
@@ -148,7 +162,7 @@ Important UI honesty note:
 
 Current task-authoring limitation:
 - custom tasks are still stored as markdown files under `samples/tasks`
-- `Operator View` can now create/import those files, but the composer is still markdown-first and intended for advanced users
+- `Tasks` can now generate those files from guided fields, open demo scenarios, or import trusted markdown from disk
 - importing arbitrary markdown is not yet a hardened security path; only import trusted local files you understand
 
 ## Current Scaffold Outputs

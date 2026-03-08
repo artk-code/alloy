@@ -95,16 +95,16 @@ async function boot() {
   const requestedTaskId = searchParams.get('task');
   const initialTask = requestedTaskId
     ? state.tasks.find((task) => task.task_id === requestedTaskId)
-    : state.tasks[0];
+    : getVisibleTasks()[0];
   if (initialTask) {
     await selectTask(initialTask.task_id);
   }
 }
 
 async function loadTasks() {
-  const response = await fetch('/api/tasks');
+  const response = await fetch('/api/queue');
   const payload = await response.json();
-  state.tasks = payload.tasks;
+  state.tasks = payload.tasks || [];
   const projectIds = new Set(state.tasks.map((task) => task.project_id));
   if (state.projectFilter !== 'all' && !projectIds.has(state.projectFilter)) {
     state.projectFilter = 'all';
@@ -214,7 +214,7 @@ function renderBoard() {
 
   const visibleProjects = new Set(filteredTasks.map((task) => task.project_id));
   boardSummary.textContent = [
-    `${filteredTasks.length} task card${filteredTasks.length === 1 ? '' : 's'}`,
+    `${filteredTasks.length} queued task${filteredTasks.length === 1 ? '' : 's'}`,
     `${visibleProjects.size} project${visibleProjects.size === 1 ? '' : 's'}`,
     `grouped by ${state.boardGrouping}`,
     `page ${pageModel.page}/${pageModel.totalPages}`
@@ -224,10 +224,14 @@ function renderBoard() {
     const empty = document.createElement('article');
     empty.className = 'info-block';
     const title = document.createElement('h4');
-    title.textContent = 'No matching tasks';
+    title.textContent = 'No queued tasks';
     const body = document.createElement('p');
-    body.textContent = 'Change the project filter or create more demo cards to populate the board.';
-    empty.append(title, body);
+    body.textContent = 'This queue only shows tasks that were explicitly added for execution. Create or import a task in Tasks, then add it to the queue.';
+    const link = document.createElement('a');
+    link.className = 'ghost-button';
+    link.href = buildOperatorUrl();
+    link.textContent = 'Open Tasks';
+    empty.append(title, body, link);
     board.appendChild(empty);
     return;
   }
@@ -294,7 +298,7 @@ function renderBoardControls(pageModel) {
   for (const value of ['project', 'state', 'none']) {
     const option = document.createElement('option');
     option.value = value;
-    option.textContent = value;
+    option.textContent = value === 'state' ? 'queue status' : value;
     groupSelect.appendChild(option);
   }
   groupSelect.value = state.boardGrouping;
@@ -552,13 +556,56 @@ function renderRunConfig() {
 }
 
 function renderRunPolicy(snapshot) {
+  const setupBlock = document.createElement('article');
+  setupBlock.className = 'provider-config-row';
+
+  const setupHeader = document.createElement('div');
+  setupHeader.className = 'provider-config-top';
+  const setupTitle = document.createElement('strong');
+  setupTitle.textContent = '1. Task Setup';
+  const setupState = document.createElement('span');
+  setupState.className = 'provider-state state-idle';
+  setupState.textContent = state.selectedTaskId ? '• task selected' : '• create task';
+  setupHeader.append(setupTitle, setupState);
+
+  const setupMeta = document.createElement('p');
+  setupMeta.className = 'provider-config-meta';
+  setupMeta.textContent = state.selectedTaskId
+    ? [
+        state.taskDetail?.task?.title || state.selectedTaskId,
+        state.taskDetail?.task?.project_label || state.taskDetail?.task?.project_id || null,
+        state.taskDetail?.markdown_path || null
+      ].filter(Boolean).join(' • ')
+    : 'Open Tasks to create a new task file or import trusted markdown from disk.';
+
+  const setupHint = document.createElement('p');
+  setupHint.className = 'provider-config-hint';
+  setupHint.textContent = 'Queue is for monitoring queued work and running it. Use Tasks for authoring, import, parsed validation, and queue control.';
+
+  const setupActions = document.createElement('div');
+  setupActions.className = 'task-chip-row';
+
+  const operatorButton = document.createElement('a');
+  operatorButton.className = 'ghost-button';
+  operatorButton.href = buildOperatorUrl(state.selectedTaskId);
+  operatorButton.textContent = state.selectedTaskId ? 'Open Task In Tasks' : 'Create New Task';
+  setupActions.appendChild(operatorButton);
+
+  const docsButton = document.createElement('a');
+  docsButton.className = 'ghost-button';
+  docsButton.href = buildDocsUrl(state.selectedTaskId);
+  docsButton.textContent = 'Task Authoring Docs';
+  setupActions.appendChild(docsButton);
+
+  setupBlock.append(setupHeader, setupMeta, setupHint, setupActions);
+
   const flowBlock = document.createElement('article');
   flowBlock.className = 'provider-config-row';
 
   const flowHeader = document.createElement('div');
   flowHeader.className = 'provider-config-top';
   const flowTitle = document.createElement('strong');
-  flowTitle.textContent = '1. Execution Order';
+  flowTitle.textContent = '2. Candidate Runs';
   const flowState = document.createElement('span');
   flowState.className = 'provider-state state-idle';
   flowState.textContent = `${snapshot.enabledAgents} candidate session${snapshot.enabledAgents === 1 ? '' : 's'}`;
@@ -566,7 +613,7 @@ function renderRunPolicy(snapshot) {
 
   const flowMeta = document.createElement('p');
   flowMeta.className = 'provider-config-meta';
-  flowMeta.textContent = 'Candidate runs write outputs to disk first. Deterministic evaluation always happens from saved artifacts. Blind review is optional and can run later from Compare Diffs.';
+  flowMeta.textContent = 'Candidate runs write outputs to disk first. Deterministic evaluation always happens from saved artifacts. Blind review is optional and can run later from Review.';
 
   const flowHint = document.createElement('p');
   flowHint.className = 'provider-config-hint';
@@ -589,7 +636,7 @@ function renderRunPolicy(snapshot) {
   const reviewHeader = document.createElement('div');
   reviewHeader.className = 'provider-config-top';
   const reviewTitle = document.createElement('strong');
-  reviewTitle.textContent = '2. Review Controls';
+  reviewTitle.textContent = '3. Review Controls';
   const reviewState = document.createElement('span');
   reviewState.className = `provider-state ${state.runConfig.judge === 'none' ? 'state-idle' : 'state-warn'}`;
   reviewState.textContent = state.runConfig.judge === 'none'
@@ -654,7 +701,7 @@ function renderRunPolicy(snapshot) {
   ].join(' ');
   reviewBlock.appendChild(reviewHint);
 
-  runPolicyRoot.append(flowBlock, reviewBlock);
+  runPolicyRoot.append(setupBlock, flowBlock, reviewBlock);
 }
 
 function renderDetail() {
@@ -710,6 +757,17 @@ function renderDetail() {
   );
   appendInfoBlock(
     detailSummary,
+    'Queue',
+    state.taskDetail?.queue_entry
+      ? [
+          state.taskDetail.queue_entry.status || 'queued',
+          state.taskDetail.queue_entry.queued_at || null,
+          state.taskDetail.queue_entry.queued_by || null
+        ].filter(Boolean).join(' • ')
+      : 'This task is not currently in the queue. Use Tasks to add or remove queue entries.'
+  );
+  appendInfoBlock(
+    detailSummary,
     'Run Plan',
     [
       `${(state.runConfig?.providers || []).filter((provider) => provider.enabled && Number(provider.agents) > 0).length} provider selections`,
@@ -751,24 +809,58 @@ function renderDetail() {
     );
   }
 
+  if (state.taskDetail.local_testing?.preferred_target) {
+    const testing = state.taskDetail.local_testing;
+    const block = document.createElement('div');
+    block.className = 'info-block';
+    const title = document.createElement('h4');
+    title.textContent = 'Local Testing';
+    const body = document.createElement('p');
+    body.textContent = [
+      `Preferred target: ${testing.preferred_target.label}`,
+      testing.preferred_target.recommendation || null,
+      testing.preferred_target.workspace_path || null
+    ].filter(Boolean).join(' • ');
+    const actions = document.createElement('div');
+    actions.className = 'task-chip-row';
+
+    const openButton = document.createElement('button');
+    openButton.className = 'ghost-button';
+    openButton.textContent = 'Open Preferred Workspace';
+    openButton.addEventListener('click', async () => {
+      await openLocalTestingTarget(testing.preferred_target.target_id);
+    });
+
+    const copyButton = document.createElement('button');
+    copyButton.className = 'ghost-button';
+    copyButton.textContent = 'Copy Validation Commands';
+    copyButton.addEventListener('click', async () => {
+      await copyLocalTestingCommands(testing.preferred_target);
+    });
+
+    actions.append(openButton, copyButton);
+    block.append(title, body, actions);
+    detailSummary.appendChild(block);
+  }
+
   const actionBlock = document.createElement('div');
   actionBlock.className = 'info-block';
   const actionTitle = document.createElement('h4');
   actionTitle.textContent = 'Task Surfaces';
   const actionBody = document.createElement('p');
-  actionBody.textContent = 'Use Operator View for markdown editing, evaluation review, candidate cards, and debug state. Use Compare Diffs for merge review and publication.';
+  actionBody.textContent = 'Use Tasks for markdown editing, queue control, evaluation review, candidate cards, and debug state. Use Review for merge review and publication.';
   const actionRow = document.createElement('div');
   actionRow.className = 'task-chip-row';
 
   const operatorLink = document.createElement('a');
   operatorLink.className = 'ghost-button';
   operatorLink.href = buildOperatorUrl(state.selectedTaskId);
-  operatorLink.textContent = 'Open Operator View';
+  operatorLink.textContent = 'Open Tasks';
 
   const compareLink = document.createElement('a');
   compareLink.className = 'ghost-button';
   compareLink.href = buildCompareUrl(state.selectedTaskId);
-  compareLink.textContent = 'Open Compare Diffs';
+  compareLink.textContent = 'Open Review';
 
   const docsLink = document.createElement('a');
   docsLink.className = 'ghost-button';
@@ -795,397 +887,9 @@ function renderDetail() {
   heroOpenCompareButton.disabled = !state.selectedTaskId;
   detailOpenOperatorButton.disabled = !state.selectedTaskId;
   detailOpenCompareButton.disabled = !state.selectedTaskId;
-  heroOpenOperatorButton.textContent = state.selectedTaskId ? 'Operator View' : 'Create Task';
+  heroOpenOperatorButton.textContent = state.selectedTaskId ? 'Tasks' : 'Create Task';
   heroOpenDocsLink.href = buildDocsUrl(state.selectedTaskId);
   openLatestRunButton.disabled = !state.taskDetail.run_dir;
-}
-
-function renderDetailNav() {
-  detailNav.innerHTML = '';
-  const labels = buildDetailSectionLabels();
-  for (const section of DETAIL_SECTIONS) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = state.detailSection === section.id ? 'detail-tab is-active' : 'detail-tab ghost-button';
-    button.textContent = labels.get(section.id) || section.label;
-    button.addEventListener('click', () => {
-      state.detailSection = section.id;
-      applyDetailSectionVisibility();
-      renderDetailNav();
-    });
-    detailNav.appendChild(button);
-  }
-}
-
-function applyDetailSectionVisibility() {
-  const panels = document.querySelectorAll('[data-detail-section]');
-  for (const panel of panels) {
-    panel.hidden = panel.getAttribute('data-detail-section') !== state.detailSection;
-  }
-}
-
-function buildDetailSectionLabels() {
-  const compareCount = state.taskDetail?.comparison_view?.rows?.length || 0;
-  const candidateCount = state.taskDetail?.candidates?.length || 0;
-
-  return new Map([
-    ['overview', 'Overview'],
-    ['compare', compareCount > 0 ? `Compare (${compareCount})` : 'Compare'],
-    ['candidates', candidateCount > 0 ? `Candidates (${candidateCount})` : 'Candidates'],
-    ['debug', 'Debug']
-  ]);
-}
-
-function renderTaskBrief(task) {
-  taskBrief.innerHTML = '';
-  const validation = state.previewValidation || { ok: true, warnings: [], errors: [] };
-
-  appendInfoBlock(taskBrief, 'Project', task.project_label ? `${task.project_label} (${task.project_id})` : (task.project_id || 'No project metadata.'));
-  appendInfoBlock(taskBrief, 'Objective', task.context || task.title || 'No task title available.');
-  appendListBlock(taskBrief, 'Requirements', task.requirements || [], 'No explicit requirements.');
-  appendListBlock(taskBrief, 'Constraints', task.constraints || [], 'No explicit constraints.');
-  appendListBlock(taskBrief, 'Acceptance Checks', task.acceptance_checks || [], 'No acceptance checks declared.');
-  appendListBlock(taskBrief, 'Operator Notes', task.human_notes || [], 'No operator notes.');
-
-  const routing = document.createElement('div');
-  routing.className = 'info-block';
-  const title = document.createElement('h4');
-  title.textContent = 'Routing';
-  const value = document.createElement('p');
-  value.textContent = [
-    `Mode ${task.mode || 'unknown'}`,
-    `Blind review ${humanizeProvider(state.runConfig?.judge || task.judge || 'none')}`,
-    `Review ${task.human_review_policy || 'standard'}`,
-    `Publish ${task.publish_policy || 'manual'}`
-  ].join(' • ');
-  routing.append(title, value);
-  taskBrief.appendChild(routing);
-
-  const validationBlock = document.createElement('div');
-  validationBlock.className = 'info-block';
-  const validationTitle = document.createElement('h4');
-  validationTitle.textContent = 'Validation';
-  const validationText = document.createElement('p');
-  const messages = [];
-  messages.push(validation.ok ? 'Parsed cleanly.' : 'Parse issues detected.');
-  if (validation.warnings?.length) {
-    messages.push(`Warnings: ${validation.warnings.join(' | ')}`);
-  }
-  if (validation.errors?.length) {
-    messages.push(`Errors: ${validation.errors.join(' | ')}`);
-  }
-  validationText.textContent = messages.join(' ');
-  validationBlock.append(validationTitle, validationText);
-  taskBrief.appendChild(validationBlock);
-}
-
-function renderEvaluationCall(overview, evaluation) {
-  evaluationCall.innerHTML = '';
-  const rationale = evaluation?.judge_rationale || state.taskDetail?.judge_rationale || null;
-
-  appendInfoBlock(
-    evaluationCall,
-    'Current Read',
-    overview?.decision_summary || 'No evaluator decision is available yet.'
-  );
-  appendInfoBlock(
-    evaluationCall,
-    'Execution Status',
-    overview?.execution_summary || 'No run execution summary is available.'
-  );
-  appendInfoBlock(
-    evaluationCall,
-    'Run Provenance',
-    [
-      overview?.run_origin_label || 'No run',
-      overview?.run_origin_detail || null,
-      overview?.proof_level ? `proof ${overview.proof_level}` : null
-    ].filter(Boolean).join(' • ')
-  );
-  appendInfoBlock(
-    evaluationCall,
-    'Provider Plan',
-    overview?.provider_plan || 'No provider plan is available.'
-  );
-  appendInfoBlock(
-    evaluationCall,
-    'Acceptance',
-    overview?.acceptance_summary || 'No acceptance summary is available.'
-  );
-
-  if (rationale) {
-    appendInfoBlock(
-      evaluationCall,
-      'Judge Overview',
-      rationale.overview
-    );
-    appendInfoBlock(
-      evaluationCall,
-      'Next Action',
-      rationale.next_action
-    );
-
-    const riskLines = (rationale.risk_flags || []).map((flag) => [
-      flag.severity.toUpperCase(),
-      flag.path || null,
-      flag.message
-    ].filter(Boolean).join(' • '));
-    appendListBlock(
-      evaluationCall,
-      'Risk Flags',
-      riskLines,
-      'No major deterministic risks flagged.'
-    );
-  }
-
-  const finalists = evaluation?.decision?.finalists || overview?.finalists || [];
-  appendListBlock(
-    evaluationCall,
-    'Finalists',
-    finalists.map((finalist) => `${finalist.label} • ${finalist.score}/100`),
-    'No finalists yet.'
-  );
-}
-
-function renderComparisonView(comparison) {
-  comparisonView.innerHTML = '';
-  if (!comparison) {
-    appendInfoBlock(comparisonView, 'Decision', 'No comparison view is available yet.');
-    return;
-  }
-  const mergeView = state.taskDetail?.merge_view || null;
-  const publication = state.taskDetail?.publication_view || mergeView?.publication || null;
-  const blindReview = comparison.blind_review || null;
-  const composerPlan = comparison.composer_plan || null;
-  const agentBlindReviews = comparison.agent_blind_reviews || [];
-
-  appendInfoBlock(
-    comparisonView,
-    'Decision',
-    comparison.decision?.summary || 'No evaluator decision is available yet.'
-  );
-  appendInfoBlock(
-    comparisonView,
-    'Synthesis Guidance',
-    comparison.decision?.synthesis_summary || 'Synthesis guidance is not available yet.'
-  );
-
-  if (comparison.judge_rationale) {
-    appendInfoBlock(
-      comparisonView,
-      'Judge Overview',
-      comparison.judge_rationale.overview
-    );
-    appendInfoBlock(
-      comparisonView,
-      'Next Action',
-      comparison.judge_rationale.next_action
-    );
-    appendListBlock(
-      comparisonView,
-      'Top Strengths',
-      (comparison.judge_rationale.strengths || []).map((strength) => (
-        `${strength.label}: ${strength.candidate_label} • ${strength.reason}`
-      )),
-      'No deterministic strengths are available yet.'
-    );
-  }
-
-  if (blindReview) {
-    appendInfoBlock(
-      comparisonView,
-      'Blind Review',
-      [
-        blindReview.decision?.mode || 'pending',
-        blindReview.decision?.confidence ? `confidence ${blindReview.decision.confidence}` : null,
-        blindReview.decision?.winner?.label || null
-      ].filter(Boolean).join(' • ')
-    );
-    appendInfoBlock(
-      comparisonView,
-      'Blind Overview',
-      blindReview.guidance?.overview || 'No blind review packet is available yet.'
-    );
-  }
-
-  if (composerPlan) {
-    appendInfoBlock(
-      comparisonView,
-      'Composer Plan',
-      [
-        composerPlan.mode,
-        composerPlan.confidence ? `confidence ${composerPlan.confidence}` : null,
-        composerPlan.review_required ? 'human review required' : 'review optional'
-      ].filter(Boolean).join(' • ')
-    );
-  }
-
-  if (agentBlindReviews.length > 0) {
-    appendListBlock(
-      comparisonView,
-      'Agent Blind Reviews',
-      agentBlindReviews.map((review) => (
-        [
-          review.provider,
-          review.status,
-          review.recommendation?.recommended_mode || null,
-          review.recommendation?.confidence ? `confidence ${review.recommendation.confidence}` : null
-        ].filter(Boolean).join(' • ')
-      )),
-      'No blind agent review has been run yet.'
-    );
-  }
-
-  if (mergeView?.synthesis_summary) {
-    appendInfoBlock(
-      comparisonView,
-      'Synthesized Diff Summary',
-      [
-        `${mergeView.synthesis_summary.strategy} • ${mergeView.synthesis_summary.status}`,
-        `${mergeView.synthesis_summary.changed_file_count} files`,
-        `${mergeView.synthesis_summary.changed_line_count} lines`,
-        `verification ${mergeView.synthesis_summary.verification_status}`,
-        mergeView.synthesis_summary.jj_change_id ? `jj ${shortId(mergeView.synthesis_summary.jj_change_id)}` : null
-      ].filter(Boolean).join(' • ')
-    );
-  }
-
-  if (publication || mergeView?.publication_readiness) {
-    appendInfoBlock(
-      comparisonView,
-      'Publication',
-      [
-        publication?.status || mergeView?.publication_readiness?.status,
-        publication?.summary || mergeView?.publication_readiness?.summary
-      ].filter(Boolean).join(' • ')
-    );
-    if (publication?.target_branch_or_bookmark) {
-      appendInfoBlock(
-        comparisonView,
-        'Publish Target',
-        [
-          publication.target_remote || 'origin',
-          publication.target_branch_or_bookmark
-        ].join(' • ')
-      );
-    }
-    if (publication?.published_ref || publication?.push_error) {
-      appendInfoBlock(
-        comparisonView,
-        'Push Result',
-        [
-          publication.published_ref || null,
-          publication.push_error ? `error ${publication.push_error}` : null
-        ].filter(Boolean).join(' • ')
-      );
-    }
-  }
-
-  if (comparison.merge_plan) {
-    appendInfoBlock(
-      comparisonView,
-      'Merge Plan',
-      [
-        comparison.merge_plan.base_candidate_label ? `base ${comparison.merge_plan.base_candidate_label}` : null,
-        comparison.merge_plan.mode,
-        `confidence ${comparison.merge_plan.confidence}`,
-        comparison.merge_plan.unresolved_conflicts?.length
-          ? `${comparison.merge_plan.unresolved_conflicts.length} contested file${comparison.merge_plan.unresolved_conflicts.length === 1 ? '' : 's'}`
-          : 'no unresolved conflicts'
-      ].filter(Boolean).join(' • ')
-    );
-    appendInfoBlock(
-      comparisonView,
-      'Plan Rationale',
-      comparison.merge_plan.rationale
-    );
-  }
-
-  if (comparison.judge_rationale?.unresolved_conflicts?.length) {
-    appendListBlock(
-      comparisonView,
-      'Unresolved Conflicts',
-      comparison.judge_rationale.unresolved_conflicts.map((conflict) => (
-        `${conflict.path} • ${conflict.reason} • ${conflict.contender_labels.join(', ')}`
-      )),
-      'No unresolved conflicts.'
-    );
-  }
-
-  const contributionEntries = Object.entries(comparison.contribution_map || {})
-    .filter(([, label]) => label)
-    .map(([key, label]) => `${humanizeContributionKey(key)}: ${label}`);
-  appendListBlock(comparisonView, 'Contribution Map', contributionEntries, 'No contribution map yet.');
-
-  const compareButtonBlock = document.createElement('div');
-  compareButtonBlock.className = 'info-block';
-  const compareButtonTitle = document.createElement('h4');
-  compareButtonTitle.textContent = 'Dedicated Compare Workspace';
-  const compareButtonBody = document.createElement('p');
-  compareButtonBody.textContent = 'Open the full compare page for candidate patches, synthesized diffs, per-file provenance, and finalization controls.';
-  const compareButton = document.createElement('button');
-  compareButton.className = 'ghost-button';
-  compareButton.textContent = 'Open Compare Workspace';
-  compareButton.textContent = 'Open Compare Diffs';
-  compareButton.addEventListener('click', () => {
-    window.location.href = buildCompareUrl(state.selectedTaskId);
-  });
-  compareButtonBlock.append(compareButtonTitle, compareButtonBody, compareButton);
-  comparisonView.appendChild(compareButtonBlock);
-
-  if ((comparison.rows || []).length === 0) {
-    appendInfoBlock(comparisonView, 'Candidates', 'No candidate artifacts are available yet.');
-    return;
-  }
-
-  const list = document.createElement('div');
-  list.className = 'comparison-list';
-  for (const row of comparison.rows) {
-    const article = document.createElement('article');
-    article.className = 'comparison-row';
-
-    const header = document.createElement('div');
-    header.className = 'candidate-header';
-    const label = document.createElement('strong');
-    label.textContent = row.label;
-    const status = document.createElement('span');
-    status.textContent = row.score != null ? `${row.score}/100` : formatStatusBadge(row.status);
-    status.className = `candidate-status ${stateClass(row.eligible ? 'valid' : row.verification_status)}`;
-    header.append(label, status);
-
-    const meta = document.createElement('p');
-    meta.className = 'comparison-meta';
-    meta.textContent = [
-      row.eligible ? 'eligible' : row.verification_status,
-      `${row.changed_file_count} files`,
-      `${row.total_changed_lines} lines`,
-      row.jj_change_id ? `jj ${shortId(row.jj_change_id)}` : 'jj pending'
-    ].join(' • ');
-
-    const files = document.createElement('p');
-    files.className = 'comparison-files';
-    files.textContent = row.changed_files.length
-      ? `Files: ${row.changed_files.join(', ')}`
-      : 'Files: no captured diff yet.';
-
-    const summary = document.createElement('p');
-    summary.className = 'comparison-summary';
-    summary.textContent = row.summary;
-
-    const actions = document.createElement('div');
-    actions.className = 'task-chip-row';
-    const diffButton = document.createElement('button');
-    diffButton.className = 'ghost-button';
-    diffButton.textContent = 'Open Compare';
-    diffButton.addEventListener('click', async () => {
-      window.location.href = buildCompareUrl(state.selectedTaskId, row.candidate_id);
-    });
-    actions.appendChild(diffButton);
-
-    article.append(header, meta, files, summary, actions);
-    list.appendChild(article);
-  }
-  comparisonView.appendChild(list);
 }
 
 function renderSessions() {
@@ -1262,7 +966,7 @@ function buildCompareUrl(taskId, candidateId = null) {
   if (candidateId) {
     params.set('candidate', candidateId);
   }
-  return `/compare.html?${params.toString()}`;
+  return `/review.html?${params.toString()}`;
 }
 
 function buildOperatorUrl(taskId = null) {
@@ -1271,7 +975,7 @@ function buildOperatorUrl(taskId = null) {
     params.set('task', taskId);
   }
   const query = params.toString();
-  return query ? `/operator.html?${query}` : '/operator.html';
+  return query ? `/tasks.html?${query}` : '/tasks.html';
 }
 
 function buildDocsUrl(taskId = null) {
@@ -1321,6 +1025,51 @@ function setRunControlsBusy(isBusy, dryRun) {
   prepareButton.textContent = isBusy ? 'Preparing…' : 'Prepare Run';
   runButton.textContent = isBusy && dryRun ? 'Previewing…' : 'Preview Commands';
   runLiveButton.textContent = isBusy && !dryRun ? 'Running…' : 'Run Live';
+}
+
+async function openLocalTestingTarget(targetId) {
+  try {
+    const response = await fetch(`/api/tasks/${encodeURIComponent(state.selectedTaskId)}/local-testing/open`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target_id: targetId })
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload.error || 'local_testing_open_failed');
+    }
+    showToast({
+      title: payload.launched ? 'Workspace opened' : 'Workspace command prepared',
+      lines: [
+        payload.target?.label || targetId,
+        payload.target?.workspace_path || null,
+        payload.launcher?.human_command || payload.message || null
+      ].filter(Boolean)
+    });
+  } catch (error) {
+    showToast({
+      title: 'Workspace open failed',
+      lines: [error.message || String(error)],
+      tone: 'danger'
+    });
+  }
+}
+
+async function copyLocalTestingCommands(target) {
+  const commands = target?.validation_commands || [];
+  if (commands.length === 0) {
+    showToast({
+      title: 'No validation commands',
+      lines: ['This target does not have persisted verification commands yet.'],
+      tone: 'warn'
+    });
+    return;
+  }
+  await navigator.clipboard?.writeText(commands.join('\n'));
+  showToast({
+    title: 'Validation commands copied',
+    lines: commands
+  });
 }
 
 function setRunButtonsDisabled(disablePrepare, disablePreview, disableLive) {
@@ -1605,29 +1354,10 @@ function humanizeProvider(provider) {
   }
 }
 
-function humanizeContributionKey(key) {
-  switch (key) {
-    case 'top_score':
-      return 'Top score';
-    case 'smallest_patch':
-      return 'Smallest patch';
-    case 'narrowest_scope':
-      return 'Narrowest scope';
-    case 'best_path_discipline':
-      return 'Best path discipline';
-    default:
-      return key.replace(/_/g, ' ');
-  }
-}
-
-function shortId(value) {
-  return value ? value.slice(0, 12) : '';
-}
-
 function displaySourceSystem(value) {
   switch (value) {
-    case 'symphony':
-      return 'Imported card';
+    case 'imported':
+      return 'Imported task';
     case 'manual':
       return 'Manual task';
     default:
@@ -1637,6 +1367,12 @@ function displaySourceSystem(value) {
 
 function displayState(value) {
   return String(value || 'unknown').replace(/_/g, ' ');
+}
+
+function formatValidationMessages(entries) {
+  return (entries || []).map((entry) => (
+    typeof entry === 'string' ? entry : entry?.message || JSON.stringify(entry)
+  ));
 }
 
 function formatStatusBadge(value, { provider = null } = {}) {
