@@ -84,6 +84,7 @@ Core planning docs:
 - `docs/EVAL_PROJECT_CATALOG.md`
 - `docs/RUNTIME_AND_AUTH_ARCHITECTURE.md`
 - `docs/JJ_AND_EVALUATION.md`
+- `docs/PUBLICATION_FLOW_PLAN.md`
 - `docs/TWO_WEEK_BUILD_ORDER.md`
 - `docs/MILESTONE_CHECKLIST.md`
 - `docs/SYMPHONY_FORK_VS_BUILD_FRESH.md`

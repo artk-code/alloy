@@ -137,6 +137,8 @@ That is enough to prove the orchestration, verification, artifact, and conservat
    - explicit human approval
    - branch/bookmark push
    - later PR creation
+   - detailed method plan:
+     - [PUBLICATION_FLOW_PLAN.md](/Users/codex/stack-judge/docs/PUBLICATION_FLOW_PLAN.md)
 2. Add a blind judge/composer layer on top of deterministic evaluation for close-call synthesis decisions.
 3. Add a local candidate/synthesis testing flow so operators can open or run a chosen workspace without hunting through artifacts.
 4. Add broader smoke/algorithm cards so the board covers fast runner checks as well as richer synthesis demos.

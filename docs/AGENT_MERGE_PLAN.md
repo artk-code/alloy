@@ -23,6 +23,8 @@ The current implementation priorities should be:
    - explicit human approval
    - branch or bookmark push
    - later PR creation
+   - detailed method plan:
+     - [PUBLICATION_FLOW_PLAN.md](/Users/codex/stack-judge/docs/PUBLICATION_FLOW_PLAN.md)
 
 2. Blind judge/composer on top of deterministic gates
    - deterministic evaluation stays the gatekeeper
@@ -379,6 +381,8 @@ This is the practical build order from the current shipped state:
      - approval gate
      - blocker model
      - branch/bookmark target metadata
+   - see:
+     - [PUBLICATION_FLOW_PLAN.md](/Users/codex/stack-judge/docs/PUBLICATION_FLOW_PLAN.md)
 
 2. Blind judge/composer
    - Highest product differentiation after publication readiness.

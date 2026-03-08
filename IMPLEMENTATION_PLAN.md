@@ -18,6 +18,7 @@ Related design docs:
 - `docs/AUTH_AND_LOGIN.md` for CLI-first provider authentication handling and the GUI login-repair flow
 - `docs/RUNTIME_AND_AUTH_ARCHITECTURE.md` for provider login state, session orchestration, PTY usage, and GUI/API runtime control
 - `docs/JJ_AND_EVALUATION.md` for the currently implemented `jj` bootstrap flow, candidate patch capture, deterministic scorecard, and winner/synthesize decision output
+- `docs/PUBLICATION_FLOW_PLAN.md` for the next-step publication preview, approval, and push-preparation workflow
 - `docs/TWO_WEEK_BUILD_ORDER.md` for the concrete 10-working-day demo build sequence
 - `docs/MILESTONE_CHECKLIST.md` for execution checklists across the first Alloy milestones
 - `docs/SYMPHONY_FORK_VS_BUILD_FRESH.md` for the decision split between reusing Symphony and building Alloy-native systems

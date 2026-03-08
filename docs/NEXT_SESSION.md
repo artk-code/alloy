@@ -9,6 +9,7 @@ Purpose: Give the next compact-session agent an accurate starting point from the
 2. [AGENT_MERGE_PLAN.md](/Users/codex/stack-judge/docs/AGENT_MERGE_PLAN.md)
 3. [OPERATOR_GUIDE.md](/Users/codex/stack-judge/docs/OPERATOR_GUIDE.md)
 4. [README.md](/Users/codex/stack-judge/README.md)
+5. [PUBLICATION_FLOW_PLAN.md](/Users/codex/stack-judge/docs/PUBLICATION_FLOW_PLAN.md)
 
 ## Current Pushed Baseline
 
@@ -116,6 +117,9 @@ After manual verification of the current pushed build, the next priorities shoul
 
 Turn publication readiness into a real operator decision flow without pretending PR publishing is already automatic.
 
+Detailed method plan:
+- [PUBLICATION_FLOW_PLAN.md](/Users/codex/stack-judge/docs/PUBLICATION_FLOW_PLAN.md)
+
 ### Concrete Steps
 
 1. Add a dedicated publication panel to `Compare Diffs`
@@ -213,6 +217,8 @@ Use this order unless a blocking regression is found:
      - `publish_blockers`
      - explicit human approval capture
      - local publish preview
+   - detailed method plan:
+     - [PUBLICATION_FLOW_PLAN.md](/Users/codex/stack-judge/docs/PUBLICATION_FLOW_PLAN.md)
 
 2. Blind judge/composer
    - After publication readiness, the next differentiator is better close-call synthesis.
